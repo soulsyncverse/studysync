@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#a78bfa" />
+  <meta name="description" content="StudySync — AI-powered study companion for UPSC, UPPCS, NDA, CDS and CAPF aspirants. Pomodoro timer, streak tracker, AI assistant, friend circles and more." />
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="StudySync — Your Study Companion" />
+  <meta property="og:description" content="AI-powered study app for UPSC, UPPCS, NDA, CDS aspirants. Free 7-day trial." />
+  <meta property="og:image" content="/icons/icon-512.png" />
+  <meta property="og:type" content="website" />
+
+  <!-- Fonts preload -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <title>StudySync</title>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #08080f;
+      font-family: 'DM Sans', 'Segoe UI', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+    #root { min-height: 100vh; }
+    /* Prevent iOS bounce */
+    html, body { height: 100%; overflow-x: hidden; }
+  </style>
+</head>
+<body>
+  <noscript>You need to enable JavaScript to run StudySync.</noscript>
+  <div id="root"></div>
+</body>
+</html>
