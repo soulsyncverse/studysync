@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-if (checkingAuth) return null; // or splash screen
+
 
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
@@ -945,7 +945,9 @@ export default function App(){
   });
 return () => unsub();
 }, []);
-
+if (checkingAuth) {
+  return null;
+}
    // changes end 
   const [isPro,setIsPro]=useState(false);
   const [proOpen,setProOpen]=useState(false);
