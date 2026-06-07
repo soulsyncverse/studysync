@@ -59,7 +59,7 @@ async function callAI(prompt,system="You are a helpful UPSC study assistant."){
     const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:prompt}],system,max_tokens:500})});
     if(!r.ok)throw new Error();
     const d=await r.json();return d.content?.[0]?.text||"Could not generate.";
-  }catch{return "AI unavailable in demo mode. Add your API key in Vercel settings to enable.";}
+  }catch{return "AI is currently unavailable. Please check your API configuration.";}
 }
 
 // ── LOGO ──────────────────────────────────────────────────────
@@ -757,7 +757,395 @@ function Syllabus({t,subjects,customSubjects,user}){
 }
 
 // ── CIRCLE ────────────────────────────────────────────────────
-function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak,onLogout}){
+// QR code generator (uses free API, no npm needed)
+function QRCode({value,size=140}){
+  const url=`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&bgcolor=ffffff&color=000000&margin=4`;
+  return <img src={url} alt="QR Code" style={{borderRadius:10,display:"block"}}/>;
+}
+
+function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak}){
+  const [tab,setTab]=useState("public");
+  const [myGroups,setMyGroups]=useState([]);
+  const [showCreate,setShowCreate]=useState(false);
+  const [grpName,setGrpName]=useState("");
+  const [myFriends,setMyFriends]=useState([]);
+  const [showAddFriend,setShowAddFriend]=useState(false);
+  const [friendCode,setFriendCode]=useState("");
+  const [addStatus,setAddStatus]=useState("");
+  const [addMsg,setAddMsg]=useState("");
+  const [addMemberGrpId,setAddMemberGrpId]=useState(null);
+  const [addMemberSel,setAddMemberSel]=useState("");
+  const [addMemberStatus,setAddMemberStatus]=useState("");
+  const [grpQrId,setGrpQrId]=useState(null); // group id whose QR is shown
+  const [joinCode,setJoinCode]=useState("");
+  const [joinStatus,setJoinStatus]=useState("");
+  const [joinMsg,setJoinMsg]=useState("");
+
+  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:38,s:streak,r:3},...[{name:"Sneha T.",av:"S",h:48,s:42,r:1},{name:"Priya M.",av:"P",h:42,s:38,r:2},{name:"Arjun S.",av:"A",h:35,s:31,r:4},{name:"Rohit K.",av:"R",h:28,s:25,r:5}]].sort((a,b)=>a.r-b.r);
+
+  // Friend code is stored in RTDB profile — deterministic from uid for backwards compat
+  const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
+  const myInviteLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
+
+  // Register my profile/friendCode in RTDB so others can look me up
+  useEffect(()=>{
+    if(!user?.uid)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),{
+          name:user.name||"",
+          email:user.email||"",
+          friendCode:myFriendCode,
+          uid:user.uid,
+          online:true,
+          lastSeen:Date.now(),
+        });
+      }catch(e){}
+    })();
+  },[user?.uid]);
+
+  // RTDB: groups
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/groups`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const arr=Object.entries(snap.val()).map(([id,g])=>({...g,id,members:g.members?Object.values(g.members):[]}));
+            setMyGroups(arr);
+          } else setMyGroups([]);
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // RTDB: friends
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/friends`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()) setMyFriends(Object.entries(snap.val()).map(([id,f])=>({...f,id})));
+          else setMyFriends([]);
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // ── Add friend with full validation + mutual write ──
+  const addFriendByCode=async()=>{
+    const code=friendCode.trim().toUpperCase();
+    if(!code||!user?.uid){setAddStatus("error");setAddMsg("Enter a valid code.");return;}
+    if(code===myFriendCode){setAddStatus("error");setAddMsg("That's your own code!");return;}
+    const alreadyAdded=myFriends.some(f=>f.friendCode===code||f.uid===code);
+    if(alreadyAdded){setAddStatus("error");setAddMsg("Already friends!");return;}
+    setAddStatus("loading");setAddMsg("Looking up user…");
+    try{
+      const mod=await import("./firebase");
+      // Scan all user profiles for this friendCode
+      const usersSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"users"),(s)=>{res(s);},{onlyOnce:true}));
+      if(!usersSnap.exists()){setAddStatus("error");setAddMsg("No users found.");return;}
+      let targetUser=null;
+      Object.entries(usersSnap.val()).forEach(([uid,data])=>{
+        if(data?.profile?.friendCode===code) targetUser={uid,...data.profile};
+      });
+      if(!targetUser){setAddStatus("error");setAddMsg("Code not found. Check and try again.");return;}
+      // Write to my friends
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUser.uid}`),{
+        uid:targetUser.uid,name:targetUser.name||targetUser.displayName||"Friend",
+        email:targetUser.email||"",friendCode:code,streak:0,online:false,addedAt:Date.now()
+      });
+      // Write to their friends (mutual)
+      await mod.set(mod.ref(mod.db,`users/${targetUser.uid}/friends/${user.uid}`),{
+        uid:user.uid,name:user.name||"",email:user.email||"",
+        friendCode:myFriendCode,streak,online:true,addedAt:Date.now()
+      });
+      setFriendCode("");setAddStatus("done");setAddMsg(`✓ ${targetUser.name||"Friend"} added!`);
+      setTimeout(()=>{setAddStatus("");setAddMsg("");setShowAddFriend(false);},1800);
+    }catch(e){setAddStatus("error");setAddMsg("Something went wrong. Try again.");}
+  };
+
+  const removeFriend=async(fId)=>{
+    if(!user?.uid)return;
+    const friend=myFriends.find(f=>f.id===fId);
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/friends/${fId}`));
+      // Remove mutual
+      if(friend?.uid) await mod.remove(mod.ref(mod.db,`users/${friend.uid}/friends/${user.uid}`));
+    }catch(e){}
+  };
+
+  // ── Groups ──
+  const createGroup=async()=>{
+    if(!grpName.trim())return;
+    const gid=`grp_${Date.now()}`;
+    const code=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
+    const joinLink=`https://studysync-4cvf.vercel.app/join-group?code=${code}`;
+    setGrpName("");setShowCreate(false);
+    if(user?.uid){
+      try{
+        const mod=await import("./firebase");
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}`),{
+          name:grpName,code,joinLink,creatorUid:user.uid,
+          createdAt:Date.now(),members:{m0:user?.name||"You"}
+        });
+        // Also register group globally so others can find it by code
+        await mod.set(mod.ref(mod.db,`groups/${gid}`),{name:grpName,code,creatorUid:user.uid,active:true});
+      }catch(e){}
+    }
+  };
+
+  const deleteGroup=async(gId,gCode)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));
+      // Find and remove from global groups
+      const globalSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"groups"),(s)=>{res(s);},{onlyOnce:true}));
+      if(globalSnap.exists()){
+        Object.entries(globalSnap.val()).forEach(async([id,g])=>{
+          if(g.code===gCode) await mod.remove(mod.ref(mod.db,`groups/${id}`));
+        });
+      }
+    }catch(e){}
+  };
+
+  // Add member from friends dropdown or any name
+  const addMemberToGroup=async(gId)=>{
+    const memberName=addMemberSel.trim();
+    if(!memberName)return;
+    setAddMemberStatus("loading");
+    try{
+      const mod=await import("./firebase");
+      const membersRef=mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members`);
+      const snap=await new Promise(res=>mod.onValue(membersRef,(s)=>{res(s);},{onlyOnce:true}));
+      const existing=snap.exists()?Object.values(snap.val()):[];
+      if(existing.includes(memberName)){setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;}
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members/m${Date.now()}`),memberName);
+      setAddMemberSel("");setAddMemberStatus("done");
+      setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
+    }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
+  };
+
+  // Join group by code
+  const joinGroupByCode=async()=>{
+    const code=joinCode.trim().toUpperCase();
+    if(!code){setJoinStatus("error");setJoinMsg("Enter a group code.");return;}
+    setJoinStatus("loading");setJoinMsg("Looking up group…");
+    try{
+      const mod=await import("./firebase");
+      // Search my existing groups
+      const alreadyIn=myGroups.some(g=>g.code===code);
+      if(alreadyIn){setJoinStatus("error");setJoinMsg("You're already in this group.");return;}
+      // Search user groups globally
+      const usersSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"users"),(s)=>{res(s);},{onlyOnce:true}));
+      let foundGroup=null,foundOwnerUid=null,foundGrpId=null;
+      if(usersSnap.exists()){
+        Object.entries(usersSnap.val()).forEach(([uid,udata])=>{
+          if(udata?.groups&&!foundGroup){
+            Object.entries(udata.groups).forEach(([gid,g])=>{
+              if(g.code===code){foundGroup=g;foundOwnerUid=uid;foundGrpId=gid;}
+            });
+          }
+        });
+      }
+      if(!foundGroup){setJoinStatus("error");setJoinMsg("Group not found. Check the code.");return;}
+      // Add yourself to owner's group members
+      await mod.set(mod.ref(mod.db,`users/${foundOwnerUid}/groups/${foundGrpId}/members/m${Date.now()}`),user?.name||"You");
+      // Also save a copy in your own groups
+      const myGid=`grp_joined_${Date.now()}`;
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${myGid}`),{
+        ...foundGroup,id:myGid,joinedAs:"member",ownerUid:foundOwnerUid,
+        members:foundGroup.members?Object.values(foundGroup.members):[]
+      });
+      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Joined "${foundGroup.name}"!`);
+      setTimeout(()=>{setJoinStatus("");setJoinMsg("");},2000);
+    }catch(e){setJoinStatus("error");setJoinMsg("Error joining group. Try again.");}
+  };
+
+  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+    {/* Group QR modal */}
+    {grpQrId&&(()=>{const g=myGroups.find(x=>x.id===grpQrId);return g?(
+      <div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}} onClick={()=>setGrpQrId(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:"1px solid rgba(129,140,248,0.25)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
+          <div style={{fontWeight:800,fontSize:14,color:t.text,marginBottom:3}}>{g.name}</div>
+          <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Scan to join this group</div>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:10}}>
+            <QRCode value={g.joinLink||`https://studysync-4cvf.vercel.app/join-group?code=${g.code}`} size={140}/>
+          </div>
+          <div style={{background:t.pill,borderRadius:8,padding:"7px 10px",marginBottom:10}}>
+            <div style={{color:t.muted,fontSize:8,marginBottom:2}}>Group Code</div>
+            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2}}>{g.code}</div>
+          </div>
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={()=>navigator.clipboard?.writeText(g.joinLink||g.code).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Link</button>
+            <button onClick={()=>setGrpQrId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+          </div>
+        </div>
+      </div>
+    ):null;})()}
+
+    {/* Tab bar */}
+    <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
+      {[["public","🌍 Public"],["friends","👥 Friends"],["groups","🏫 Groups"],["live","👁 Live"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
+    </div>
+
+    {/* PUBLIC */}
+    {tab==="public"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{PUBLIC_CIRCLE.length} aspirants · Real-time streak board</div></div></div>
+      <div style={{background:`${t.a4}10`,border:`1.5px solid ${t.a4}38`,borderRadius:10,padding:"9px 10px",display:"flex",alignItems:"center",gap:8}}>
+        <Av c={(user?.name||"K")[0].toUpperCase()} sz={32}/>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
+        <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
+      </div>
+      {PUBLIC_CIRCLE.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+        <div style={{fontSize:9,color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
+        <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.studying?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{f.studying?`📖 ${f.subj}`:"Offline"} · {f.city}</div></div>
+        <div style={{color:t.a1,fontWeight:800,fontSize:11}}>🔥 {f.streak}</div>
+      </div>)}
+    </div>}
+
+    {/* FRIENDS */}
+    {tab==="friends"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {/* My code */}
+      <div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"11px 12px"}}>
+        <div style={{color:t.sub,fontSize:9,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code</div>
+        <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2,marginBottom:7}}>{myFriendCode}</div>
+        <div style={{display:"flex",gap:5}}>
+          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Code</button>
+          <button onClick={()=>navigator.clipboard?.writeText(myInviteLink).catch(()=>{})} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🔗 Share Link</button>
+        </div>
+      </div>
+
+      {/* Add friend */}
+      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Add Friend</button>
+      {showAddFriend&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"11px"}}>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Add by Friend Code</div>
+        <input value={friendCode} onChange={e=>setFriendCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&addFriendByCode()} placeholder="SYNC-XXXXXXXX" style={{width:"100%",background:t.input,border:`1px solid ${addStatus==="error"?"#FF6B6B":addStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:addMsg?4:7,letterSpacing:1}}/>
+        {addMsg&&<div style={{fontSize:10,color:addStatus==="error"?"#FF6B6B":"#34d399",marginBottom:7,fontWeight:600}}>{addMsg}</div>}
+        <div style={{display:"flex",gap:5}}>
+          <button onClick={addFriendByCode} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+            {addStatus==="loading"?"Searching…":addStatus==="done"?"✓ Added!":addStatus==="error"?"✗ Try Again":"Add Friend"}
+          </button>
+          <button onClick={()=>{setShowAddFriend(false);setFriendCode("");setAddStatus("");setAddMsg("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        </div>
+        <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
+      </div>}
+
+      {myFriends.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
+      {myFriends.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
+        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}>
+          <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
+          <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
+            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+            <span style={{color:f.online?t.a3:t.sub,fontSize:9}}>{f.online?"● Live":"○ Offline"}</span>
+          </div>
+        </div>
+        <button onClick={()=>removeFriend(f.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
+      </div>)}
+    </div>}
+
+    {/* GROUPS */}
+    {tab==="groups"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
+      <button onClick={()=>setShowCreate(v=>!v)} style={{background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:10,padding:"9px 12px",color:"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Create New Group</button>
+      {showCreate&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>New Study Group</div>
+        <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group name…" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
+        <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
+      </div>}
+
+      {/* Join by code */}
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Join a Group by Code</div>
+        <div style={{display:"flex",gap:5}}>
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGroupByCode()} placeholder="GRP-XXX-0000" style={{flex:1,background:t.input,border:`1px solid ${joinStatus==="error"?"#FF6B6B":joinStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",letterSpacing:1}}/>
+          <button onClick={joinGroupByCode} disabled={joinStatus==="loading"} style={{background:joinStatus==="done"?"#34d399":joinStatus==="error"?"rgba(255,107,107,0.15)":"#818cf8",border:joinStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px 11px",color:joinStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+            {joinStatus==="loading"?"…":joinStatus==="done"?"✓":"Join"}
+          </button>
+        </div>
+        {joinMsg&&<div style={{fontSize:10,color:joinStatus==="error"?"#FF6B6B":"#34d399",marginTop:5,fontWeight:600}}>{joinMsg}</div>}
+      </div>
+
+      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"14px 0"}}>No groups yet. Create one above or join via code!</div>}
+      {myGroups.map(g=><div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+          <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
+          <div style={{display:"flex",gap:4}}>
+            <button onClick={()=>setGrpQrId(g.id)} title="QR Code" style={{background:"rgba(129,140,248,0.1)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:8,padding:"4px 7px",color:"#818cf8",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>QR</button>
+            <button onClick={()=>deleteGroup(g.id,g.code)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+          </div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=><div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
+        {/* Add member — friends dropdown + free text */}
+        {addMemberGrpId===g.id?(
+          <div style={{marginBottom:7}}>
+            {myFriends.length>0&&<select value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontFamily:"inherit",fontSize:10,marginBottom:5,cursor:"pointer"}}>
+              <option value="">— Select a friend or type below —</option>
+              {myFriends.filter(f=>!g.members.includes(f.name)).map(f=><option key={f.id} value={f.name}>{f.name}</option>)}
+            </select>}
+            <div style={{display:"flex",gap:5}}>
+              <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={()=>addMemberToGroup(g.id)} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+                {addMemberStatus==="loading"?"…":addMemberStatus==="done"?"✓":addMemberStatus==="error"?"✗":addMemberStatus==="exists"?"Exists!":"Add"}
+              </button>
+              <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+            </div>
+          </div>
+        ):(
+          <button onClick={()=>{setAddMemberGrpId(g.id);setAddMemberSel("");setAddMemberStatus("");}} style={{width:"100%",background:`${t.a3}10`,border:`1px solid ${t.a3}28`,borderRadius:8,padding:"5px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>+ Add Member</button>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}>
+          <div style={{color:t.muted,fontSize:9}}>Code:</div>
+          <div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div>
+          <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:9,fontFamily:"inherit",fontWeight:700}}>QR 📱</button>
+          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button>
+        </div>
+      </div>)}
+    </div>}
+
+    {/* LIVE */}
+    {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
+      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriends].map(f=><div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}>
+          <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
+          <div style={{color:t.sub,fontSize:9}}>{f.online?`📖 ${f.subj||"Studying"}`:"Offline"}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+          {f.online&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
+        </div>
+      </div>)}
+      {myFriends.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
+    </div>}
+
+    {/* BOARD */}
+    {tab==="board"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a4,fontWeight:700}}>🏆 Weekly leaderboard — hours studied this week</div>
+      {LB.map(f=><div key={f.name} style={{display:"flex",alignItems:"center",gap:8,background:f.name===(user?.name||"You")?`${t.a4}07`:t.card,border:`1px solid ${f.name===(user?.name||"You")?t.a4+"28":t.border}`,borderRadius:10,padding:"9px 10px"}}>
+        <div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div>
+        <Av c={f.av} sz={30}/>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>🔥 {f.s} day streak</div></div>
+        <div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:13}}>{f.h}h</div><div style={{color:t.muted,fontSize:8}}>this week</div></div>
+      </div>)}
+    </div>}
+  </div>);
+}
   const [tab,setTab]=useState("public");
   const [myGroups,setMyGroups]=useState([]);
   const [showCreate,setShowCreate]=useState(false);
@@ -1076,10 +1464,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       </div>)}
     </div>}
 
-    {/* Logout button at bottom */}
-    <button onClick={onLogout} style={{marginTop:4,background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:11,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-      🚪 Log Out
-    </button>
   </div>);
 }
 
@@ -1213,19 +1597,104 @@ function Notes({t,subjects,customSubjects}){
 }
 
 // ── PROFILE ───────────────────────────────────────────────────
-function Profile({t,user,es,isPro,onPro,streak}){
+function Profile({t,user,setUser,es,isPro,onPro,streak,onLogout}){
   const days=dl(es.date);
   const badge=getBadge(streak);
-  const myFriendCode=user?.uid?`SYNC-${(user.name||"U").replace(/\s/g,"").toUpperCase().slice(0,4)}-${(Math.abs(user.uid.charCodeAt(0)*997+user.uid.charCodeAt(1)*13)%9000+1000)}`:"SYNC-XXXX-0000";
+  const [editingName,setEditingName]=useState(false);
+  const [nameVal,setNameVal]=useState(user?.name||"");
+  const [nameSaving,setNameSaving]=useState(false);
+  const [nameSaved,setNameSaved]=useState(false);
+  const [deleteStep,setDeleteStep]=useState(0); // 0=none,1=first confirm,2=second confirm,3=deleting
   const [codeCopied,setCodeCopied]=useState(false);
-  const copyCode=()=>{navigator.clipboard?.writeText(myFriendCode).catch(()=>{});setCodeCopied(true);setTimeout(()=>setCodeCopied(false),2000);};
+
+  const saveName=async()=>{
+    if(!nameVal.trim()||!user?.uid){setEditingName(false);return;}
+    setNameSaving(true);
+    try{
+      const mod=await import("./firebase");
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/profile/name`),nameVal.trim());
+      // Also update friendCode index
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/profile/displayName`),nameVal.trim());
+      setUser(u=>({...u,name:nameVal.trim()}));
+      setNameSaved(true);setTimeout(()=>setNameSaved(false),2000);
+    }catch(e){}
+    setNameSaving(false);setEditingName(false);
+  };
+
+  const doDeleteAccount=async()=>{
+    setDeleteStep(3);
+    try{
+      const mod=await import("./firebase");
+      const {getAuth}=await import("firebase/auth");
+      const auth=getAuth();
+      // Soft-delete: mark account deleted, preserve productivity data
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/profile/deleted`),true);
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/profile/deletedAt`),Date.now());
+      // Remove from friends of others
+      const friendsSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,`users/${user.uid}/friends`),(s)=>{res(s);},{onlyOnce:true}));
+      if(friendsSnap.exists()){
+        Object.keys(friendsSnap.val()).forEach(async(fUid)=>{
+          try{await mod.remove(mod.ref(mod.db,`users/${fUid}/friends/${user.uid}`));}catch{}
+        });
+      }
+      // Sign out Firebase auth
+      try{await auth.currentUser?.delete();}catch{}
+      onLogout();
+    }catch(e){setDeleteStep(0);}
+  };
+
   return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
+    {/* Delete confirmation modals */}
+    {deleteStep===1&&(
+      <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
+        <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
+          <div style={{color:t.text,fontWeight:800,fontSize:15,marginBottom:6}}>Delete Account?</div>
+          <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Are you sure you want to delete your account? Your productivity data will be preserved.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={()=>setDeleteStep(2)} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Continue</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {deleteStep===2&&(
+      <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
+        <div style={{background:t.bg,border:"2px solid rgba(255,107,107,0.4)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:8}}>🗑️</div>
+          <div style={{color:"#FF6B6B",fontWeight:900,fontSize:15,marginBottom:6}}>This cannot be undone</div>
+          <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Your account will be permanently deleted. Study logs and session history are retained separately.</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Go Back</button>
+            <button onClick={doDeleteAccount} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete Forever</button>
+          </div>
+        </div>
+      </div>
+    )}
+    {deleteStep===3&&(
+      <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(5px)"}}>
+        <div style={{color:t.text,fontSize:13,fontWeight:700}}>Deleting account…</div>
+      </div>
+    )}
+
+    {/* Avatar + name */}
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",width:130,height:65,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.09),transparent 70%)",pointerEvents:"none"}}/>
-      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22,color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name || user?.email || "U")[0].toUpperCase()}</div>
-      <div style={{fontSize:17,fontWeight:900,color:t.text}}>{user?.name || "User"}</div>
+      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22,color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name||user?.email||"U")[0].toUpperCase()}</div>
+      {/* Editable name */}
+      {editingName?(
+        <div style={{display:"flex",gap:5,alignItems:"center",justifyContent:"center",marginBottom:4}}>
+          <input autoFocus value={nameVal} onChange={e=>setNameVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditingName(false);}} style={{background:t.input,border:"1px solid #818cf8",borderRadius:8,padding:"5px 9px",color:t.text,fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",maxWidth:180}}/>
+          <button onClick={saveName} disabled={nameSaving} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"5px 9px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{nameSaving?"…":"Save"}</button>
+          <button onClick={()=>setEditingName(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+        </div>
+      ):(
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginBottom:2}}>
+          <div style={{fontSize:17,fontWeight:900,color:nameSaved?"#34d399":t.text,transition:"color .3s"}}>{user?.name||"User"}{nameSaved&&" ✓"}</div>
+          <button onClick={()=>{setNameVal(user?.name||"");setEditingName(true);}} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎ Edit</button>
+        </div>
+      )}
       <div style={{color:t.sub,fontSize:11,marginTop:2}}>{user?.email||user?.phone||"Competitive Exam Aspirant"}</div>
-      {/* Badge chip */}
       <div style={{display:"inline-flex",alignItems:"center",gap:5,background:`${badge.color}12`,border:`1px solid ${badge.color}28`,borderRadius:20,padding:"4px 12px",marginTop:7}}>
         <span style={{fontSize:14}}>{badge.icon}</span>
         <span style={{color:badge.color,fontWeight:800,fontSize:11}}>{badge.title}</span>
@@ -1234,25 +1703,26 @@ function Profile({t,user,es,isPro,onPro,streak}){
       {isPro?<div style={{display:"flex",justifyContent:"center",marginTop:6}}><div style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,rgba(129,140,248,0.13),rgba(52,211,153,0.13))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:13,padding:"3px 10px"}}><span style={{color:"#818cf8",fontWeight:800,fontSize:10}}>⚡ Premium Member</span></div></div>
       :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Try Free 7 Days</span></button>}
     </div>
+
+    {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:"142"},{l:"Hours",v:"38h"},{l:"Rank",v:"#3"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
-    {/* Friend Code Card */}
-    <div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"11px 13px"}}>
-      <div style={{color:t.sub,fontSize:9,marginBottom:5,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code · share so others can add you</div>
-      <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:18,letterSpacing:3,marginBottom:8}}>{myFriendCode}</div>
-      <button onClick={copyCode} style={{width:"100%",background:codeCopied?"rgba(52,211,153,0.15)":t.pill,border:`1px solid ${codeCopied?"rgba(52,211,153,0.3)":t.border}`,borderRadius:9,padding:"7px",color:codeCopied?"#34d399":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-        {codeCopied?"✓ Copied!":"📋 Copy Code"}
-      </button>
-    </div>
+
+    {/* Exam countdown */}
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
       <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{es.icon||"🎯"}</div>
       <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{es.name||"UPSC CSE Prelims"}</div><div style={{color:es.color||"#818cf8",fontSize:10,fontWeight:700,marginTop:1}}>{days} days remaining</div></div>
       <div style={{color:es.color||"#818cf8",fontSize:22,fontWeight:900}}>{days}</div>
     </div>
-    {/* Demo mode notice */}
-    <div style={{background:"rgba(255,184,107,0.08)",border:"1px solid rgba(255,184,107,0.22)",borderRadius:11,padding:"10px 12px"}}>
-      <div style={{color:t.a4,fontWeight:700,fontSize:11,marginBottom:3}}>🔧 Demo Mode Active</div>
-      <div style={{color:t.sub,fontSize:10,lineHeight:1.5}}>Login works in demo — no real authentication. To enable real Google/Phone OTP login, add Firebase credentials to Vercel environment variables. Contact your developer or follow the README.</div>
-    </div>
+
+    {/* Logout */}
+    <button onClick={onLogout} style={{background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:12,padding:"11px",color:"#FF6B6B",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+      🚪 Log Out
+    </button>
+
+    {/* Delete account */}
+    <button onClick={()=>setDeleteStep(1)} style={{background:"none",border:"none",color:t.muted,fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>
+      Delete Account
+    </button>
   </div>);
 }
 
@@ -1347,7 +1817,7 @@ return () => unsub();
 
   useEffect(()=>{
     if(!loggedIn)return;
-    const t1=setTimeout(()=>{if(ns.studyReminder)push({icon:"📖",title:`Good morning, ${user?.name?.split(" ")[0]||"Aspirant"}!`,body:`${es.name} — ${days} days to go. Start your Pomodoro! 🌅`,col:"#6EE7F7"});},2500);
+    const t1=setTimeout(()=>{if(ns.studyReminder)push({icon:"📖",title:`Hello, ${user?.name?.split(" ")[0]||"Aspirant"}!`,body:`${es.name} — ${days} days to go. Start your Pomodoro! 🌅`,col:"#6EE7F7"});},2500);
     const t2=setTimeout(()=>{if(ns.streakBreak)push({icon:"🔥",title:"Streak at risk!",body:`${streak}-day streak on the line! Study now 😬`,col:"#FF6B6B"});},8000);
     return()=>{clearTimeout(t1);clearTimeout(t2);};
   },[loggedIn,ns]);
@@ -1402,9 +1872,9 @@ return () => unsub();
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} onOpen={()=>setExOpen(true)} customSubjects={customSubjects}/>}
-      {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
+      {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es}/>}
-      {tab==="profile" &&<Profile   t={t} user={user} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak}/>}
+      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
       {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="Notes & Flashcards"  icon="📝" onPro={()=>setProOpen(true)}/>)}
