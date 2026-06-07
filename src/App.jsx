@@ -943,9 +943,7 @@ export default function App(){
   });
 return () => unsub();
 }, []);
-if (checkingAuth) {
-  return null;
-}
+
    // changes end 
   const [isPro,setIsPro]=useState(false);
   const [proOpen,setProOpen]=useState(false);
