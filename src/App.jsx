@@ -857,8 +857,8 @@ function Profile({t,user,es,isPro,onPro,streak}){
   return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",width:130,height:65,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.09),transparent 70%)",pointerEvents:"none"}}/>
-      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22,color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name||"K")[0].toUpperCase()}</div>
-      <div style={{fontSize:17,fontWeight:900,color:t.text}}>{user?.name || user?.email || "User"}</div>
+      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22,color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name || user?.email || "U")[0].toUpperCase()}</div>
+      <div style={{fontSize:17,fontWeight:900,color:t.text}}>{user?.name || "User"}</div>
       <div style={{color:t.sub,fontSize:11,marginTop:2}}>{user?.email||user?.phone||"Competitive Exam Aspirant"}</div>
       {/* Badge chip */}
       <div style={{display:"inline-flex",alignItems:"center",gap:5,background:`${badge.color}12`,border:`1px solid ${badge.color}28`,borderRadius:20,padding:"4px 12px",marginTop:7}}>
@@ -933,7 +933,12 @@ export default function App(){
 
   const unsub = onAuthStateChanged(auth, (user) => {
     if (user) {
-      setUser(user);
+      setUser({
+  name: user.displayName,
+  email: user.email,
+  uid: user.uid,
+  photoURL: user.photoURL
+});
       setLoggedIn(true);
     } else {
       setUser(null);
