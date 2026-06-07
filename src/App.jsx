@@ -850,17 +850,97 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       setAddMemberCode("");setAddMemberStatus("done");setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
   };
-  const addFriendByCode=async()=>{
-    if(!friendCode.trim())return;
-    setAddStatus("loading");
-    await new Promise(r=>setTimeout(r,800));
-    try{
-      const mod=await import("./firebase");
-      const newFriend={name:friendCode.trim(),code:friendCode.trim(),streak:0,online:false,subj:null,addedAt:Date.now()};
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/f_${Date.now()}`),newFriend);
-      setFriendCode("");setAddStatus("done");setTimeout(()=>{setAddStatus("");setShowAddFriend(false);},1200);
-    }catch(e){setAddStatus("error");setTimeout(()=>setAddStatus(""),1500);}
-  };
+  const addFriendByCode = async () => {
+  if (!friendCode.trim() || !user?.uid) return;
+
+  setAddStatus("loading");
+
+  try {
+    const mod = await import("./firebase");
+
+    const enteredCode = friendCode.trim().toUpperCase();
+    const myCode = `SYNC-${user.uid.slice(0,8).toUpperCase()}`;
+
+    if (enteredCode === myCode) {
+      setAddStatus("error");
+      setTimeout(() => setAddStatus(""), 1500);
+      return;
+    }
+
+    const usersSnap = await mod.get(
+      mod.ref(mod.db, "users")
+    );
+
+    if (!usersSnap.exists()) {
+      setAddStatus("error");
+      return;
+    }
+
+    let targetUser = null;
+
+    Object.entries(usersSnap.val()).forEach(([uid, data]) => {
+      if (data?.profile?.friendCode === enteredCode) {
+        targetUser = {
+          uid,
+          ...data.profile
+        };
+      }
+    });
+
+    if (!targetUser) {
+      setAddStatus("error");
+      setTimeout(() => setAddStatus(""), 1500);
+      return;
+    }
+
+    await mod.set(
+      mod.ref(
+        mod.db,
+        `users/${user.uid}/friends/${targetUser.uid}`
+      ),
+      {
+        uid: targetUser.uid,
+        name: targetUser.name,
+        email: targetUser.email || "",
+        photoURL: targetUser.photoURL || "",
+        code: enteredCode,
+        streak: 0,
+        online: false,
+        addedAt: Date.now()
+      }
+    );
+
+    await mod.set(
+      mod.ref(
+        mod.db,
+        `users/${targetUser.uid}/friends/${user.uid}`
+      ),
+      {
+        uid: user.uid,
+        name: user.name,
+        email: user.email || "",
+        photoURL: user.photoURL || "",
+        code: myCode,
+        streak: 0,
+        online: false,
+        addedAt: Date.now()
+      }
+    );
+
+    setFriendCode("");
+    setAddStatus("done");
+
+    setTimeout(() => {
+      setAddStatus("");
+      setShowAddFriend(false);
+    }, 1200);
+
+  } catch (e) {
+    console.error(e);
+    setAddStatus("error");
+    setTimeout(() => setAddStatus(""), 1500);
+  }
+};
   const removeFriend=async(fId)=>{
     if(!user?.uid)return;
     try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/friends/${fId}`));}catch(e){}
