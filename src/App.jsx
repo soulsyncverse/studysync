@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+if (checkingAuth) return null; // or splash screen
 
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
@@ -305,7 +306,7 @@ function Login({t,onLogin}){
           <div style={{display:"flex",gap:5,justifyContent:"center",marginBottom:12}}>
             {otp.map((v,i)=><input key={i} ref={el=>refs.current[i]=el} value={v} onChange={e=>chOtp(i,e.target.value)} onKeyDown={e=>e.key==="Backspace"&&!v&&i>0&&refs.current[i-1]?.focus()} maxLength={1} inputMode="numeric" style={{width:39,height:46,borderRadius:10,border:`2px solid ${v?"#818cf8":t.border}`,background:t.input,textAlign:"center",fontSize:20,fontWeight:800,color:t.text,fontFamily:"inherit",outline:"none",transition:"all .2s"}}/>)}
           </div>
-          <button onClick={()=>go(()=>onLogin({name:"Kartikeya",phone}))} disabled={loading||otp.join("").length<6} style={{width:"100%",background:otp.join("").length===6?"linear-gradient(135deg,#818cf8,#60a5fa)":t.pill,border:"none",borderRadius:11,padding:"10px",color:otp.join("").length===6?"#fff":t.sub,fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{loading?"Verifying…":"Verify & Sign In ✓"}</button>
+          <button onClick={()=>go(()=>onLogin({name: phone,phone: phone}))} disabled={loading||otp.join("").length<6} style={{width:"100%",background:otp.join("").length===6?"linear-gradient(135deg,#818cf8,#60a5fa)":t.pill,border:"none",borderRadius:11,padding:"10px",color:otp.join("").length===6?"#fff":t.sub,fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{loading?"Verifying…":"Verify & Sign In ✓"}</button>
         </>)}
       </div>
     </div>
@@ -928,7 +929,8 @@ export default function App(){
   const [loggedIn,setLoggedIn]=useState(false);
   const [user,setUser]=useState(null);
     //added changes for retaining login session
-    useEffect(() => {
+  const [checkingAuth, setCheckingAuth] = useState(true); 
+  useEffect(() => {
   const auth = getAuth();
 
   const unsub = onAuthStateChanged(auth, (user) => {
@@ -939,10 +941,12 @@ export default function App(){
       setUser(null);
       setLoggedIn(false);
     }
+    setCheckingAuth(false); // 👈 IMPORTANT
   });
-
-  return () => unsub();
+return () => unsub();
 }, []);
+
+   // changes end 
   const [isPro,setIsPro]=useState(false);
   const [proOpen,setProOpen]=useState(false);
   const [restoreOpen,setRestoreOpen]=useState(false);
