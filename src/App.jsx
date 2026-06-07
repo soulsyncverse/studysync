@@ -757,17 +757,27 @@ function Syllabus({t,subjects,customSubjects,user}){
 }
 
 // ── CIRCLE ────────────────────────────────────────────────────
-function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak}){
+function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak,onLogout}){
   const [tab,setTab]=useState("public");
   const [myGroups,setMyGroups]=useState([]);
   const [showCreate,setShowCreate]=useState(false);
   const [grpName,setGrpName]=useState("");
-  const [chat,setChat]=useState("");
-  const [msgs,setMsgs]=useState([{from:"Arjun",text:"Anyone done monetary policy?",time:"10:23 AM"},{from:"Priya",text:"Yes! RBI section is key 📚",time:"10:25 AM"},{from:"You",text:"Starting after this pomodoro 🔥",time:"10:31 AM"}]);
-  const LB=[{name:user?.name||"Kartikeya",av:(user?.name||"K")[0],h:38,s:streak,r:3},...[{name:"Sneha T.",av:"S",h:48,s:42,r:1},{name:"Priya M.",av:"P",h:42,s:38,r:2},{name:"Arjun S.",av:"A",h:35,s:31,r:4},{name:"Rohit K.",av:"R",h:28,s:25,r:5}]].sort((a,b)=>a.r-b.r);
-  const send=()=>{if(!chat.trim())return;setMsgs([...msgs,{from:"You",text:chat,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}]);setChat("");};
+  // friends stored in RTDB
+  const [myFriends,setMyFriends]=useState([]);
+  const [showAddFriend,setShowAddFriend]=useState(false);
+  const [friendCode,setFriendCode]=useState("");
+  const [addStatus,setAddStatus]=useState(""); // "loading"|"done"|"error"|""
+  // group member add
+  const [addMemberGrpId,setAddMemberGrpId]=useState(null);
+  const [addMemberCode,setAddMemberCode]=useState("");
+  const [addMemberStatus,setAddMemberStatus]=useState("");
 
-  // ── RTDB sync for groups ──
+  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:38,s:streak,r:3},...[{name:"Sneha T.",av:"S",h:48,s:42,r:1},{name:"Priya M.",av:"P",h:42,s:38,r:2},{name:"Arjun S.",av:"A",h:35,s:31,r:4},{name:"Rohit K.",av:"R",h:28,s:25,r:5}]].sort((a,b)=>a.r-b.r);
+
+  // Generate this user's unique friend code (deterministic from uid)
+  const myFriendCode=user?.uid?`SYNC-${(user.name||"U").replace(/\s/g,"").toUpperCase().slice(0,4)}-${(Math.abs(user.uid.charCodeAt(0)*997+user.uid.charCodeAt(1)*13)%9000+1000)}`:"SYNC-XXXX-0000";
+
+  // ── RTDB: groups ──
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
@@ -779,14 +789,29 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         listener=mod.onValue(dbRef,(snap)=>{
           if(snap.exists()){
             const val=snap.val();
-            const arr=Object.entries(val).map(([id,g])=>({
-              ...g,id,
-              members:g.members?Object.values(g.members):[]
-            }));
+            const arr=Object.entries(val).map(([id,g])=>({...g,id,members:g.members?Object.values(g.members):[]}));
             setMyGroups(arr);
-          } else {
-            setMyGroups([]);
-          }
+          } else setMyGroups([]);
+        });
+      }catch(e){}
+    })();
+    return()=>{ if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener); };
+  },[user?.uid]);
+
+  // ── RTDB: friends ──
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/friends`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const val=snap.val();
+            setMyFriends(Object.entries(val).map(([id,f])=>({...f,id})));
+          } else setMyFriends([]);
         });
       }catch(e){}
     })();
@@ -796,35 +821,67 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const createGroup=async()=>{
     if(!grpName.trim())return;
     const code=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
-    const newGroup={name:grpName,code,members:[user?.name||"You"]};
     setGrpName("");setShowCreate(false);
     if(user?.uid){
       try{
         const mod=await import("./firebase");
         const newRef=mod.ref(mod.db,`users/${user.uid}/groups/grp_${Date.now()}`);
-        const membersObj={};
-        newGroup.members.forEach((m,i)=>{membersObj[`m${i}`]=m;});
-        await mod.set(newRef,{...newGroup,members:membersObj});
+        await mod.set(newRef,{name:grpName,code,creatorUid:user.uid,members:{m0:user?.name||"You"}});
       }catch(e){}
     }
   };
-
   const deleteGroup=async(gId)=>{
     if(!user?.uid)return;
+    try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));}catch(e){}
+  };
+  const addMemberToGroup=async(gId)=>{
+    if(!addMemberCode.trim())return;
+    setAddMemberStatus("loading");
+    // In a real app, resolve code→name via RTDB lookup; here we add the code as a display name stub
+    const memberName=addMemberCode.trim();
     try{
       const mod=await import("./firebase");
-      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));
-    }catch(e){}
+      const membersRef=mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members`);
+      const snap=await new Promise(res=>mod.onValue(membersRef,(s)=>{res(s);},{onlyOnce:true}));
+      const existing=snap.exists()?Object.values(snap.val()):[];
+      if(existing.includes(memberName)){setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;}
+      const newKey=`m${Date.now()}`;
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members/${newKey}`),memberName);
+      setAddMemberCode("");setAddMemberStatus("done");setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
+    }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
   };
+  const addFriendByCode=async()=>{
+    if(!friendCode.trim())return;
+    setAddStatus("loading");
+    await new Promise(r=>setTimeout(r,800));
+    try{
+      const mod=await import("./firebase");
+      const newFriend={name:friendCode.trim(),code:friendCode.trim(),streak:0,online:false,subj:null,addedAt:Date.now()};
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/f_${Date.now()}`),newFriend);
+      setFriendCode("");setAddStatus("done");setTimeout(()=>{setAddStatus("");setShowAddFriend(false);},1200);
+    }catch(e){setAddStatus("error");setTimeout(()=>setAddStatus(""),1500);}
+  };
+  const removeFriend=async(fId)=>{
+    if(!user?.uid)return;
+    try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/friends/${fId}`));}catch(e){}
+  };
+
+  const myLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
+  const copyLink=()=>navigator.clipboard?.writeText(myLink).catch(()=>{});
+
   return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+    {/* Tab bar */}
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
-      {[["public","🌍 Public"],["groups","👥 Groups"],["live","👁 Live"],["chat","💬 Chat"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
+      {[["public","🌍 Public"],["friends","👥 Friends"],["groups","🏫 Groups"],["live","👁 Live"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
     </div>
+
+    {/* PUBLIC */}
     {tab==="public"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{PUBLIC_CIRCLE.length} aspirants live · Real-time streak board</div></div></div>
+      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{PUBLIC_CIRCLE.length} aspirants · Real-time streak board</div></div></div>
+      {/* You */}
       <div style={{background:`${t.a4}10`,border:`1.5px solid ${t.a4}38`,borderRadius:10,padding:"9px 10px",display:"flex",alignItems:"center",gap:8}}>
         <Av c={(user?.name||"K")[0].toUpperCase()} sz={32}/>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"Kartikeya"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
         <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
       </div>
       {PUBLIC_CIRCLE.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
@@ -834,6 +891,49 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{color:t.a1,fontWeight:800,fontSize:11}}>🔥 {f.streak}</div>
       </div>)}
     </div>}
+
+    {/* FRIENDS */}
+    {tab==="friends"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      {/* My code card */}
+      <div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"11px 12px"}}>
+        <div style={{color:t.sub,fontSize:9,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code</div>
+        <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2,marginBottom:7}}>{myFriendCode}</div>
+        <div style={{display:"flex",gap:5}}>
+          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Code</button>
+          <button onClick={copyLink} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🔗 Share Link</button>
+        </div>
+      </div>
+
+      {/* Add friend */}
+      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Add Friend</button>
+      {showAddFriend&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"11px"}}>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Add by Friend Code</div>
+        <input value={friendCode} onChange={e=>setFriendCode(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addFriendByCode()} placeholder="SYNC-XXXX-0000" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:7}}/>
+        <div style={{display:"flex",gap:5}}>
+          <button onClick={addFriendByCode} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"#FF6B6B":"linear-gradient(135deg,#34d399,#818cf8)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+            {addStatus==="loading"?"…":addStatus==="done"?"✓ Added!":addStatus==="error"?"✗ Error":"Add Friend"}
+          </button>
+          <button onClick={()=>setShowAddFriend(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        </div>
+        <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>— or share your invite link above so friends can add you —</div>
+      </div>}
+
+      {/* Friends list */}
+      {myFriends.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
+      {myFriends.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
+        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}>
+          <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name}</div>
+          <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
+            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+            <span style={{color:f.online?t.a3:t.sub,fontSize:9}}>{f.online?"● Live":"○ Offline"}</span>
+          </div>
+        </div>
+        <button onClick={()=>removeFriend(f.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
+      </div>)}
+    </div>}
+
+    {/* GROUPS */}
     {tab==="groups"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
       <button onClick={()=>setShowCreate(v=>!v)} style={{background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:10,padding:"9px 12px",color:"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Create New Group</button>
       {showCreate&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
@@ -841,28 +941,65 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group name…" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
         <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
       </div>}
+      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No groups yet. Create one above!</div>}
       {myGroups.map(g=><div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} members</div></div>
-          <div style={{display:"flex",gap:5}}>
-            <button onClick={openQR} style={{background:`${t.a3}16`,border:`1px solid ${t.a3}38`,borderRadius:8,padding:"4px 9px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
-            <button onClick={()=>deleteGroup(g.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
-          </div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
+          <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
+          <button onClick={()=>deleteGroup(g.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
         </div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>{g.members.map(m=><div key={m} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
-        <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}><div style={{color:t.muted,fontSize:9}}>Code:</div><div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div><button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button></div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=><div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
+        {/* Add member */}
+        {addMemberGrpId===g.id?(
+          <div style={{display:"flex",gap:5,marginBottom:7}}>
+            <input value={addMemberCode} onChange={e=>setAddMemberCode(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addMemberToGroup(g.id)} placeholder="Member name or code…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+            <button onClick={()=>addMemberToGroup(g.id)} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+              {addMemberStatus==="loading"?"…":addMemberStatus==="done"?"✓":addMemberStatus==="error"?"✗":addMemberStatus==="exists"?"Exists!":"Add"}
+            </button>
+            <button onClick={()=>{setAddMemberGrpId(null);setAddMemberCode("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+          </div>
+        ):(
+          <button onClick={()=>{setAddMemberGrpId(g.id);setAddMemberCode("");setAddMemberStatus("");}} style={{width:"100%",background:`${t.a3}10`,border:`1px solid ${t.a3}28`,borderRadius:8,padding:"5px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>+ Add Member</button>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}>
+          <div style={{color:t.muted,fontSize:9}}>Code:</div>
+          <div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div>
+          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button>
+        </div>
       </div>)}
     </div>}
+
+    {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <button onClick={openQR} style={{background:`${t.a3}14`,border:`1px solid ${t.a3}28`,borderRadius:9,padding:"7px",color:t.a3,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Add Friend</button>
-      {[{id:0,name:user?.name||"Kartikeya",av:(user?.name||"K")[0],on:true,subj:"Polity",brk:false},...friends].map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:f.on?`${t.a3}07`:t.card,border:`1px solid ${f.on?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}><div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.on?(f.brk?t.a4:t.a3):t.pill,border:`1.5px solid ${t.bg}`}}/></div><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id===0&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>{f.on?(f.brk?"☕ Break":`📖 ${f.subj}`):"Offline"}</div></div>{f.on&&!f.brk&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}</div>)}
+      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live tracker shows friends currently studying</div>
+      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriends].map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}>
+          <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
+          <div style={{color:t.sub,fontSize:9}}>{f.online?`📖 ${f.subj||"Studying"}`:"Offline"}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+          {f.online&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
+        </div>
+      </div>)}
+      {myFriends.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
     </div>}
-    {tab==="chat"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:250,overflowY:"auto"}}>{msgs.map((m,i)=><div key={i} style={{display:"flex",flexDirection:m.from==="You"?"row-reverse":"row",gap:4,alignItems:"flex-end"}}>{m.from!=="You"&&<Av c={m.from[0]} sz={20}/>}<div style={{background:m.from==="You"?t.a5:"rgba(128,128,128,.1)",color:m.from==="You"?"#fff":t.text,borderRadius:m.from==="You"?"12px 12px 4px 12px":"12px 12px 12px 4px",padding:"7px 9px",fontSize:10,maxWidth:"74%"}}>{m.from!=="You"&&<div style={{fontSize:8,fontWeight:700,marginBottom:2,color:t.sub}}>{m.from}</div>}{m.text}<div style={{fontSize:8,color:m.from==="You"?"rgba(255,255,255,.4)":t.muted,marginTop:2,textAlign:"right"}}>{m.time}</div></div></div>)}</div>
-      <div style={{display:"flex",gap:5}}><input value={chat} onChange={e=>setChat(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Message…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:17,padding:"7px 10px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/><button onClick={send} style={{background:t.a5,border:"none",borderRadius:17,padding:"7px 11px",color:"#fff",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>↑</button></div>
-    </div>}
+
+    {/* BOARD */}
     {tab==="board"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      {LB.map(f=><div key={f.name} style={{display:"flex",alignItems:"center",gap:8,background:f.name===(user?.name||"Kartikeya")?`${t.a4}07`:t.card,border:`1px solid ${f.name===(user?.name||"Kartikeya")?t.a4+"28":t.border}`,borderRadius:10,padding:"9px 10px"}}><div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div><Av c={f.av} sz={30}/><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"Kartikeya")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>🔥 {f.s} day streak</div></div><div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:13}}>{f.h}h</div><div style={{color:t.muted,fontSize:8}}>this week</div></div></div>)}
+      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a4,fontWeight:700}}>🏆 Weekly leaderboard — hours studied this week</div>
+      {LB.map(f=><div key={f.name} style={{display:"flex",alignItems:"center",gap:8,background:f.name===(user?.name||"You")?`${t.a4}07`:t.card,border:`1px solid ${f.name===(user?.name||"You")?t.a4+"28":t.border}`,borderRadius:10,padding:"9px 10px"}}>
+        <div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div>
+        <Av c={f.av} sz={30}/>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>🔥 {f.s} day streak</div></div>
+        <div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:13}}>{f.h}h</div><div style={{color:t.muted,fontSize:8}}>this week</div></div>
+      </div>)}
     </div>}
+
+    {/* Logout button at bottom */}
+    <button onClick={onLogout} style={{marginTop:4,background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:11,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+      🚪 Log Out
+    </button>
   </div>);
 }
 
@@ -999,6 +1136,9 @@ function Notes({t,subjects,customSubjects}){
 function Profile({t,user,es,isPro,onPro,streak}){
   const days=dl(es.date);
   const badge=getBadge(streak);
+  const myFriendCode=user?.uid?`SYNC-${(user.name||"U").replace(/\s/g,"").toUpperCase().slice(0,4)}-${(Math.abs(user.uid.charCodeAt(0)*997+user.uid.charCodeAt(1)*13)%9000+1000)}`:"SYNC-XXXX-0000";
+  const [codeCopied,setCodeCopied]=useState(false);
+  const copyCode=()=>{navigator.clipboard?.writeText(myFriendCode).catch(()=>{});setCodeCopied(true);setTimeout(()=>setCodeCopied(false),2000);};
   return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",width:130,height:65,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.09),transparent 70%)",pointerEvents:"none"}}/>
@@ -1015,6 +1155,14 @@ function Profile({t,user,es,isPro,onPro,streak}){
       :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Try Free 7 Days</span></button>}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:"142"},{l:"Hours",v:"38h"},{l:"Rank",v:"#3"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
+    {/* Friend Code Card */}
+    <div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"11px 13px"}}>
+      <div style={{color:t.sub,fontSize:9,marginBottom:5,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code · share so others can add you</div>
+      <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:18,letterSpacing:3,marginBottom:8}}>{myFriendCode}</div>
+      <button onClick={copyCode} style={{width:"100%",background:codeCopied?"rgba(52,211,153,0.15)":t.pill,border:`1px solid ${codeCopied?"rgba(52,211,153,0.3)":t.border}`,borderRadius:9,padding:"7px",color:codeCopied?"#34d399":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+        {codeCopied?"✓ Copied!":"📋 Copy Code"}
+      </button>
+    </div>
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
       <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{es.icon||"🎯"}</div>
       <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{es.name||"UPSC CSE Prelims"}</div><div style={{color:es.color||"#818cf8",fontSize:10,fontWeight:700,marginTop:1}}>{days} days remaining</div></div>
@@ -1174,7 +1322,7 @@ return () => unsub();
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} onOpen={()=>setExOpen(true)} customSubjects={customSubjects}/>}
-      {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
+      {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
       {tab==="report"  &&<Report    t={t} es={es}/>}
       {tab==="profile" &&<Profile   t={t} user={user} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
