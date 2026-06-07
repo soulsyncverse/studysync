@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
@@ -926,6 +927,22 @@ export default function App(){
   const [dark,setDark]=useState(true);
   const [loggedIn,setLoggedIn]=useState(false);
   const [user,setUser]=useState(null);
+    //added changes for retaining login session
+    useEffect(() => {
+  const auth = getAuth();
+
+  const unsub = onAuthStateChanged(auth, (user) => {
+    if (user) {
+      setUser(user);
+      setLoggedIn(true);
+    } else {
+      setUser(null);
+      setLoggedIn(false);
+    }
+  });
+
+  return () => unsub();
+}, []);
   const [isPro,setIsPro]=useState(false);
   const [proOpen,setProOpen]=useState(false);
   const [restoreOpen,setRestoreOpen]=useState(false);
