@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-
-
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
   dark:  { bg:"#08080f", card:"rgba(255,255,255,0.05)", input:"rgba(255,255,255,0.07)", border:"rgba(255,255,255,0.09)", text:"#f0f0f0", sub:"#666", muted:"#2a2a3a", nav:"rgba(8,8,15,0.96)", pill:"rgba(255,255,255,0.07)", a1:"#FF6B6B", a2:"#6EE7F7", a3:"#B8FF6B", a4:"#FFB86B", a5:"#C16BFF", sh:"0 8px 32px rgba(0,0,0,0.5)", nb:"rgba(12,12,20,0.99)" },
