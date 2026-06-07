@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+//added changes
 import { signInGoogle } from "./firebase";
 
 // ── THEME ─────────────────────────────────────────────────────
