@@ -16,22 +16,11 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getDatabase(app);
-export { ref, set, onValue, off, push, remove, update };
+export { ref, set, get, onValue, off, push, remove, update };
 
 export async function signInGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    await set(
-  ref(db, `users/${result.user.uid}/profile`),
-  {
-    uid: result.user.uid,
-    name: result.user.displayName,
-    email: result.user.email,
-    photoURL: result.user.photoURL || "",
-    friendCode: `SYNC-${result.user.uid.slice(0,8).toUpperCase()}`,
-    createdAt: Date.now()
-  }
-);
     return { user: { name: result.user.displayName, email: result.user.email, uid: result.user.uid }, error: null };
   } catch (err) {
     return { user: null, error: err.message };
