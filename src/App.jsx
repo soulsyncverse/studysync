@@ -549,28 +549,80 @@ function ExamDash({t,es,onOpen,customSubjects}){
 }
 
 // ── SYLLABUS (Feature 3) ──────────────────────────────────────
-function Syllabus({t,subjects,customSubjects}){
+function Syllabus({t,subjects,customSubjects,user}){
   const allSubjects=[...subjects,...customSubjects];
-  const [syllabi,setSyllabi]=useState([
-    {id:1,name:"Indian Polity",subj:"Polity",color:"#B8FF6B",topics:[
-      {id:1,title:"Preamble & Fundamental Rights",status:"completed"},
-      {id:2,title:"Directive Principles",status:"completed"},
-      {id:3,title:"Parliament & President",status:"in-progress"},
-      {id:4,title:"Centre-State Relations",status:"not-started"},
-      {id:5,title:"Constitutional Bodies",status:"not-started"},
+  const DEFAULT_SYLLABI=[
+    {id:"syl_polity",name:"Indian Polity",subj:"Polity",color:"#B8FF6B",topics:[
+      {id:"t1",title:"Preamble & Fundamental Rights",status:"completed"},
+      {id:"t2",title:"Directive Principles",status:"completed"},
+      {id:"t3",title:"Parliament & President",status:"in-progress"},
+      {id:"t4",title:"Centre-State Relations",status:"not-started"},
+      {id:"t5",title:"Constitutional Bodies",status:"not-started"},
     ]},
-    {id:2,name:"Indian Economy",subj:"Economy",color:"#FFB86B",topics:[
-      {id:1,title:"National Income Concepts",status:"completed"},
-      {id:2,title:"Fiscal & Monetary Policy",status:"in-progress"},
-      {id:3,title:"Banking & Finance",status:"not-started"},
-      {id:4,title:"International Trade",status:"not-started"},
+    {id:"syl_economy",name:"Indian Economy",subj:"Economy",color:"#FFB86B",topics:[
+      {id:"t1",title:"National Income Concepts",status:"completed"},
+      {id:"t2",title:"Fiscal & Monetary Policy",status:"in-progress"},
+      {id:"t3",title:"Banking & Finance",status:"not-started"},
+      {id:"t4",title:"International Trade",status:"not-started"},
     ]},
-  ]);
+  ];
+  const [syllabi,setSyllabi]=useState(DEFAULT_SYLLABI);
   const [selId,setSelId]=useState(null);
   const [showNew,setShowNew]=useState(false);
   const [newName,setNewName]=useState("");
   const [newSubj,setNewSubj]=useState(allSubjects[0]?.n||"");
   const [newTopic,setNewTopic]=useState("");
+  const [editTopicId,setEditTopicId]=useState(null);
+  const [editTopicVal,setEditTopicVal]=useState("");
+  const [dbReady,setDbReady]=useState(false);
+
+  // ── RTDB sync ──
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        dbRef=mod.ref(mod.db,`users/${user.uid}/syllabi`);
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const val=snap.val();
+            // Convert object-of-objects back to array
+            const arr=Object.entries(val).map(([id,syl])=>({
+              ...syl,id,
+              topics:syl.topics?Object.entries(syl.topics).map(([tid,tp])=>({...tp,id:tid})):[]
+            }));
+            setSyllabi(arr);
+          } else {
+            // First login: seed defaults
+            DEFAULT_SYLLABI.forEach(syl=>{
+              const {topics,...sylData}=syl;
+              const topicsObj={};
+              topics.forEach(tp=>{topicsObj[tp.id]={title:tp.title,status:tp.status};});
+              mod.set(mod.ref(mod.db,`users/${user.uid}/syllabi/${syl.id}`),{...sylData,topics:topicsObj});
+            });
+          }
+          setDbReady(true);
+        });
+      }catch(e){setDbReady(true);}
+    })();
+    return()=>{ if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener); };
+  },[user?.uid]);
+
+  const saveToDb=async(newSyllabi)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      newSyllabi.forEach(syl=>{
+        const {topics,...sylData}=syl;
+        const topicsObj={};
+        topics.forEach(tp=>{topicsObj[tp.id]={title:tp.title,status:tp.status};});
+        mod.set(mod.ref(mod.db,`users/${user.uid}/syllabi/${syl.id}`),{...sylData,topics:topicsObj});
+      });
+    }catch(e){}
+  };
+
   const STATUS={
     "completed":   {label:"Done",       color:"#34d399", bg:"rgba(52,211,153,0.12)"},
     "in-progress": {label:"In Progress",color:"#FFB86B", bg:"rgba(255,184,107,0.12)"},
@@ -579,10 +631,40 @@ function Syllabus({t,subjects,customSubjects}){
   const CYCLE=["not-started","in-progress","completed"];
   const sel=syllabi.find(s=>s.id===selId);
   const getPct=(syl)=>{const done=syl.topics.filter(t=>t.status==="completed").length;return syl.topics.length>0?Math.round((done/syl.topics.length)*100):0;};
-  const addSyllabus=()=>{if(!newName.trim())return;const sc=allSubjects.find(s=>s.n===newSubj)||allSubjects[0];setSyllabi(p=>[...p,{id:Date.now(),name:newName,subj:newSubj,color:sc?.c||"#818cf8",topics:[]}]);setNewName("");setShowNew(false);};
-  const addTopic=(sylId)=>{if(!newTopic.trim())return;setSyllabi(p=>p.map(s=>s.id===sylId?{...s,topics:[...s.topics,{id:Date.now(),title:newTopic,status:"not-started"}]}:s));setNewTopic("");};
-  const cycleStatus=(sylId,topicId)=>{setSyllabi(p=>p.map(s=>s.id===sylId?{...s,topics:s.topics.map(tt=>tt.id===topicId?{...tt,status:CYCLE[(CYCLE.indexOf(tt.status)+1)%3]}:tt)}:s));};
-  const deleteTopic=(sylId,topicId)=>setSyllabi(p=>p.map(s=>s.id===sylId?{...s,topics:s.topics.filter(tt=>tt.id!==topicId)}:s));
+
+  const addSyllabus=()=>{
+    if(!newName.trim())return;
+    const sc=allSubjects.find(s=>s.n===newSubj)||allSubjects[0];
+    const updated=[...syllabi,{id:`syl_${Date.now()}`,name:newName,subj:newSubj,color:sc?.c||"#818cf8",topics:[]}];
+    setSyllabi(updated);saveToDb(updated);setNewName("");setShowNew(false);
+  };
+  const addTopic=(sylId)=>{
+    if(!newTopic.trim())return;
+    const updated=syllabi.map(s=>s.id===sylId?{...s,topics:[...s.topics,{id:`t_${Date.now()}`,title:newTopic,status:"not-started"}]}:s);
+    setSyllabi(updated);saveToDb(updated);setNewTopic("");
+  };
+  const cycleStatus=(sylId,topicId)=>{
+    const updated=syllabi.map(s=>s.id===sylId?{...s,topics:s.topics.map(tt=>tt.id===topicId?{...tt,status:CYCLE[(CYCLE.indexOf(tt.status)+1)%3]}:tt)}:s);
+    setSyllabi(updated);saveToDb(updated);
+  };
+  const deleteTopic=(sylId,topicId)=>{
+    const updated=syllabi.map(s=>s.id===sylId?{...s,topics:s.topics.filter(tt=>tt.id!==topicId)}:s);
+    setSyllabi(updated);saveToDb(updated);
+  };
+  const startEditTopic=(topic)=>{setEditTopicId(topic.id);setEditTopicVal(topic.title);};
+  const saveEditTopic=(sylId)=>{
+    if(!editTopicVal.trim()){setEditTopicId(null);return;}
+    const updated=syllabi.map(s=>s.id===sylId?{...s,topics:s.topics.map(tt=>tt.id===editTopicId?{...tt,title:editTopicVal}:tt)}:s);
+    setSyllabi(updated);saveToDb(updated);setEditTopicId(null);
+  };
+  const deleteSyllabus=async(sylId)=>{
+    const updated=syllabi.filter(s=>s.id!==sylId);
+    setSyllabi(updated);
+    if(selId===sylId)setSelId(null);
+    if(user?.uid){
+      try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/syllabi/${sylId}`));}catch(e){}
+    }
+  };
   return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
     {!selId?(
       <>
@@ -621,6 +703,7 @@ function Syllabus({t,subjects,customSubjects}){
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
           <button onClick={()=>setSelId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Back</button>
           <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:14}}>{sel?.name}</div><div style={{color:t.sub,fontSize:10}}>{sel?.subj}</div></div>
+          <button onClick={()=>deleteSyllabus(sel.id)} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete</button>
         </div>
 
         {/* Overall progress */}
@@ -641,9 +724,17 @@ function Syllabus({t,subjects,customSubjects}){
               <button onClick={()=>cycleStatus(sel.id,topic.id)} style={{width:22,height:22,borderRadius:6,flexShrink:0,border:`2px solid ${s.color}`,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:10,transition:"all .2s"}}>
                 {topic.status==="completed"?"✓":topic.status==="in-progress"?"…":""}
               </button>
-              <div style={{flex:1,color:t.text,fontSize:11,fontWeight:500,textDecoration:topic.status==="completed"?"line-through":"none",opacity:topic.status==="completed"?.55:1}}>{topic.title}</div>
+              {editTopicId===topic.id?(
+                <input autoFocus value={editTopicVal} onChange={e=>setEditTopicVal(e.target.value)}
+                  onBlur={()=>saveEditTopic(sel.id)}
+                  onKeyDown={e=>{if(e.key==="Enter")saveEditTopic(sel.id);if(e.key==="Escape")setEditTopicId(null);}}
+                  style={{flex:1,background:t.input,border:`1px solid #818cf8`,borderRadius:6,padding:"3px 7px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              ):(
+                <div style={{flex:1,color:t.text,fontSize:11,fontWeight:500,textDecoration:topic.status==="completed"?"line-through":"none",opacity:topic.status==="completed"?.55:1}}>{topic.title}</div>
+              )}
               <div style={{background:s.bg,color:s.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:10,whiteSpace:"nowrap"}}>{s.label}</div>
-              <button onClick={()=>deleteTopic(sel.id,topic.id)} style={{background:"none",border:"none",color:t.muted,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✕</button>
+              <button onClick={()=>startEditTopic(topic)} title="Edit" style={{background:"none",border:"none",color:t.sub,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✏️</button>
+              <button onClick={()=>deleteTopic(sel.id,topic.id)} title="Delete" style={{background:"none",border:"none",color:t.muted,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✕</button>
             </div>
           );})}
           {sel?.topics.length===0&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"18px 0"}}>No topics yet. Add your first topic!</div>}
@@ -668,14 +759,63 @@ function Syllabus({t,subjects,customSubjects}){
 // ── CIRCLE ────────────────────────────────────────────────────
 function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak}){
   const [tab,setTab]=useState("public");
-  const [myGroups,setMyGroups]=useState([{id:1,name:"UPSC Warriors 2026",members:["Arjun","Priya","Kartikeya"],code:"GRP-UWS-4421"}]);
+  const [myGroups,setMyGroups]=useState([]);
   const [showCreate,setShowCreate]=useState(false);
   const [grpName,setGrpName]=useState("");
   const [chat,setChat]=useState("");
   const [msgs,setMsgs]=useState([{from:"Arjun",text:"Anyone done monetary policy?",time:"10:23 AM"},{from:"Priya",text:"Yes! RBI section is key 📚",time:"10:25 AM"},{from:"You",text:"Starting after this pomodoro 🔥",time:"10:31 AM"}]);
   const LB=[{name:user?.name||"Kartikeya",av:(user?.name||"K")[0],h:38,s:streak,r:3},...[{name:"Sneha T.",av:"S",h:48,s:42,r:1},{name:"Priya M.",av:"P",h:42,s:38,r:2},{name:"Arjun S.",av:"A",h:35,s:31,r:4},{name:"Rohit K.",av:"R",h:28,s:25,r:5}]].sort((a,b)=>a.r-b.r);
   const send=()=>{if(!chat.trim())return;setMsgs([...msgs,{from:"You",text:chat,time:new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}]);setChat("");};
-  const createGroup=()=>{if(!grpName.trim())return;const code=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;setMyGroups([...myGroups,{id:Date.now(),name:grpName,members:[user?.name||"Kartikeya"],code}]);setGrpName("");setShowCreate(false);};
+
+  // ── RTDB sync for groups ──
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/groups`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const val=snap.val();
+            const arr=Object.entries(val).map(([id,g])=>({
+              ...g,id,
+              members:g.members?Object.values(g.members):[]
+            }));
+            setMyGroups(arr);
+          } else {
+            setMyGroups([]);
+          }
+        });
+      }catch(e){}
+    })();
+    return()=>{ if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener); };
+  },[user?.uid]);
+
+  const createGroup=async()=>{
+    if(!grpName.trim())return;
+    const code=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
+    const newGroup={name:grpName,code,members:[user?.name||"You"]};
+    setGrpName("");setShowCreate(false);
+    if(user?.uid){
+      try{
+        const mod=await import("./firebase");
+        const newRef=mod.ref(mod.db,`users/${user.uid}/groups/grp_${Date.now()}`);
+        const membersObj={};
+        newGroup.members.forEach((m,i)=>{membersObj[`m${i}`]=m;});
+        await mod.set(newRef,{...newGroup,members:membersObj});
+      }catch(e){}
+    }
+  };
+
+  const deleteGroup=async(gId)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));
+    }catch(e){}
+  };
   return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
       {[["public","🌍 Public"],["groups","👥 Groups"],["live","👁 Live"],["chat","💬 Chat"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
@@ -702,7 +842,12 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
       </div>}
       {myGroups.map(g=><div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} members</div></div><button onClick={openQR} style={{background:`${t.a3}16`,border:`1px solid ${t.a3}38`,borderRadius:8,padding:"4px 9px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button></div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} members</div></div>
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={openQR} style={{background:`${t.a3}16`,border:`1px solid ${t.a3}38`,borderRadius:8,padding:"4px 9px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>+ Add</button>
+            <button onClick={()=>deleteGroup(g.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+          </div>
+        </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>{g.members.map(m=><div key={m} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
         <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}><div style={{color:t.muted,fontSize:9}}>Code:</div><div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div><button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button></div>
       </div>)}
@@ -1033,7 +1178,7 @@ return () => unsub();
       {tab==="report"  &&<Report    t={t} es={es}/>}
       {tab==="profile" &&<Profile   t={t} user={user} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
-      {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
+      {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
       {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="Notes & Flashcards"  icon="📝" onPro={()=>setProOpen(true)}/>)}
     </div>
 
