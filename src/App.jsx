@@ -312,7 +312,7 @@ function Login({t,onLogin}){
 }
 
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
-function Pomo({t,subjects,customSubjects,pushN,ns,isPro}){
+function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete}){
   const allSubjects=[...subjects,...customSubjects];
   const [cs,setCs]=useState(allSubjects[0]?.n||"History");
   const [mode,setMode]=useState("focus");
@@ -330,7 +330,46 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro}){
   const prog=((tot-sec)/tot)*100;
   const sc=allSubjects.find(s=>s.n===cs)?.c||t.a2;
   const circ=2*Math.PI*86;const dash=circ-(prog/100)*circ;
-  useEffect(()=>{if(run){ref.current=setInterval(()=>setSec(s=>{if(s<=1){clearInterval(ref.current);setRun(false);if(mode==="focus"){setSess(n=>n+1);if(ns?.pomoDone)pushN({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${cs}!`,col:sc});}return 0;}return s-1;}),1000);}else clearInterval(ref.current);return()=>clearInterval(ref.current);},[run,mode]);
+
+  const saveSession=async(subject,minutes)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      const sessionData={subject,minutes,completedAt:Date.now(),date:new Date().toISOString().split("T")[0]};
+      // Write session log
+      const newRef=mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`);
+      await mod.set(newRef,sessionData);
+      // Update stats aggregation
+      const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
+      const snap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
+      const prev=snap.exists()?snap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
+      const today=new Date().toISOString().split("T")[0];
+      await mod.set(statsRef,{
+        totalSessions:(prev.totalSessions||0)+1,
+        totalMinutes:(prev.totalMinutes||0)+minutes,
+        lastStudyDate:today,
+      });
+      if(onSessionComplete) onSessionComplete();
+    }catch(e){console.error("saveSession error",e);}
+  };
+
+  useEffect(()=>{
+    if(run){
+      ref.current=setInterval(()=>setSec(s=>{
+        if(s<=1){
+          clearInterval(ref.current);setRun(false);
+          if(mode==="focus"){
+            setSess(n=>n+1);
+            saveSession(cs,cf);
+            if(ns?.pomoDone)pushN({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${cs}!`,col:sc});
+          }
+          return 0;
+        }
+        return s-1;
+      }),1000);
+    }else clearInterval(ref.current);
+    return()=>clearInterval(ref.current);
+  },[run,mode]);
   const sw=(m,cm)=>{setMode(m);setSec((cm??dur[m])*60);setRun(false);};
   const applyDur=(v)=>{const val=Math.min(v,maxMin);setCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
   const fmtTime=(m)=>m>=60?`${Math.floor(m/60)}h${m%60?` ${m%60}m`:""}`:m+"m";
@@ -764,7 +803,10 @@ function QRCode({value,size=140}){
 }
 
 function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak}){
-  const [tab,setTab]=useState("public");
+  const [tab,setTab]=useState(()=>{
+    const pending=sessionStorage.getItem("ss_pendingGroupCode");
+    return pending?"groups":"public";
+  });
   const [myGroups,setMyGroups]=useState([]);
   const [showCreate,setShowCreate]=useState(false);
   const [grpName,setGrpName]=useState("");
@@ -777,7 +819,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const [addMemberSel,setAddMemberSel]=useState("");
   const [addMemberStatus,setAddMemberStatus]=useState("");
   const [grpQrId,setGrpQrId]=useState(null); // group id whose QR is shown
-  const [joinCode,setJoinCode]=useState("");
+  const [joinCode,setJoinCode]=useState(()=>{
+    const pending=sessionStorage.getItem("ss_pendingGroupCode");
+    if(pending){sessionStorage.removeItem("ss_pendingGroupCode");return pending;}
+    return "";
+  });
   const [joinStatus,setJoinStatus]=useState("");
   const [joinMsg,setJoinMsg]=useState("");
 
@@ -787,26 +833,99 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
   const myInviteLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
 
-  // Register my profile/friendCode in RTDB so others can look me up
+  // ── Register profile + friendCode index on login ──
   useEffect(()=>{
     if(!user?.uid)return;
     (async()=>{
       try{
         const mod=await import("./firebase");
-        await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),{
+        const profileData={
           name:user.name||"",
           email:user.email||"",
           friendCode:myFriendCode,
           uid:user.uid,
           online:true,
           lastSeen:Date.now(),
+        };
+        // Write to own profile
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),profileData);
+        // Write to global friendCodes index — key=friendCode, val=uid
+        // This path must be readable by all auth users per Firebase rules
+        await mod.set(mod.ref(mod.db,`friendCodes/${myFriendCode}`),{
+          uid:user.uid,
+          name:user.name||"",
+          email:user.email||"",
         });
-      }catch(e){}
+      }catch(e){console.error("Profile register error",e);}
     })();
   },[user?.uid]);
 
-  // RTDB: groups
+  // ── Add friend: reads friendCodes index (public read), writes to both users ──
+  const addFriendByCode=async()=>{
+    const code=friendCode.trim().toUpperCase();
+    if(!code||!user?.uid){setAddStatus("error");setAddMsg("Enter a valid code.");return;}
+    if(code===myFriendCode){setAddStatus("error");setAddMsg("That's your own code!");return;}
+    const alreadyAdded=myFriends.some(f=>f.friendCode===code||f.uid===code);
+    if(alreadyAdded){setAddStatus("error");setAddMsg("Already friends!");return;}
+    setAddStatus("loading");setAddMsg("Looking up user…");
+    try{
+      const mod=await import("./firebase");
+      // Look up via global friendCodes index (not scanning all users)
+      const codeSnap=await new Promise((res,rej)=>{
+        mod.onValue(mod.ref(mod.db,`friendCodes/${code}`),(s)=>{res(s);},{onlyOnce:true});
+      });
+      if(!codeSnap.exists()){
+        setAddStatus("error");setAddMsg("Code not found. Ask your friend to open the app first.");return;
+      }
+      const targetData=codeSnap.val();
+      const targetUid=targetData.uid;
+      if(!targetUid){setAddStatus("error");setAddMsg("Invalid code data.");return;}
+
+      const now=Date.now();
+      const myEntry={uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,streak:0,online:false,addedAt:now};
+      const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,online:true,addedAt:now};
+
+      // Write A→B under A's node (own write — always permitted)
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUid}`),myEntry);
+      // Write B→A under B's node (cross-user write — requires permissive rule on friends path)
+      // If this fails due to rules, fall back to friendRequests queue
+      try{
+        await mod.set(mod.ref(mod.db,`users/${targetUid}/friends/${user.uid}`),theirEntry);
+      }catch(crossWriteErr){
+        // Fallback: write a friend request that target reads on next login
+        await mod.set(mod.ref(mod.db,`friendRequests/${targetUid}/${user.uid}`),theirEntry);
+      }
+      setFriendCode("");setAddStatus("done");setAddMsg(`✓ ${targetData.name||"Friend"} added!`);
+      setTimeout(()=>{setAddStatus("");setAddMsg("");setShowAddFriend(false);},1800);
+    }catch(e){
+      console.error("addFriend error",e);
+      setAddStatus("error");setAddMsg("Something went wrong. Try again.");
+    }
+  };
+
+  // ── Process incoming friend requests on load ──
   useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`friendRequests/${user.uid}`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,async(snap)=>{
+          if(!snap.exists())return;
+          const requests=snap.val();
+          for(const [fromUid,data] of Object.entries(requests)){
+            // Add to my friends list
+            await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${fromUid}`),data);
+            // Delete the request
+            await mod.remove(mod.ref(mod.db,`friendRequests/${user.uid}/${fromUid}`));
+          }
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
     (async()=>{
@@ -891,20 +1010,27 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const createGroup=async()=>{
     if(!grpName.trim())return;
     const gid=`grp_${Date.now()}`;
-    const code=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
-    const joinLink=`https://studysync-4cvf.vercel.app/join-group?code=${code}`;
+    const rawCode=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
+    // Store code uppercase, no ambiguity
+    const code=rawCode.toUpperCase();
+    const joinLink=`https://studysync-4cvf.vercel.app/?joinGroup=${code}`;
     setGrpName("");setShowCreate(false);
-    if(user?.uid){
-      try{
-        const mod=await import("./firebase");
-        await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}`),{
-          name:grpName,code,joinLink,creatorUid:user.uid,
-          createdAt:Date.now(),members:{m0:user?.name||"You"}
-        });
-        // Also register group globally so others can find it by code
-        await mod.set(mod.ref(mod.db,`groups/${gid}`),{name:grpName,code,creatorUid:user.uid,active:true});
-      }catch(e){}
-    }
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      const groupData={
+        id:gid,name:grpName,code,joinLink,
+        creatorUid:user.uid,creatorName:user.name||"",
+        createdAt:Date.now(),
+        members:{m0:user?.name||"You"}
+      };
+      // Write to creator's user node
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}`),groupData);
+      // Write to global groupCodes index — key=code — readable by all auth users
+      await mod.set(mod.ref(mod.db,`groupCodes/${code}`),{
+        gid,ownerUid:user.uid,name:grpName,code,joinLink,active:true,createdAt:Date.now()
+      });
+    }catch(e){console.error("createGroup error",e);}
   };
 
   const deleteGroup=async(gId,gCode)=>{
@@ -912,13 +1038,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     try{
       const mod=await import("./firebase");
       await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));
-      // Find and remove from global groups
-      const globalSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"groups"),(s)=>{res(s);},{onlyOnce:true}));
-      if(globalSnap.exists()){
-        Object.entries(globalSnap.val()).forEach(async([id,g])=>{
-          if(g.code===gCode) await mod.remove(mod.ref(mod.db,`groups/${id}`));
-        });
-      }
+      if(gCode) await mod.remove(mod.ref(mod.db,`groupCodes/${gCode}`));
     }catch(e){}
   };
 
@@ -939,40 +1059,43 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
   };
 
-  // Join group by code
+  // ── Join group by code: reads from global groupCodes index ──
   const joinGroupByCode=async()=>{
     const code=joinCode.trim().toUpperCase();
     if(!code){setJoinStatus("error");setJoinMsg("Enter a group code.");return;}
     setJoinStatus("loading");setJoinMsg("Looking up group…");
     try{
       const mod=await import("./firebase");
-      // Search my existing groups
-      const alreadyIn=myGroups.some(g=>g.code===code);
+      // Check not already a member
+      const alreadyIn=myGroups.some(g=>g.code===code||g.code===code.toUpperCase());
       if(alreadyIn){setJoinStatus("error");setJoinMsg("You're already in this group.");return;}
-      // Search user groups globally
-      const usersSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"users"),(s)=>{res(s);},{onlyOnce:true}));
-      let foundGroup=null,foundOwnerUid=null,foundGrpId=null;
-      if(usersSnap.exists()){
-        Object.entries(usersSnap.val()).forEach(([uid,udata])=>{
-          if(udata?.groups&&!foundGroup){
-            Object.entries(udata.groups).forEach(([gid,g])=>{
-              if(g.code===code){foundGroup=g;foundOwnerUid=uid;foundGrpId=gid;}
-            });
-          }
-        });
+      // Look up via global groupCodes index
+      const groupSnap=await new Promise((res,rej)=>{
+        mod.onValue(mod.ref(mod.db,`groupCodes/${code}`),(s)=>{res(s);},{onlyOnce:true});
+      });
+      if(!groupSnap.exists()){
+        setJoinStatus("error");setJoinMsg("Group not found. Check the code and try again.");return;
       }
-      if(!foundGroup){setJoinStatus("error");setJoinMsg("Group not found. Check the code.");return;}
+      const groupIndex=groupSnap.val();
+      if(!groupIndex.active){setJoinStatus("error");setJoinMsg("This group is no longer active.");return;}
+      const {gid,ownerUid,name:groupName}=groupIndex;
+      const myName=user?.name||"You";
+      const memberKey=`m${Date.now()}`;
       // Add yourself to owner's group members
-      await mod.set(mod.ref(mod.db,`users/${foundOwnerUid}/groups/${foundGrpId}/members/m${Date.now()}`),user?.name||"You");
-      // Also save a copy in your own groups
+      await mod.set(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/members/${memberKey}`),myName);
+      // Save a copy in your own groups so you can see it
       const myGid=`grp_joined_${Date.now()}`;
       await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${myGid}`),{
-        ...foundGroup,id:myGid,joinedAs:"member",ownerUid:foundOwnerUid,
-        members:foundGroup.members?Object.values(foundGroup.members):[]
+        id:myGid,name:groupName,code,joinLink:groupIndex.joinLink||"",
+        joinedAs:"member",ownerUid,createdAt:groupIndex.createdAt||Date.now(),
+        members:{[memberKey]:myName}
       });
-      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Joined "${foundGroup.name}"!`);
+      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Joined "${groupName}"!`);
       setTimeout(()=>{setJoinStatus("");setJoinMsg("");},2000);
-    }catch(e){setJoinStatus("error");setJoinMsg("Error joining group. Try again.");}
+    }catch(e){
+      console.error("joinGroup error",e);
+      setJoinStatus("error");setJoinMsg("Error joining group. Try again.");
+    }
   };
 
   return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
@@ -1277,9 +1400,11 @@ function Notes({t,subjects,customSubjects}){
 }
 
 // ── PROFILE ───────────────────────────────────────────────────
-function Profile({t,user,setUser,es,isPro,onPro,streak,onLogout}){
+function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const days=dl(es.date);
   const badge=getBadge(streak);
+  const totalHours=stats?.totalMinutes?`${Math.round(stats.totalMinutes/60)}h`:"0h";
+  const totalSessions=stats?.totalSessions||0;
   const [editingName,setEditingName]=useState(false);
   const [nameVal,setNameVal]=useState(user?.name||"");
   const [nameSaving,setNameSaving]=useState(false);
@@ -1385,7 +1510,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,onLogout}){
     </div>
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:"142"},{l:"Hours",v:"38h"},{l:"Rank",v:"#3"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
 
     {/* Exam countdown */}
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
@@ -1484,16 +1609,96 @@ return () => unsub();
   const [toasts,setToasts]=useState([]);
   const [nHist,setNHist]=useState([]);
   const [ns,setNs]=useState({streakBreak:true,studyReminder:true,pomoDone:true,friendActivity:false,leaderboard:false});
-  const [streak,setStreak]=useState(17);
+  const [streak,setStreak]=useState(0);
+  const [stats,setStats]=useState({totalSessions:0,totalMinutes:0,lastStudyDate:""});
+
+  // Load streak + stats from Firebase on login
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,streakRef,statsRef,streakListener,statsListener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        // Streak
+        streakRef=mod.ref(mod.db,`users/${user.uid}/streak`);
+        streakListener=mod.onValue(streakRef,(snap)=>{
+          if(snap.exists()) setStreak(snap.val());
+        });
+        // Stats
+        statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
+        statsListener=mod.onValue(statsRef,(snap)=>{
+          if(snap.exists()) setStats(snap.val());
+        });
+        // Update streak logic: if last study date was yesterday or today, maintain/increment
+        const statsSnap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
+        const today=new Date().toISOString().split("T")[0];
+        const yesterday=new Date(Date.now()-86400000).toISOString().split("T")[0];
+        const streakSnap=await new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true}));
+        const lastStudy=statsSnap.exists()?statsSnap.val().lastStudyDate:"";
+        const currentStreak=streakSnap.exists()?streakSnap.val():0;
+        // If last study was not today or yesterday, reset streak
+        if(lastStudy&&lastStudy!==today&&lastStudy!==yesterday){
+          await mod.set(streakRef,0);
+        }
+      }catch(e){console.error("stats load error",e);}
+    })();
+    return()=>{
+      if(dbMod){
+        if(streakRef&&streakListener)dbMod.off(streakRef,streakListener);
+        if(statsRef&&statsListener)dbMod.off(statsRef,statsListener);
+      }
+    };
+  },[user?.uid]);
   const [customSubjects,setCustomSubjects]=useState([]);
   const [es,setEs]=useState({key:"UPSC CSE",mode:"Prelims",name:"UPSC CSE Prelims",date:"2026-05-24",color:"#FF6B6B",icon:"🏛️",subjects:EXAMS["UPSC CSE"].modes.Prelims.subjects,tips:EXAMS["UPSC CSE"].modes.Prelims.tips});
   const tid=useRef(0);
   const t=dark?T.dark:T.light;
   const days=dl(es.date);
 
+  const onSessionComplete=useCallback(async()=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      const today=new Date().toISOString().split("T")[0];
+      const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
+      const statsSnap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
+      const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
+      const yesterday=new Date(Date.now()-86400000).toISOString().split("T")[0];
+      const streakRef=mod.ref(mod.db,`users/${user.uid}/streak`);
+      const streakSnap=await new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true}));
+      let currentStreak=streakSnap.exists()?streakSnap.val():0;
+      if(prev.lastStudyDate===today){
+        // Already studied today, streak stays
+      } else if(prev.lastStudyDate===yesterday){
+        currentStreak+=1;
+        await mod.set(streakRef,currentStreak);
+        setStreak(currentStreak);
+      } else {
+        currentStreak=1;
+        await mod.set(streakRef,1);
+        setStreak(1);
+      }
+    }catch(e){console.error("onSessionComplete error",e);}
+  },[user?.uid]);
+
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
   const test=()=>push({icon:"🔔",title:"Test notification",body:"Notifications working! 🎉",col:t.a2});
+
+  // Deep-link: ?joinGroup=GRP-XXX-0000
+  const [pendingGroupCode,setPendingGroupCode]=useState(()=>{
+    const params=new URLSearchParams(window.location.search);
+    const c=params.get("joinGroup");
+    return c?c.toUpperCase():null;
+  });
+  useEffect(()=>{
+    if(loggedIn&&pendingGroupCode){
+      setTab("circle");
+      sessionStorage.setItem("ss_pendingGroupCode",pendingGroupCode);
+      setPendingGroupCode(null);
+    }
+  },[loggedIn,pendingGroupCode]);
 
   useEffect(()=>{
     if(!loggedIn)return;
@@ -1548,13 +1753,13 @@ return () => unsub();
 
     {/* Content */}
     <div style={{maxWidth:520,margin:"0 auto",padding:"14px 11px 116px"}}>
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} onOpen={()=>setExOpen(true)} customSubjects={customSubjects}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es}/>}
-      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
+      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
       {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="Notes & Flashcards"  icon="📝" onPro={()=>setProOpen(true)}/>)}
