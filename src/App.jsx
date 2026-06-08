@@ -159,7 +159,17 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects}){
   const cfg=EXAMS[ex];const modeData=cfg?.modes[md];
   const modes=Object.keys(cfg?.modes||{});
   const subjs=ex==="Custom"?customSubjects:(modeData?.subjects||[]);
-  const apply=()=>{setEs({key:ex,mode:md,name:`${ex} ${md}`,date:dt||modeData?.date||"",color:cfg?.color||"#818cf8",icon:cfg?.icon||"🎯",subjects:[...subjs,...(ex!=="Custom"?customSubjects:[])],tips:modeData?.tips||[]});onClose();};
+  const apply=()=>{
+    const newEs={key:ex,mode:md,name:`${ex} ${md}`,date:dt||modeData?.date||"",color:cfg?.color||"#818cf8",icon:cfg?.icon||"🎯",subjects:[...subjs,...(ex!=="Custom"?customSubjects:[])],tips:modeData?.tips||[]};
+    setEs(newEs);
+    // Persist to Firebase if user logged in
+    if(window.__ssUser?.uid){
+      import("./firebase").then(mod=>{
+        mod.set(mod.ref(mod.db,`users/${window.__ssUser.uid}/examConfig`),{key:ex,mode:md,date:dt||modeData?.date||"",tips:modeData?.tips||[]});
+      }).catch(()=>{});
+    }
+    onClose();
+  };
   const addCustom=()=>{if(!ns.trim())return;setCustomSubjects(p=>[...p,{n:ns.trim(),c:nc,i:"📌",w:0,custom:true}]);setNs("");};
   const delCustom=(i)=>setCustomSubjects(p=>p.filter((_,j)=>j!==i));
   const startEdit=(i,v)=>{setEditIdx(i);setEditVal(v);};
@@ -312,134 +322,188 @@ function Login({t,onLogin}){
 }
 
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
-function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete}){
+function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
+  pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs}){
   const allSubjects=[...subjects,...customSubjects];
-  const [cs,setCs]=useState(allSubjects[0]?.n||"History");
-  const [mode,setMode]=useState("focus");
-  const [cf,setCf]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25"));
-  const [pf,setPf]=useState(cf);
-  const [sec,setSec]=useState(cf*60);
-  const [run,setRun]=useState(false);
-  const [sess,setSess]=useState(0);
+  const [pf,setPf]=useState(pomoCf);
   const [show,setShow]=useState(false);
   const ref=useRef();
   const maxMin=isPro?150:60;
   const PRESETS=[25,45,60,...(isPro?[90,120,150]:[])];
-  const dur={focus:cf,short:5,long:15};
-  const tot=dur[mode]*60;
-  const prog=((tot-sec)/tot)*100;
-  const sc=allSubjects.find(s=>s.n===cs)?.c||t.a2;
+  const dur={focus:pomoCf,short:5,long:15};
+  const tot=dur[pomoMode]*60;
+  const prog=((tot-pomoSec)/tot)*100;
+  const sc=allSubjects.find(s=>s.n===pomoCs)?.c||t.a2;
   const circ=2*Math.PI*86;const dash=circ-(prog/100)*circ;
+
+  // Set default subject on first load
+  useEffect(()=>{if(!pomoCs&&allSubjects.length>0)setPomoCs(allSubjects[0].n);},[allSubjects.length]);
+
+  // Play sound via Web Audio API — no external deps
+  const playSound=useCallback((type)=>{
+    if(!ns?.sound)return;
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      const gain=ctx.createGain();
+      gain.connect(ctx.destination);
+      if(type==="focus"){
+        // Three ascending tones — pleasant session complete
+        [[523,0],[659,0.15],[784,0.3]].forEach(([freq,delay])=>{
+          const o=ctx.createOscillator();o.type="sine";
+          o.frequency.value=freq;
+          o.connect(gain);
+          gain.gain.setValueAtTime(0,ctx.currentTime+delay);
+          gain.gain.linearRampToValueAtTime(0.18,ctx.currentTime+delay+0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.55);
+          o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
+        });
+      } else {
+        // Single soft bell — break complete
+        const o=ctx.createOscillator();o.type="sine";o.frequency.value=440;
+        o.connect(gain);
+        gain.gain.setValueAtTime(0,ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12,ctx.currentTime+0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
+        o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
+      }
+    }catch(e){}
+  },[ns?.sound]);
 
   const saveSession=async(subject,minutes)=>{
     if(!user?.uid)return;
     try{
       const mod=await import("./firebase");
-      const sessionData={subject,minutes,completedAt:Date.now(),date:new Date().toISOString().split("T")[0]};
-      // Write session log
-      const newRef=mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`);
-      await mod.set(newRef,sessionData);
-      // Update stats aggregation
+      const today=new Date().toISOString().split("T")[0];
+      const sessionData={subject,minutes,completedAt:Date.now(),date:today};
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),sessionData);
       const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
       const snap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
       const prev=snap.exists()?snap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
-      const today=new Date().toISOString().split("T")[0];
-      await mod.set(statsRef,{
-        totalSessions:(prev.totalSessions||0)+1,
-        totalMinutes:(prev.totalMinutes||0)+minutes,
-        lastStudyDate:today,
-      });
+      await mod.set(statsRef,{totalSessions:(prev.totalSessions||0)+1,totalMinutes:(prev.totalMinutes||0)+minutes,lastStudyDate:today});
       if(onSessionComplete) onSessionComplete();
     }catch(e){console.error("saveSession error",e);}
   };
 
+  // Global timer — runs even when tab is switched because state lives in App
   useEffect(()=>{
-    if(run){
-      ref.current=setInterval(()=>setSec(s=>{
+    if(pomoRun){
+      ref.current=setInterval(()=>setPomoSec(s=>{
         if(s<=1){
-          clearInterval(ref.current);setRun(false);
-          if(mode==="focus"){
-            setSess(n=>n+1);
-            saveSession(cs,cf);
-            if(ns?.pomoDone)pushN({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${cs}!`,col:sc});
+          clearInterval(ref.current);setPomoRun(false);
+          if(pomoMode==="focus"){
+            setPomoSess(n=>n+1);
+            saveSession(pomoCs,pomoCf);
+            playSound("focus");
+            if(ns?.pomoDone)pushN({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCs}!`,col:sc});
+          } else {
+            playSound("break");
+            if(ns?.pomoDone)pushN({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:t.a3});
           }
           return 0;
         }
         return s-1;
       }),1000);
-    }else clearInterval(ref.current);
+    } else clearInterval(ref.current);
     return()=>clearInterval(ref.current);
-  },[run,mode]);
-  const sw=(m,cm)=>{setMode(m);setSec((cm??dur[m])*60);setRun(false);};
-  const applyDur=(v)=>{const val=Math.min(v,maxMin);setCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
+  },[pomoRun,pomoMode]);
+
+  const sw=(m,cm)=>{setPomoMode(m);setPomoSec((cm??dur[m])*60);setPomoRun(false);};
+  const applyDur=(v)=>{const val=Math.min(v,maxMin);setPomoCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
   const fmtTime=(m)=>m>=60?`${Math.floor(m/60)}h${m%60?` ${m%60}m`:""}`:m+"m";
   return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:15}}>
-    <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3}}>{[["focus","Focus"],["short","Short Brk"],["long","Long Brk"]].map(([m,l])=><button key={m} onClick={()=>sw(m)} style={{padding:"6px 11px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,background:mode===m?sc:t.pill,color:mode===m?"#0a0a0f":t.sub,transition:"all .2s"}}>{l}</button>)}</div>
+    <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3}}>{[["focus","Focus"],["short","Short Brk"],["long","Long Brk"]].map(([m,l])=><button key={m} onClick={()=>sw(m)} style={{padding:"6px 11px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,background:pomoMode===m?sc:t.pill,color:pomoMode===m?"#0a0a0f":t.sub,transition:"all .2s"}}>{l}</button>)}</div>
     <div style={{position:"relative",width:196,height:196}}>
       <svg width={196} height={196} style={{transform:"rotate(-90deg)"}}><circle cx={98} cy={98} r={86} fill="none" stroke={t.border} strokeWidth={9}/><circle cx={98} cy={98} r={86} fill="none" stroke={sc} strokeWidth={9} strokeDasharray={circ} strokeDashoffset={dash} strokeLinecap="round" style={{transition:"stroke-dashoffset 1s linear,stroke .3s"}}/></svg>
       <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
-        <div style={{fontSize:44,fontWeight:900,color:t.text,letterSpacing:-2,lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(sec/60))}:{pad(sec%60)}</div>
-        <div style={{fontSize:9,color:t.sub,textTransform:"uppercase",letterSpacing:2,fontWeight:600}}>{mode==="focus"?"FOCUS":mode==="short"?"SHORT":"LONG"}</div>
-        <div style={{fontSize:9,color:sc,fontWeight:700,marginTop:1}}>{fmtTime(cf)}</div>
+        <div style={{fontSize:44,fontWeight:900,color:t.text,letterSpacing:-2,lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</div>
+        <div style={{fontSize:9,color:t.sub,textTransform:"uppercase",letterSpacing:2,fontWeight:600}}>{pomoMode==="focus"?"FOCUS":pomoMode==="short"?"SHORT":"LONG"}</div>
+        <div style={{fontSize:9,color:sc,fontWeight:700,marginTop:1}}>{fmtTime(pomoCf)}</div>
       </div>
     </div>
-
     {/* Timer settings */}
     <div style={{background:t.card,border:`1px solid ${show?sc+"44":t.border}`,borderRadius:14,padding:"10px 14px",width:"100%",maxWidth:350,transition:"border .3s"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:show?10:0}}>
-        <span style={{color:t.sub,fontSize:11,fontWeight:600}}>⚙️ Timer — {fmtTime(cf)}</span>
+        <span style={{color:t.sub,fontSize:11,fontWeight:600}}>⚙️ Timer — {fmtTime(pomoCf)}</span>
         <button onClick={()=>setShow(v=>!v)} style={{background:t.pill,border:"none",borderRadius:14,padding:"3px 8px",color:t.text,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{show?"Done":"Customize"}</button>
       </div>
       {show&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {/* Presets */}
         <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Presets</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-          {PRESETS.map(v=><button key={v} onClick={()=>applyDur(v)} style={{padding:"6px 11px",borderRadius:9,border:`1.5px solid ${cf===v?sc:t.border}`,background:cf===v?`${sc}20`:t.pill,color:cf===v?sc:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{fmtTime(v)}</button>)}
-        </div>
-        {/* Custom slider */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{PRESETS.map(v=><button key={v} onClick={()=>applyDur(v)} style={{padding:"6px 11px",borderRadius:9,border:`1.5px solid ${pomoCf===v?sc:t.border}`,background:pomoCf===v?`${sc}20`:t.pill,color:pomoCf===v?sc:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{fmtTime(v)}</button>)}</div>
         <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Custom — max {fmtTime(maxMin)}{!isPro&&<span style={{color:"#818cf8"}}> · Pro gets 2h30m</span>}</div>
         <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:t.sub,fontSize:11}}>Duration</span><span style={{color:sc,fontWeight:900,fontSize:17}}>{fmtTime(pf)}</span></div>
         <input type="range" min={5} max={maxMin} step={5} value={pf} onChange={e=>setPf(Number(e.target.value))} style={{width:"100%",accentColor:sc,cursor:"pointer"}}/>
         <button onClick={()=>applyDur(pf)} style={{background:sc,border:"none",borderRadius:9,padding:"8px",color:"#0a0a0f",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Apply {fmtTime(pf)} Timer</button>
       </div>)}
     </div>
-
     {/* Subject pills */}
     <div style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",maxWidth:390}}>
-      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${cs===s.n?s.c:"transparent"}`,background:cs===s.n?`${s.c}20`:t.pill,color:cs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
     </div>
-
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{setSec(dur[mode]*60);setRun(false);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
-      <button onClick={()=>setRun(r=>!r)} style={{background:run?t.card:sc,border:run?`1.5px solid ${t.border}`:"none",color:run?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:run?"none":`0 0 20px ${sc}55`}}>{run?"⏸ Pause":"▶ Start"}</button>
-      <button onClick={()=>sw(mode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
+      <button onClick={()=>{setPomoSec(dur[pomoMode]*60);setPomoRun(false);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
+      <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
+      <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
-    <div style={{display:"flex",gap:17}}>{[{l:"Sessions",v:sess,c:sc},{l:"Focus Time",v:`${Math.floor(sess*cf/60)}h${(sess*cf)%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoSess*pomoCf/60)}h${(pomoSess*pomoCf)%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
+    {/* Running indicator shown on other tabs */}
+    {pomoRun&&<div style={{background:`${sc}12`,border:`1px solid ${sc}30`,borderRadius:10,padding:"6px 14px",display:"flex",alignItems:"center",gap:6}}><div style={{width:6,height:6,borderRadius:"50%",background:sc,animation:"pulse 1s infinite"}}/><span style={{color:sc,fontSize:10,fontWeight:700}}>Timer running — {pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></div>}
   </div>);
 }
 
-// ── PLANNER (Feature 7 — edit/delete tasks with confirmation) ─
-function Planner({t,subjects,customSubjects}){
+function Planner({t,subjects,customSubjects,user}){
   const allSubjects=[...subjects,...customSubjects];
   const [view,setView]=useState("daily");
-  const [tasks,setTasks]=useState([
-    {id:1,text:"Read Laxmikanth Ch. 8",subj:subjects.find(s=>s.n==="Polity")?.n||subjects[0]?.n||"History",done:false,time:"09:00"},
-    {id:2,text:"Newspaper + Editorial",subj:subjects.find(s=>s.n==="Cur. Affairs")?.n||subjects[0]?.n||"History",done:true,time:"07:00"},
-    {id:3,text:"Economy Chapter",subj:subjects.find(s=>s.n==="Economy")?.n||subjects[0]?.n||"History",done:false,time:"14:00"},
-  ]);
-  const [nt,setNt]=useState("");const [ns,setNs]=useState(allSubjects[0]?.n||"History");
+  const [tasks,setTasks]=useState([]);
+  const [nt,setNt]=useState("");const [ns2,setNs2]=useState(allSubjects[0]?.n||"History");
+  const [ntStart,setNtStart]=useState("");const [ntEnd,setNtEnd]=useState("");
   const [editId,setEditId]=useState(null);const [editVal,setEditVal]=useState("");
   const [delConfirm,setDelConfirm]=useState(null);
   const today=new Date();
-  const days=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()-today.getDay()+i);return d;});
-  const tog=id=>setTasks(tasks.map(x=>x.id===id?{...x,done:!x.done}:x));
-  const add=()=>{if(!nt.trim())return;setTasks([...tasks,{id:Date.now(),text:nt,subj:ns,done:false,time:"12:00"}]);setNt("");};
+  const todayStr=today.toISOString().split("T")[0];
+  const days7=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()-today.getDay()+i);return d;});
+
+  // Load tasks from Firebase
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/planner`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()) setTasks(Object.entries(snap.val()).map(([id,v])=>({...v,id})));
+          else setTasks([]);
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  const saveTask=async(task)=>{
+    if(!user?.uid)return;
+    try{const mod=await import("./firebase");await mod.set(mod.ref(mod.db,`users/${user.uid}/planner/${task.id}`),task);}catch(e){}
+  };
+  const removeTask=async(id)=>{
+    if(!user?.uid)return;
+    try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/planner/${id}`));}catch(e){}
+  };
+
+  const tog=id=>{const updated=tasks.map(x=>x.id===id?{...x,done:!x.done}:x);setTasks(updated);const task=updated.find(x=>x.id===id);if(task)saveTask(task);};
+  const add=()=>{
+    if(!nt.trim())return;
+    const task={id:`t_${Date.now()}`,text:nt,subj:ns2,done:false,time:"12:00",startDate:ntStart||todayStr,endDate:ntEnd||""};
+    setTasks(p=>[...p,task]);saveTask(task);setNt("");setNtStart("");setNtEnd("");
+  };
   const startEdit=(task)=>{setEditId(task.id);setEditVal(task.text);};
-  const saveEdit=(id)=>{setTasks(tasks.map(x=>x.id===id?{...x,text:editVal}:x));setEditId(null);};
+  const saveEdit=(id)=>{const updated=tasks.map(x=>x.id===id?{...x,text:editVal}:x);setTasks(updated);const task=updated.find(x=>x.id===id);if(task)saveTask(task);setEditId(null);};
   const confirmDel=(id)=>setDelConfirm(id);
-  const doDel=(id)=>{setTasks(tasks.filter(x=>x.id!==id));setDelConfirm(null);};
+  const doDel=(id)=>{setTasks(tasks.filter(x=>x.id!==id));removeTask(id);setDelConfirm(null);};
+
+  const daysLeft=(endDate)=>{if(!endDate)return null;const diff=Math.ceil((new Date(endDate)-new Date(todayStr))/(86400000));return diff;};
+  const deadlineStatus=(endDate)=>{if(!endDate)return null;const d=daysLeft(endDate);if(d<0)return{label:"Overdue",color:"#FF6B6B"};if(d===0)return{label:"Due today",color:"#FFB86B"};if(d<=3)return{label:`${d}d left`,color:"#FFB86B"};return{label:`${d}d left`,color:"#34d399"};};
+
   return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
-    {/* Delete confirm dialog */}
     {delConfirm&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
         <div style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
@@ -454,20 +518,27 @@ function Planner({t,subjects,customSubjects}){
       </div>
     )}
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>{["daily","weekly","monthly"].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 11px",borderRadius:19,border:"none",background:view===v?t.a4:t.pill,color:view===v?"#0a0a0f":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",textTransform:"capitalize",fontFamily:"inherit"}}>{v}</button>)}</div>
-    {view==="weekly"&&<div style={{display:"flex",gap:3}}>{days.map((d,i)=><div key={i} style={{flex:1,background:i===today.getDay()?`${t.a4}15`:t.card,border:`1px solid ${i===today.getDay()?t.a4+"44":t.border}`,borderRadius:8,padding:"6px 3px",textAlign:"center"}}><div style={{fontSize:7,color:t.sub,marginBottom:1}}>{["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]}</div><div style={{fontSize:13,fontWeight:800,color:i===today.getDay()?t.a4:t.text}}>{d.getDate()}</div></div>)}</div>}
+    {view==="weekly"&&<div style={{display:"flex",gap:3}}>{days7.map((d,i)=><div key={i} style={{flex:1,background:i===today.getDay()?`${t.a4}15`:t.card,border:`1px solid ${i===today.getDay()?t.a4+"44":t.border}`,borderRadius:8,padding:"6px 3px",textAlign:"center"}}><div style={{fontSize:7,color:t.sub,marginBottom:1}}>{["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]}</div><div style={{fontSize:13,fontWeight:800,color:i===today.getDay()?t.a4:t.text}}>{d.getDate()}</div></div>)}</div>}
     {view==="monthly"&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:10}}><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:8,color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}{Array.from({length:31},(_,i)=>i+1).map(d=><div key={d} style={{textAlign:"center",padding:"4px 1px",borderRadius:5,fontSize:9,background:d===today.getDate()?`${t.a4}18`:"transparent",color:d===today.getDate()?t.a4:d<today.getDate()?t.muted:t.sub}}>{d}</div>)}</div></div>}
 
-    {/* Add task */}
-    <div style={{display:"flex",gap:5}}>
-      <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-      <select value={ns} onChange={e=>setNs(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:9,maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
-      <button onClick={add} style={{background:t.a3,border:"none",borderRadius:8,padding:"8px 11px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>+</button>
+    {/* Add task with start/end dates */}
+    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:10,display:"flex",flexDirection:"column",gap:7}}>
+      <div style={{display:"flex",gap:5}}>
+        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+        <select value={ns2} onChange={e=>setNs2(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:9,maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
+      </div>
+      <div style={{display:"flex",gap:5,alignItems:"center"}}>
+        <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:2}}>Start</div><input type="date" value={ntStart} onChange={e=>setNtStart(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/></div>
+        <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:2}}>End / Deadline</div><input type="date" value={ntEnd} onChange={e=>setNtEnd(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/></div>
+        <button onClick={add} style={{background:t.a3,border:"none",borderRadius:8,padding:"10px 14px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:14,fontFamily:"inherit",alignSelf:"flex-end"}}>+</button>
+      </div>
     </div>
 
     {/* Task list */}
     <div style={{display:"flex",flexDirection:"column",gap:5}}>
       {tasks.map(task=>{
         const s=allSubjects.find(s=>s.n===task.subj)||{c:"#818cf8"};
+        const ds=deadlineStatus(task.endDate);
         return(
           <div key={task.id} style={{background:task.done?t.pill:t.card,border:`1px solid ${task.done?t.border:s.c+"28"}`,borderRadius:10,padding:"9px 10px",transition:"all .2s"}}>
             {editId===task.id?(
@@ -477,14 +548,21 @@ function Planner({t,subjects,customSubjects}){
                 <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:7,padding:"6px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
             ):(
-              <div style={{display:"flex",alignItems:"center",gap:9}}>
-                <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:8,fontWeight:900}}>✓</span>}</div>
-                <div onClick={()=>tog(task.id)} style={{flex:1,color:task.done?t.sub:t.text,fontSize:11,textDecoration:task.done?"line-through":"none",cursor:"pointer"}}>{task.text}</div>
-                <div style={{background:`${s.c}18`,color:s.c,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12}}>{task.subj}</div>
-                <div style={{display:"flex",gap:3}}>
-                  <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                  <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:8,fontWeight:900}}>✓</span>}</div>
+                  <div onClick={()=>tog(task.id)} style={{flex:1,color:task.done?t.sub:t.text,fontSize:11,textDecoration:task.done?"line-through":"none",cursor:"pointer"}}>{task.text}</div>
+                  <div style={{background:`${s.c}18`,color:s.c,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12}}>{task.subj}</div>
+                  {ds&&!task.done&&<div style={{background:`${ds.color}15`,color:ds.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12,whiteSpace:"nowrap"}}>{ds.label}</div>}
+                  <div style={{display:"flex",gap:3}}>
+                    <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                    <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                  </div>
                 </div>
+                {(task.startDate||task.endDate)&&<div style={{display:"flex",gap:8,marginTop:4,paddingLeft:25}}>
+                  {task.startDate&&<span style={{color:t.muted,fontSize:8}}>▶ {task.startDate}</span>}
+                  {task.endDate&&<span style={{color:t.muted,fontSize:8}}>⏹ {task.endDate}</span>}
+                </div>}
               </div>
             )}
           </div>
@@ -562,20 +640,124 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,pushN:_}){
 }
 
 // ── EXAM DASHBOARD ────────────────────────────────────────────
-function ExamDash({t,es,onOpen,customSubjects}){
+function ExamDash({t,es,setEs,onOpen,customSubjects,user}){
   const days=dl(es.date);
   const allSubjs=[...es.subjects,...customSubjects.filter(s=>!es.subjects.find(x=>x.n===s.n))];
   const prog={};allSubjs.forEach((s,i)=>{prog[s.n]=[20,45,60,35,75,50,40,65,30,55][i%10];});
+  const [tips,setTips]=useState(es.tips||[]);
+  const [editDateMode,setEditDateMode]=useState(false);
+  const [dateVal,setDateVal]=useState(es.date||"");
+  const [newTip,setNewTip]=useState("");
+  const [editTipIdx,setEditTipIdx]=useState(null);
+  const [editTipVal,setEditTipVal]=useState("");
+
+  // Sync tips from es
+  useEffect(()=>setTips(es.tips||[]),[es.key,es.mode]);
+
+  const saveToDb=async(updates)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/examConfig`),updates);
+    }catch(e){}
+  };
+
+  const saveDate=()=>{
+    if(!dateVal)return;
+    const updated={...es,date:dateVal};
+    setEs(updated);
+    saveToDb({key:updated.key,mode:updated.mode,date:dateVal,tips:updated.tips||tips});
+    setEditDateMode(false);
+  };
+
+  const addTip=()=>{
+    if(!newTip.trim())return;
+    const updated=[...tips,newTip.trim()];
+    setTips(updated);setNewTip("");
+    setEs({...es,tips:updated});
+    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+  };
+  const deleteTip=(i)=>{
+    const updated=tips.filter((_,idx)=>idx!==i);
+    setTips(updated);setEs({...es,tips:updated});
+    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+  };
+  const startEditTip=(i)=>{setEditTipIdx(i);setEditTipVal(tips[i]);};
+  const saveTip=()=>{
+    const updated=tips.map((tp,i)=>i===editTipIdx?editTipVal:tp);
+    setTips(updated);setEditTipIdx(null);setEs({...es,tips:updated});
+    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+  };
+  const moveTip=(i,dir)=>{
+    const updated=[...tips];const j=i+dir;
+    if(j<0||j>=updated.length)return;
+    [updated[i],updated[j]]=[updated[j],updated[i]];
+    setTips(updated);setEs({...es,tips:updated});
+    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+  };
+
   return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
     <div style={{background:`${es.color||"#818cf8"}10`,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:14,padding:"12px 12px",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-8,right:-8,width:65,height:65,borderRadius:"50%",background:`radial-gradient(circle,${es.color||"#818cf8"}16,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div><div style={{fontSize:18}}>{es.icon||"🎯"}</div><div style={{color:t.text,fontWeight:900,fontSize:15,marginTop:2}}>{es.key||"UPSC CSE"}</div><div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}><div style={{background:`${es.color||"#818cf8"}18`,color:es.color||"#818cf8",border:`1px solid ${es.color||"#818cf8"}40`,borderRadius:13,padding:"1px 7px",fontSize:8,fontWeight:800}}>{es.mode||"PRELIMS"}</div><div style={{color:t.sub,fontSize:8}}>{es.date}</div></div></div>
-        <div style={{textAlign:"right"}}><div style={{fontSize:34,fontWeight:900,color:es.color||"#818cf8",lineHeight:1}}>{days}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>days left</div></div>
+        <div><div style={{fontSize:18}}>{es.icon||"🎯"}</div><div style={{color:t.text,fontWeight:900,fontSize:15,marginTop:2}}>{es.key||"UPSC CSE"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
+            <div style={{background:`${es.color||"#818cf8"}18`,color:es.color||"#818cf8",border:`1px solid ${es.color||"#818cf8"}40`,borderRadius:13,padding:"1px 7px",fontSize:8,fontWeight:800}}>{es.mode||"PRELIMS"}</div>
+            {editDateMode?(
+              <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"2px 5px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={saveDate} style={{background:es.color||"#818cf8",border:"none",borderRadius:6,padding:"2px 7px",color:"#fff",fontSize:9,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditDateMode(false)} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+              </div>
+            ):(
+              <div style={{display:"flex",alignItems:"center",gap:3}}>
+                <div style={{color:t.sub,fontSize:8}}>{es.date||"No date set"}</div>
+                <button onClick={()=>{setDateVal(es.date||"");setEditDateMode(true);}} style={{background:"none",border:"none",color:t.muted,fontSize:9,cursor:"pointer",padding:"0 2px"}}>✎</button>
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:34,fontWeight:900,color:es.color||"#818cf8",lineHeight:1}}>{days??""}</div>
+          <div style={{color:t.sub,fontSize:8,marginTop:1}}>{days!=null?"days left":"set date"}</div>
+        </div>
       </div>
       <button onClick={onOpen} style={{marginTop:8,background:"rgba(255,255,255,0.04)",border:`1px solid ${t.border}`,borderRadius:7,padding:"3px 9px",color:t.sub,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✎ Change Exam / Mode</button>
     </div>
-    {es.tips?.length>0&&<div><div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Strategy</div><div style={{display:"flex",flexDirection:"column",gap:3}}>{es.tips.map((tip,i)=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 9px",display:"flex",gap:5}}><span style={{color:"#818cf8",fontSize:8,fontWeight:800,flexShrink:0}}>{i+1}.</span><span style={{color:t.text,fontSize:10,lineHeight:1.4}}>{tip}</span></div>)}</div></div>}
+
+    {/* Strategy — full CRUD */}
+    <div>
+      <div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Strategy Points</div>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        {tips.map((tip,i)=>(
+          <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 9px"}}>
+            {editTipIdx===i?(
+              <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                <input autoFocus value={editTipVal} onChange={e=>setEditTipVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveTip();if(e.key==="Escape")setEditTipIdx(null);}} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={saveTip} style={{background:"#34d399",border:"none",borderRadius:6,padding:"4px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditTipIdx(null)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+              </div>
+            ):(
+              <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                <span style={{color:"#818cf8",fontSize:8,fontWeight:800,flexShrink:0}}>{i+1}.</span>
+                <span style={{color:t.text,fontSize:10,lineHeight:1.4,flex:1}}>{tip}</span>
+                <div style={{display:"flex",gap:2,flexShrink:0}}>
+                  <button onClick={()=>moveTip(i,-1)} disabled={i===0} style={{background:"none",border:"none",color:t.muted,cursor:i===0?"default":"pointer",fontSize:9,padding:"0 2px"}}>↑</button>
+                  <button onClick={()=>moveTip(i,1)} disabled={i===tips.length-1} style={{background:"none",border:"none",color:t.muted,cursor:i===tips.length-1?"default":"pointer",fontSize:9,padding:"0 2px"}}>↓</button>
+                  <button onClick={()=>startEditTip(i)} style={{background:t.pill,border:"none",borderRadius:5,padding:"2px 5px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                  <button onClick={()=>deleteTip(i)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:5,padding:"2px 5px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <div style={{display:"flex",gap:5,marginTop:3}}>
+          <input value={newTip} onChange={e=>setNewTip(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTip()} placeholder="Add strategy point…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+          <button onClick={addTip} style={{background:"#818cf8",border:"none",borderRadius:7,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+        </div>
+      </div>
+    </div>
+
     <div><div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Subject Progress {customSubjects.length>0&&`· ${customSubjects.length} custom`}</div>
       <div style={{display:"flex",flexDirection:"column",gap:5}}>
         {allSubjs.map(s=><div key={s.n} style={{background:t.card,border:`1px solid ${s.c}18`,borderRadius:10,padding:"8px 10px"}}>
@@ -1243,66 +1425,157 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 }
 
 // ── REPORT ────────────────────────────────────────────────────
-function Report({t,es}){
+function Report({t,es,user,streak}){
   const [rep,setRep]=useState("");const [ld,setLd]=useState(false);
-  const [view,setView]=useState("week");
+  const [view,setView]=useState("stats");
+  const [sessions,setSessions]=useState([]);
+  const [selDate,setSelDate]=useState(null);
   const today=new Date();
-  const calData=Array.from({length:35},(_,i)=>{const d=new Date(today);d.setDate(today.getDate()-34+i);const hrs=[0,0,2.5,0,3,1.5,4,0,2,3.5,0,1,4.5,2,3,0,5,2.5,0,3.5,4,1,2,3,0,4.5,2,3.5,0,2,4,1.5,3,2.5,0][i%35]||0;return{date:d,hrs,label:d.toLocaleDateString("en-IN",{day:"numeric",month:"short"})};});
-  const heatColor=(h)=>{if(h===0)return t.pill;if(h<2)return"rgba(129,140,248,0.22)";if(h<3.5)return"rgba(129,140,248,0.52)";return"rgba(129,140,248,0.88)";};
-  const totalHrs=SUBJECT_DATA.reduce((a,b)=>a+b.total,0);
-  const maxH=Math.max(...SUBJECT_DATA.map(s=>s.total));
+  const todayStr=today.toISOString().split("T")[0];
+
+  // Load real sessions from Firebase
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/sessions`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()) setSessions(Object.values(snap.val()));
+          else setSessions([]);
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // Compute stats from real sessions
+  const totalSessions=sessions.length;
+  const totalMinutes=sessions.reduce((a,s)=>a+(s.minutes||0),0);
+  const totalHours=Math.floor(totalMinutes/60);
+  const todaySessions=sessions.filter(s=>s.date===todayStr);
+  const todayMinutes=todaySessions.reduce((a,s)=>a+(s.minutes||0),0);
+  const weekStart=new Date(today);weekStart.setDate(today.getDate()-today.getDay());
+  const weekStr=weekStart.toISOString().split("T")[0];
+  const weekSessions=sessions.filter(s=>s.date>=weekStr);
+  const weekMinutes=weekSessions.reduce((a,s)=>a+(s.minutes||0),0);
+  const monthStr=todayStr.slice(0,7);
+  const monthSessions=sessions.filter(s=>s.date?.startsWith(monthStr));
+  const monthMinutes=monthSessions.reduce((a,s)=>a+(s.minutes||0),0);
+
+  // Subject breakdown from real sessions
+  const subjMap={};
+  sessions.forEach(s=>{if(s.subject)subjMap[s.subject]=(subjMap[s.subject]||0)+(s.minutes||0);});
+  const subjArr=Object.entries(subjMap).sort((a,b)=>b[1]-a[1]);
+
+  // Calendar: last 35 days
+  const calDays=Array.from({length:35},(_,i)=>{
+    const d=new Date(today);d.setDate(today.getDate()-34+i);
+    const dStr=d.toISOString().split("T")[0];
+    const daySess=sessions.filter(s=>s.date===dStr);
+    const mins=daySess.reduce((a,s)=>a+(s.minutes||0),0);
+    const hrs=Math.round(mins/60*10)/10;
+    return{date:d,dateStr:dStr,mins,hrs,count:daySess.length};
+  });
+  const heatColor=(h)=>{if(h===0)return t.pill;if(h<1)return"rgba(129,140,248,0.18)";if(h<2)return"rgba(129,140,248,0.40)";if(h<3)return"rgba(129,140,248,0.65)";return"rgba(129,140,248,0.90)";};
+
+  // Selected date detail
+  const selSessions=selDate?sessions.filter(s=>s.date===selDate):[];
+  const selMins=selSessions.reduce((a,s)=>a+(s.minutes||0),0);
+
+  // Longest streak calc
+  const dateSet=new Set(sessions.map(s=>s.date));
+  let longest=0,cur=0,chk=new Date(today);
+  for(let i=0;i<365;i++){
+    const ds=chk.toISOString().split("T")[0];
+    if(dateSet.has(ds)){cur++;longest=Math.max(longest,cur);}else cur=0;
+    chk.setDate(chk.getDate()-1);
+  }
+
   const gen=async()=>{
     setLd(true);setRep("");
-    const prompt=`Warm, direct 110-word weekly study coaching report for a ${es.name||"UPSC"} aspirant. Subject hours: ${SUBJECT_DATA.map(s=>`${s.subj}:${s.total}h`).join(", ")}. Total: ${totalHrs}h, Streak: 17 days. Cover: brief summary, strongest subject, weakest (needs more time), one tip, one motivational line. Coach-like tone.`;
+    const subjSummary=subjArr.slice(0,5).map(([s,m])=>`${s}:${Math.round(m/60*10)/10}h`).join(", ");
+    const prompt=`Warm, direct 110-word weekly study coaching report for a ${es.name||"UPSC"} aspirant. Total sessions: ${totalSessions}, Total hours: ${totalHours}h, This week: ${Math.round(weekMinutes/60*10)/10}h, Streak: ${streak} days. Subject breakdown: ${subjSummary||"no data yet"}. Cover: brief summary, strongest subject, weakest (needs more time), one tip, one motivational line. Coach-like tone.`;
     const result=await callAI(prompt,"You are a motivating UPSC study coach. Be concise and actionable.");
     setRep(result);setLd(false);
   };
+
   return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
     <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>
-      {[["week","Weekly"],["subjects","Subjects"],["calendar","Calendar"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:19,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}
+      {[["stats","Stats"],["calendar","Calendar"],["subjects","Subjects"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:19,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}
     </div>
-    {view==="week"&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-      <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Daily Study Hours — This Week</div>
-      <div style={{display:"flex",gap:5,alignItems:"flex-end",height:88}}>
-        {SUBJECT_DATA[0].hours.map((_,dayIdx)=>{
-          const dayTotal=SUBJECT_DATA.reduce((sum,s)=>sum+s.hours[dayIdx],0);
-          const maxDay=Math.max(...SUBJECT_DATA[0].hours.map((_,i)=>SUBJECT_DATA.reduce((s,x)=>s+x.hours[i],0)));
-          return(<div key={dayIdx} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-            <div style={{fontSize:7,color:t.a2,fontWeight:700}}>{dayTotal}h</div>
-            <div style={{width:"100%",borderRadius:"4px 4px 0 0",height:`${(dayTotal/maxDay)*80}px`,display:"flex",flexDirection:"column-reverse",overflow:"hidden"}}>
-              {SUBJECT_DATA.map(s=><div key={s.subj} style={{width:"100%",height:`${(s.hours[dayIdx]/dayTotal)*100}%`,background:s.c,opacity:.82}}/>)}
-            </div>
-            <div style={{fontSize:7,color:t.sub}}>{DAYS[dayIdx]}</div>
-          </div>);
-        })}
-      </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:8}}>{SUBJECT_DATA.map(s=><div key={s.subj} style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:6,height:6,borderRadius:"50%",background:s.c}}/><span style={{color:t.sub,fontSize:8}}>{s.subj}</span></div>)}</div>
-    </div>}
-    {view==="subjects"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7}}>{[{l:"Total",v:`${totalHrs}h`,c:"#818cf8"},{l:"Best",v:SUBJECT_DATA.reduce((a,b)=>a.total>b.total?a:b).subj.split(" ")[0],c:"#34d399"},{l:"Focus On",v:SUBJECT_DATA.reduce((a,b)=>a.total<b.total?a:b).subj.split(" ")[0],c:t.a1}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"9px 5px",textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,marginTop:1,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div></div>)}</div>
-      {SUBJECT_DATA.map(s=><div key={s.subj} style={{background:t.card,border:`1px solid ${s.c}20`,borderRadius:11,padding:"10px 11px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{s.subj}</div><div style={{color:s.c,fontWeight:900,fontSize:14}}>{s.total}h</div></div>
-        <div style={{display:"flex",gap:3,alignItems:"flex-end",height:26,marginBottom:4}}>
-          {s.hours.map((h,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:1}}><div style={{width:"100%",borderRadius:"2px 2px 0 0",height:`${(h/Math.max(...s.hours,.1))*22}px`,background:h>0?s.c:`${s.c}18`}}/><div style={{fontSize:6,color:t.muted}}>{DAYS[i][0]}</div></div>)}
-        </div>
-        <div style={{height:3,background:t.pill,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${(s.total/maxH)*100}%`,background:s.c,borderRadius:2}}/></div>
-        <div style={{color:t.muted,fontSize:8,marginTop:2}}>{((s.total/totalHrs)*100).toFixed(0)}% of total</div>
-      </div>)}
-    </div>}
-    {view==="calendar"&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-      <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar — Last 5 Weeks</div>
-      <div style={{display:"flex",gap:5,marginBottom:7}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:7,color:t.muted}}>{d}</div>)}</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-        {calData.map((d,i)=><div key={i} title={`${d.label}: ${d.hrs}h`} style={{aspectRatio:"1",borderRadius:4,background:heatColor(d.hrs),border:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"default"}}>
-          {d.hrs>0&&<div style={{fontSize:7,color:d.hrs>=2?"#fff":t.sub,fontWeight:700}}>{d.hrs}</div>}
+
+    {/* STATS VIEW */}
+    {view==="stats"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+        {[{l:"Total Sessions",v:String(totalSessions),c:"#818cf8",i:"⏱"},{l:"Total Hours",v:`${totalHours}h ${totalMinutes%60}m`,c:"#34d399",i:"🕐"},{l:"Today",v:`${todayMinutes}m`,c:"#FFB86B",i:"📅"},{l:"This Week",v:`${Math.round(weekMinutes/60*10)/10}h`,c:"#6EE7F7",i:"📊"},{l:"This Month",v:`${Math.round(monthMinutes/60*10)/10}h`,c:"#C16BFF",i:"📆"},{l:"Current Streak",v:`${streak}🔥`,c:"#FF6B6B",i:"🔥"},{l:"Longest Streak",v:`${longest}d`,c:"#FFD700",i:"🏆"},{l:"Avg/Day",v:totalSessions>0?`${Math.round(totalMinutes/Math.max(new Set(sessions.map(s=>s.date)).size,1))}m`:"0m",c:"#34d399",i:"📈"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${s.c}22`,borderRadius:12,padding:"11px 10px"}}>
+          <div style={{fontSize:18,marginBottom:4}}>{s.i}</div>
+          <div style={{fontSize:20,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+          <div style={{fontSize:9,color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
         </div>)}
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8,justifyContent:"center"}}>
-        <span style={{color:t.muted,fontSize:8}}>Less</span>
-        {[0,1,2,3.5,5].map(h=><div key={h} style={{width:11,height:11,borderRadius:3,background:heatColor(h),border:`1px solid ${t.border}`}}/>)}
-        <span style={{color:t.muted,fontSize:8}}>More</span>
-      </div>
+      {totalSessions===0&&<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"14px",textAlign:"center"}}>
+        <div style={{fontSize:28,marginBottom:6}}>⏱</div>
+        <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No sessions yet</div>
+        <div style={{color:t.sub,fontSize:11}}>Complete a Pomodoro session to see your stats here!</div>
+      </div>}
     </div>}
+
+    {/* CALENDAR VIEW */}
+    {view==="calendar"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
+        <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar — Last 5 Weeks · Tap a day</div>
+        <div style={{display:"flex",gap:5,marginBottom:7}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:7,color:t.muted}}>{d}</div>)}</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+          {calDays.map((d,i)=><div key={i} onClick={()=>setSelDate(d.dateStr===selDate?null:d.dateStr)} title={`${d.dateStr}: ${d.hrs}h`} style={{aspectRatio:"1",borderRadius:4,background:selDate===d.dateStr?"#818cf8":heatColor(d.hrs),border:`1.5px solid ${selDate===d.dateStr?"#818cf8":t.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s"}}>
+            {d.count>0&&<div style={{fontSize:7,color:selDate===d.dateStr||d.hrs>=1?"#fff":t.sub,fontWeight:700}}>{d.count}</div>}
+          </div>)}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8,justifyContent:"center"}}>
+          <span style={{color:t.muted,fontSize:8}}>Less</span>
+          {[0,0.5,1,2,3.5].map(h=><div key={h} style={{width:11,height:11,borderRadius:3,background:heatColor(h),border:`1px solid ${t.border}`}}/>)}
+          <span style={{color:t.muted,fontSize:8}}>More</span>
+        </div>
+      </div>
+      {/* Selected date detail */}
+      {selDate&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"12px"}}>
+        <div style={{color:"#818cf8",fontWeight:800,fontSize:12,marginBottom:8}}>📅 {selDate}</div>
+        {selSessions.length===0?<div style={{color:t.sub,fontSize:11}}>No study sessions on this day.</div>:
+        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+          <div style={{display:"flex",gap:10,marginBottom:4}}>
+            <div style={{textAlign:"center"}}><div style={{color:t.text,fontWeight:900,fontSize:16}}>{selSessions.length}</div><div style={{color:t.sub,fontSize:8}}>Sessions</div></div>
+            <div style={{textAlign:"center"}}><div style={{color:"#34d399",fontWeight:900,fontSize:16}}>{selMins}m</div><div style={{color:t.sub,fontSize:8}}>Focus Time</div></div>
+          </div>
+          {selSessions.map((s,i)=><div key={i} style={{background:t.pill,borderRadius:8,padding:"6px 9px",display:"flex",justifyContent:"space-between"}}>
+            <span style={{color:t.text,fontSize:10,fontWeight:600}}>📖 {s.subject||"General"}</span>
+            <span style={{color:t.sub,fontSize:9}}>{s.minutes}m</span>
+          </div>)}
+        </div>}
+      </div>}
+    </div>}
+
+    {/* SUBJECTS VIEW */}
+    {view==="subjects"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
+      {subjArr.length===0?<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Complete sessions to see subject breakdown!</div>:
+      subjArr.map(([subj,mins],i)=>{
+        const hrs=Math.round(mins/60*10)/10;
+        const pct=Math.round((mins/totalMinutes)*100);
+        const cols=["#818cf8","#34d399","#FFB86B","#6EE7F7","#FF6B6B","#C16BFF","#FFD700"];
+        const c=cols[i%cols.length];
+        return(<div key={subj} style={{background:t.card,border:`1px solid ${c}20`,borderRadius:11,padding:"10px 11px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{color:t.text,fontWeight:700,fontSize:12}}>{subj}</div>
+            <div style={{color:c,fontWeight:900,fontSize:14}}>{hrs}h</div>
+          </div>
+          <div style={{height:4,background:t.pill,borderRadius:2,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${pct}%`,background:c,borderRadius:2,transition:"width .5s ease"}}/></div>
+          <div style={{color:t.muted,fontSize:8}}>{pct}% of total · {sessions.filter(s=>s.subject===subj).length} sessions</div>
+        </div>);
+      })}
+    </div>}
+
+    {/* AI Report */}
     <div style={{background:"rgba(129,140,248,0.07)",border:"1px solid rgba(129,140,248,0.18)",borderRadius:12,padding:13}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:rep?9:0}}>
         <div style={{color:"#818cf8",fontWeight:700,fontSize:12}}>✨ AI Coaching Report</div>
@@ -1505,7 +1778,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
 
 // ── NOTIF CENTER ──────────────────────────────────────────────
 function NCenter({t,onClose,history,settings,setSettings,test}){
-  const list=[{k:"streakBreak",i:"🔥",l:"Streak Break Warning",d:"Alert if not studied by 9 PM"},{k:"studyReminder",i:"📖",l:"Daily Study Reminder",d:"Morning study nudge"},{k:"pomoDone",i:"⏱",l:"Pomodoro Complete",d:"Notify when session ends"},{k:"friendActivity",i:"👥",l:"Friend Activity",d:"When friends start studying"},{k:"leaderboard",i:"🏆",l:"Leaderboard Updates",d:"Weekly rank changes"}];
+  const list=[{k:"streakBreak",i:"🔥",l:"Streak Break Warning",d:"Alert if not studied by 9 PM"},{k:"studyReminder",i:"📖",l:"Daily Study Reminder",d:"Morning study nudge"},{k:"pomoDone",i:"⏱",l:"Pomodoro Complete",d:"Notify when session ends"},{k:"friendActivity",i:"👥",l:"Friend Activity",d:"When friends start studying"},{k:"leaderboard",i:"🏆",l:"Leaderboard Updates",d:"Weekly rank changes"},{k:"sound",i:"🔊",l:"Timer Sounds",d:"Play sound on session/break completion"}];
   return(<div style={{position:"fixed",inset:0,zIndex:8000,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,maxHeight:"80vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 32px"}}>
       <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
@@ -1577,10 +1850,17 @@ return () => unsub();
   const [nOpen,setNOpen]=useState(false);
   const [qrOpen,setQrOpen]=useState(false);
   const [exOpen,setExOpen]=useState(false);
-  const [friends,setFriends]=useState([{id:1,name:"Arjun",av:"A",streak:14,on:true,subj:"History",brk:false},{id:2,name:"Priya",av:"P",streak:21,on:false,subj:null,brk:true}]);
+  const [friends,setFriends]=useState([]);
   const [toasts,setToasts]=useState([]);
   const [nHist,setNHist]=useState([]);
-  const [ns,setNs]=useState({streakBreak:true,studyReminder:true,pomoDone:true,friendActivity:false,leaderboard:false});
+  const [ns,setNs]=useState({streakBreak:true,studyReminder:true,pomoDone:true,friendActivity:false,leaderboard:false,sound:true});
+  // ── LIFTED POMO STATE (persists across tab switches) ──
+  const [pomoMode,setPomoMode]=useState("focus");
+  const [pomoCf,setPomoCf]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25"));
+  const [pomoSec,setPomoSec]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25")*60);
+  const [pomoRun,setPomoRun]=useState(false);
+  const [pomoSess,setPomoSess]=useState(0);
+  const [pomoCs,setPomoCs]=useState("");
   const [streak,setStreak]=useState(0);
   const [stats,setStats]=useState({totalSessions:0,totalMinutes:0,lastStudyDate:""});
 
@@ -1624,6 +1904,34 @@ return () => unsub();
   },[user?.uid]);
   const [customSubjects,setCustomSubjects]=useState([]);
   const [es,setEs]=useState({key:"UPSC CSE",mode:"Prelims",name:"UPSC CSE Prelims",date:"2026-05-24",color:"#FF6B6B",icon:"🏛️",subjects:EXAMS["UPSC CSE"].modes.Prelims.subjects,tips:EXAMS["UPSC CSE"].modes.Prelims.tips});
+
+  // Load exam config from Firebase on login
+  useEffect(()=>{
+    if(!user?.uid)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const snap=await new Promise(res=>mod.onValue(mod.ref(mod.db,`users/${user.uid}/examConfig`),(s)=>{res(s);},{onlyOnce:true}));
+        if(snap.exists()){
+          const cfg=snap.val();
+          const examDef=EXAMS[cfg.key];
+          if(examDef){
+            const modeDef=examDef.modes[cfg.mode];
+            if(modeDef){
+              setEs({
+                key:cfg.key,mode:cfg.mode,
+                name:`${cfg.key} ${cfg.mode}`,
+                date:cfg.date||modeDef.date,
+                color:examDef.color,icon:examDef.icon,
+                subjects:modeDef.subjects,
+                tips:cfg.tips||modeDef.tips,
+              });
+            }
+          }
+        }
+      }catch(e){}
+    })();
+  },[user?.uid]);
   const tid=useRef(0);
   const t=dark?T.dark:T.light;
   const days=dl(es.date);
@@ -1658,7 +1966,8 @@ return () => unsub();
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
   const test=()=>push({icon:"🔔",title:"Test notification",body:"Notifications working! 🎉",col:t.a2});
 
-  // Deep-link: ?joinGroup=GRP-XXX-0000
+  // Expose user globally for components that can't receive it via props
+  useEffect(()=>{window.__ssUser=user;},[user]);
   const [pendingGroupCode,setPendingGroupCode]=useState(()=>{
     const params=new URLSearchParams(window.location.search);
     const c=params.get("joinGroup");
@@ -1688,7 +1997,7 @@ return () => unsub();
   if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={u=>{setUser(u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
 
   return(<div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s"}}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`}</style>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
@@ -1718,6 +2027,7 @@ return () => unsub();
           <button onClick={()=>setDark(v=>!v)} style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontFamily:"inherit",fontSize:11,color:t.text}}>{dark?"☀️":"🌙"}</button>
           <button onClick={()=>setNOpen(true)} style={{position:"relative",background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center"}}>🔔{nHist.length>0&&<div style={{position:"absolute",top:-3,right:-3,background:t.a1,color:"#fff",borderRadius:"50%",width:11,height:11,fontSize:6,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${t.bg}`}}>{Math.min(nHist.length,9)}</div>}</button>
           {!isPro&&<button onClick={()=>setProOpen(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:8,color:"#fff",fontWeight:800,boxShadow:"0 0 7px rgba(129,140,248,0.25)"}}>⚡ Pro</button>}
+          {pomoRun&&tab!=="timer"&&<button onClick={()=>setTab("timer")} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:11,padding:"3px 7px",display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontFamily:"inherit"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#FF6B6B",animation:"pulse 1s infinite"}}/><span style={{color:"#FF6B6B",fontSize:8,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></button>}
           <div onClick={()=>go("profile")} style={{width:27,height:27,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:10,color:"#fff",cursor:"pointer",border:"1.5px solid rgba(129,140,248,0.25)"}}>{(user?.name||"K")[0].toUpperCase()}</div>
         </div>
       </div>
@@ -1725,12 +2035,12 @@ return () => unsub();
 
     {/* Content */}
     <div style={{maxWidth:520,margin:"0 auto",padding:"14px 11px 116px"}}>
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete}/>}
-      {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
+      {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
-      {tab==="exam"    &&<ExamDash  t={t} es={es} onOpen={()=>setExOpen(true)} customSubjects={customSubjects}/>}
+      {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} user={user}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
-      {tab==="report"  &&<Report    t={t} es={es}/>}
+      {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
       {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
@@ -1765,4 +2075,3 @@ return () => unsub();
     </div>
   </div>);
 }
-import{useState,useEffect,useRef,useCallback}from"react";import{signInGoogle}from"./firebase";import{getAuth,onAuthStateChanged}from"firebase/auth";import{db,ref,set,get,onValue,off,push,remove,update}from"./firebase";const T={dark:{bg:"#080A0f",card:"rgba(255,255,255,0.05)",input:"rgba(255,255,255,0.07)",border:"rgba(255,255,255,0.09)",text:"#f0f0f0",sub:"#666",muted:"#2a2a3a",nav:"rgba(8,8,15,0.96)",pill:"rgba(255,255,255,0.07)",a1:"#FF6B6B",a2:"#6EE7F7",a3:"#B8FF6B",a4:"#FFB86B",a5:"#C16BFF",sh:"0 8px 32px rgba(0,0,0,0.5)",nb:"rgba(255,255,255,0.99)"},light:{bg:"#f5f5f7",card:"#ffffff",input:"#ffffff",border:"rgba(0,0,0,0.08)",text:"#111",sub:"#888",muted:"#ddd",nav:"rgba(245,245,247,0.96)",pill:"rgba(0,0,0,0.05)",a1:"#FF4757",a2:"#00B8D4",a3:"#36B37E",a4:"#FF8C00",a5:"#8E44AD",sh:"0 4px 20px rgba(0,0,0,0.08)",nb:"rgba(255,255,255,0.99)"}};const EXAMS={};const BADGES=[{min:1,max:6,title:"Beginner",icon:"🌱",msg:"Every expert was once a beginner. Keep going!",color:"#6EE7F7"},{min:7,max:13,title:"Consistent Learner",icon:"📈",msg:"7 days strong! Consistency is your superpower.",color:"#B8FF6B"},{min:14,max:20,title:"Achiever",icon:"🎖️",msg:"14 days – you're building a habit that lasts!",color:"#FFB86B"},{min:21,max:29,title:"Challenger",icon:"🔥",msg:"21 days! Science says habits are formed. Legend!",color:"#FF6B6B"},{min:30,max:59,title:"Conqueror",icon:"👑",msg:"30 days – you've conquered consistency. Elite!",color:"#818cf8"},{min:60,max:999,title:"Legend",icon:"⭐",msg:"60+ days – you are truly in a league of your own!",color:"#FFE66D"}];function getBadge(streak){return BADGES.find(b=>streak>=b.min&&streak<=b.max)||BADGES[0];}const PUBLIC_CIRCLE=[{id:1,name:"Aarav S.",av:"A",streak:42,city:"Delhi",studying:true,subj:"Polity"},{id:2,name:"Priya M.",av:"P",streak:38,city:"Lucknow",studying:false,subj:null},{id:3,name:"Rohit K.",av:"R",streak:31,city:"Kanpur",studying:true,subj:"History"},{id:4,name:"Sneha T.",av:"S",streak:28,city:"Prayagraj",studying:true,subj:"Economy"},{id:5,name:"Dev P.",av:"D",streak:25,city:"Agra",studying:false,subj:null},{id:6,name:"Meera J.",av:"M",streak:22,city:"Varanasi",studying:true,subj:"Geography"}];const SUBJECT_DATA=[{subj:"Polity",c:"#B8FF6B",hours:[1.5,0,2,1,2.5,0,1],total:8},{subj:"History",c:"#FF6B6B",hours:[2,1,1.5,0,1.5,1,1.5],total:8.5},{subj:"Economy",c:"#FFB86B",hours:[1,1.5,2,2,2,1,1],total:10.5},{subj:"Geography",c:"#6EE7F7",hours:[1,0.5,1,1,1,0.5,1],total:6},{subj:"Cur. Affairs",c:"#FFE66D",hours:[1,1,1,1,1,1,1.5],total:7.5}];const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];const CHAIN=Array.from({length:35},(_,i)=>({d:i+1,done:i<17||(i>=20&&i<29),today:i===29}));const COLS=["#FF6B6B","#6EE7F7","#B8FF6B","#FFB86B","#C16BFF","#FFE66D","#6BFF6B","#FF8B94","#818cf8","#34d399"];function pad(n){return String(n).padStart(2,"0");}function dl(date){if(!date)return null;return Math.max(0,Math.ceil((new Date(date)-new Date())/86400000));}function avbg(c){return`hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}function Av({c,sz=36}){return<div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}async function callAI(prompt,system="You are a helpful UPSC study assistant."){try{const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:prompt}],system,max_tokens:500})});if(!r.ok)throw new Error();const d=await r.json();return d.content?.[0]?.text||"Could not generate.";}}catch{return"AI is currently unavailable. Please check your API configuration.";}}function Logo({sz=32}){return(<svg width={sz}height={sz}viewBox="0 0 40 40"fill="none"><defs><linearGradientid="lg"x1="0"y1="0"x2="40"y2="40"gradientUnitsOn="userSpaceOnUse"><stopoffset="0%"stopColor="#818cf8"/><stopoffset="100%"stopColor="#34d399"/></linearGradient></defs><rectwid="40"height="40"rx="11"fill="url(#lg)"/><pathd="M26 13 C26 13 14 13 14 18 C14 23 26 20 26 25 C26 30 14 30 14 30"stroke="white"strokeWidth="3"fill="none"strokeLinecap="round"/></svg>);}function Toasts({notifs,dismiss,t}){return(<divstyle={{position:"fixed",top:64,right:10,zIndex:9999,display:"flex",flexDirection:"column",gap:6,maxWidth:290,pointerEvents:"none"}}>{notifs.map(n=>(<divkey={n.id}style={{background:t.nb,border:`1px solid ${n.col||t.a1}`,borderLeft:`3px solid ${n.col||t.a1}`,borderRadius:11,padding:"9px 10px",boxShadow:"0 8px 26px rgba(0,0,0,0.4)",display:"flex",gap:7,alignItems:"flex-start",pointerEvents:"all",animation:"slideIn .3s ease"}}><divstyle={{fontSize:16,flexShrink:0}}>{n.icon}</div><divstyle={{flex:1}}><divstyle={{color:t.text,fontWeight:700,fontSize:11}}>{n.title}</div><divstyle={{color:t.sub,fontSize:10,marginTop:1,lineHeight:1.4}}>{n.body}</div></div><buttononClick={()=>dismiss(n.id)}style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:13,padding:"0 1px",flexShrink:0}}>✕</button></div>))}</div>);}function Login({t,onLogin}){const[step,setStep]=useState("main");const[ld,setLd]=useState(false);const[otp,setOtp]=useState(Array(6).fill(""));const refs=useRef([]);const chOtp=(i,v)=>{if(!/^\d?$/.test(v))return;const n=[...otp];n[i]=v;setOtp(n);if(v&&i<5)refs.current[i+1]?.focus();};return(<divstyle={{minHeight:"100vh",background:t.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}><divstyle={{position:"fixed",top:"-15%",left:"50%",transform:"translateX(-50%)",width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.07),transparent 70%)",pointerEvents:"none"}}/><divstyle={{textAlign:"center",marginBottom:26}}><divstyle={{display:"flex",justifyContent:"center",marginBottom:10}}><divstyle={{padding:12,borderRadius:18,background:"rgba(129,140,248,0.08)",border:"1px solid rgba(129,140,248,0.16)",boxShadow:"0 0 26px rgba(129,140,248,0.09)"}}><Logosz={46}/></div></div><divstyle={{fontSize:24,fontWeight:900,letterSpacing:-1,background:"linear-gradient(135deg,#818cf8,#60a5fa,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>StudySync</div><divstyle={{color:t.sub,fontSize:12,marginTop:4}}>Your study companion</div></div><divstyle={{width:"100%",maxWidth:320,background:t.card,border:`1px solid ${t.border}`,borderRadius:18,padding:18,boxShadow:t.sh}}>{step==="main"&&(<><divstyle={{textAlign:"center",marginBottom:13}}><divstyle={{fontSize:13,fontWeight:800,color:t.text}}>Sign in to StudySync</div><divstyle={{fontSize:10,color:t.sub,marginTop:2}}>Join 50,000+ aspirants 🎯</div></div><divstyle={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"8px 10px",marginBottom:11,display:"flex",gap:7,alignItems:"center"}}><spanstyle={{fontSize:16}}>🎉</span><div><divstyle={{color:"#34d399",fontWeight:800,fontSize:11}}>7-Day Free Trial</div><divstyle={{color:t.sub,fontSize:9,marginTop:1}}>Full premium access – no card needed</div></div></div><buttononClick={async()=>{setLd(true);const{user,error}=await signInGoogle();if(user)onLogin(user);else{setLd(false);alert(error||"Login failed");}}}disabled={ld}style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:ld?"rgba(129,140,248,0.3)":"linear-gradient(135deg,rgba(129,140,248,0.11),rgba(96,165,250,0.11))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"inherit",marginBottom:8,transition:"all .25s"}}><svgwidth="16"height="16"viewBox="0 0 48 48"><pathfill="#EA4335"d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.3 30.2 0 24 0 14.7 0 6.8 5.5 3 13.5l7.9 6.1C12.8 13.4 17.9 9.5 24 9.5z"/><pathfill="#4285F4"d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><pathfill="#FBBC05"d="M10.9 28.4A14.5 14.5 0 0 1 9.5 24c0-1.5.3-3 .8-4.4L2.4 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8.4-6.2z"/><pathfill="#34A853"d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2.1 1.4-4.7 2.3-7.7 2.3-6.1 0-11.2-4-13.1-9.5l-8 6.2C6.7 42.5 14.7 48 24 48z"/></svg><spanstyle={{color:t.text,fontWeight:700,fontSize:12}}>{ld?"Signing in...":"Continue with Gmail"}</span></button></>) }</div></div>);}function App(){const[isDark,setIsDark]=useState(()=>{try{return JSON.parse(localStorage.getItem("ss_theme")??'true');}catch{return true;}});const t=isDark?T.dark:T.light;const[user,setUser]=useState(null);const[notifs,setNotifs]=useState([]);useEffect(()=>{const auth=getAuth();const unsub=onAuthStateChanged(auth,setUser);return unsub;},[]);const dismissNotif=useCallback(id=>{setNotifs(p=>p.filter(n=>n.id!==id));},[]);const pushNotif=useCallback(notif=>{const id=Date.now();setNotifs(p=>[...p,{id,...notif}]);setTimeout(()=>dismissNotif(id),3000);},[dismissNotif]);if(!user){return<Logint={t}onLogin={userData=>{}}/>;}return(<divstyle={{minHeight:"100vh",background:t.bg,color:t.text,padding:24}}><Toastsnotifs={notifs}dismiss={dismissNotif}t={t}/><divstyle={{maxWidth:1200,margin:"0 auto"}}><divstyle={{background:t.card,borderRadius:18,padding:24,border:`1px solid ${t.border}`,boxShadow:t.sh}}><divstyle={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}><divstyle={{display:"flex",alignItems:"center",gap:12}}><Logosz={40}/><div><divstyle={{fontSize:20,fontWeight:900}}>StudySync</div><divstyle={{fontSize:12,color:t.sub}}>Welcome back! 👋</div></div></div><buttononClick={()=>{setIsDark(!isDark);localStorage.setItem("ss_theme",JSON.stringify(!isDark));}}style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:12,padding:"10px 16px",cursor:"pointer",fontSize:20,fontFamily:"inherit"}}title="Toggle theme">{isDark?"🌙":"☀️"}</button></div><divstyle={{background:t.input,border:`1px solid ${t.border}`,borderRadius:14,padding:20,textAlign:"center"}}><divstyle={{fontSize:14,color:t.sub}}>App Restored ✅</div><divstyle={{fontSize:12,marginTop:8,color:t.text}}>Your original app is back</div><divstyle={{fontSize:10,color:t.sub,marginTop:4}}>Switch to the main branch to see the original</div></div></div></div></div>);}export default App;
