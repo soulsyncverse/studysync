@@ -926,6 +926,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     })();
     return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
   },[user?.uid]);
+
+  // RTDB: groups
+  useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
     (async()=>{
@@ -963,37 +966,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   },[user?.uid]);
 
   // ── Add friend with full validation + mutual write ──
-  const addFriendByCode=async()=>{
-    const code=friendCode.trim().toUpperCase();
-    if(!code||!user?.uid){setAddStatus("error");setAddMsg("Enter a valid code.");return;}
-    if(code===myFriendCode){setAddStatus("error");setAddMsg("That's your own code!");return;}
-    const alreadyAdded=myFriends.some(f=>f.friendCode===code||f.uid===code);
-    if(alreadyAdded){setAddStatus("error");setAddMsg("Already friends!");return;}
-    setAddStatus("loading");setAddMsg("Looking up user…");
-    try{
-      const mod=await import("./firebase");
-      // Scan all user profiles for this friendCode
-      const usersSnap=await new Promise(res=>mod.onValue(mod.ref(mod.db,"users"),(s)=>{res(s);},{onlyOnce:true}));
-      if(!usersSnap.exists()){setAddStatus("error");setAddMsg("No users found.");return;}
-      let targetUser=null;
-      Object.entries(usersSnap.val()).forEach(([uid,data])=>{
-        if(data?.profile?.friendCode===code) targetUser={uid,...data.profile};
-      });
-      if(!targetUser){setAddStatus("error");setAddMsg("Code not found. Check and try again.");return;}
-      // Write to my friends
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUser.uid}`),{
-        uid:targetUser.uid,name:targetUser.name||targetUser.displayName||"Friend",
-        email:targetUser.email||"",friendCode:code,streak:0,online:false,addedAt:Date.now()
-      });
-      // Write to their friends (mutual)
-      await mod.set(mod.ref(mod.db,`users/${targetUser.uid}/friends/${user.uid}`),{
-        uid:user.uid,name:user.name||"",email:user.email||"",
-        friendCode:myFriendCode,streak,online:true,addedAt:Date.now()
-      });
-      setFriendCode("");setAddStatus("done");setAddMsg(`✓ ${targetUser.name||"Friend"} added!`);
-      setTimeout(()=>{setAddStatus("");setAddMsg("");setShowAddFriend(false);},1800);
-    }catch(e){setAddStatus("error");setAddMsg("Something went wrong. Try again.");}
-  };
 
   const removeFriend=async(fId)=>{
     if(!user?.uid)return;
