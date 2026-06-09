@@ -30,14 +30,6 @@ const BADGES = [
 ];
 function getBadge(streak){ return BADGES.find(b=>streak>=b.min&&streak<=b.max)||BADGES[0]; }
 
-const PUBLIC_CIRCLE=[
-  {id:1,name:"Aarav S.",av:"A",streak:42,city:"Delhi",   studying:true, subj:"Polity"},
-  {id:2,name:"Priya M.",av:"P",streak:38,city:"Lucknow", studying:false,subj:null},
-  {id:3,name:"Rohit K.",av:"R",streak:31,city:"Kanpur",  studying:true, subj:"History"},
-  {id:4,name:"Sneha T.",av:"S",streak:28,city:"Prayagraj",studying:true,subj:"Economy"},
-  {id:5,name:"Dev P.",  av:"D",streak:25,city:"Agra",    studying:false,subj:null},
-  {id:6,name:"Meera J.",av:"M",streak:22,city:"Varanasi",studying:true, subj:"Geography"},
-];
 
 const SUBJECT_DATA=[
   {subj:"Polity",     c:"#B8FF6B",hours:[1.5,0,2,1,2.5,0,1],  total:8},
@@ -327,11 +319,6 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
           </>)}
         </div>
 
-        {/* Tips */}
-        {modeData?.tips&&<div style={{marginBottom:12}}>
-          <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Strategy</div>
-          <div style={{display:"flex",flexDirection:"column",gap:3}}>{modeData.tips.map((tip,i)=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 9px",display:"flex",gap:5}}><span style={{color:"#818cf8",fontSize:8,fontWeight:800,flexShrink:0}}>{i+1}.</span><span style={{color:t.text,fontSize:10,lineHeight:1.4}}>{tip}</span></div>)}</div>
-        </div>}
 
         <button onClick={apply} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"11px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 16px rgba(129,140,248,0.28)"}}>
           {cfg?.icon} Set {ex} — {md} ✓
@@ -1084,6 +1071,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const [showCreate,setShowCreate]=useState(false);
   const [grpName,setGrpName]=useState("");
   const [myFriends,setMyFriends]=useState([]);
+  const [publicUsers,setPublicUsers]=useState([]);
   const [showAddFriend,setShowAddFriend]=useState(false);
   const [friendCode,setFriendCode]=useState("");
   const [addStatus,setAddStatus]=useState("");
@@ -1100,11 +1088,33 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const [joinStatus,setJoinStatus]=useState("");
   const [joinMsg,setJoinMsg]=useState("");
 
-  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:38,s:streak,r:3},...[{name:"Sneha T.",av:"S",h:48,s:42,r:1},{name:"Priya M.",av:"P",h:42,s:38,r:2},{name:"Arjun S.",av:"A",h:35,s:31,r:4},{name:"Rohit K.",av:"R",h:28,s:25,r:5}]].sort((a,b)=>a.r-b.r);
+  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:0,s:streak},...publicUsers.map(p=>({name:p.name,av:p.av,h:p.h||0,s:p.streak||0}))].sort((a,b)=>(b.h||0)-(a.h||0)).map((f,i)=>({...f,r:i+1}));
 
   // Friend code is stored in RTDB profile — deterministic from uid for backwards compat
   const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
   const myInviteLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
+
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,usersRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        usersRef=mod.ref(mod.db,"users");
+        listener=mod.onValue(usersRef,(snap)=>{
+          const data=snap.exists()?snap.val():{};
+          const list=Object.entries(data).map(([uid,row])=>{
+            const profile=row?.profile||{};
+            const name=profile.name||profile.displayName||profile.email||"Aspirant";
+            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:profile.online===true,subj:profile.currentSubject||profile.subj||"Studying"};
+          }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
+          setPublicUsers(list);
+        });
+      }catch(e){setPublicUsers([]);}
+    })();
+    return()=>{if(dbMod&&usersRef&&listener)dbMod.off(usersRef,listener);};
+  },[user?.uid]);
 
   // ── Register profile + friendCode index on login ──
   useEffect(()=>{
@@ -1372,13 +1382,13 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
     {/* PUBLIC */}
     {tab==="public"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{PUBLIC_CIRCLE.length} aspirants · Real-time streak board</div></div></div>
+      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{publicUsers.length} aspirants · Real-time streak board</div></div></div>
       <div style={{background:`${t.a4}10`,border:`1.5px solid ${t.a4}38`,borderRadius:10,padding:"9px 10px",display:"flex",alignItems:"center",gap:8}}>
         <Av c={(user?.name||"K")[0].toUpperCase()} sz={32}/>
         <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
         <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
       </div>
-      {PUBLIC_CIRCLE.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+      {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:11,textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
         <div style={{fontSize:9,color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
         <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.studying?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{f.studying?`📖 ${f.subj}`:"Offline"} · {f.city}</div></div>
