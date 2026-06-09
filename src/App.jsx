@@ -60,6 +60,73 @@ function dl(date){
   const diff=Math.ceil((target-now)/86400000);
   return Math.max(0,diff);
 }
+const DEFAULT_EXAM_KEY="UPSC CSE";
+const DEFAULT_EXAM_MODE="Prelims";
+function validExamKey(key){return EXAMS[key]?key:DEFAULT_EXAM_KEY;}
+function defaultModeFor(key){return Object.keys(EXAMS[key]?.modes||{})[0]||DEFAULT_EXAM_MODE;}
+function validExamMode(key,mode){return EXAMS[key]?.modes?.[mode]?mode:defaultModeFor(key);}
+function dbKey(key){return String(key).replace(/[.#$\/\[\]]/g,ch=>({".":"%2E","#":"%23","$":"%24","/":"%2F","[":"%5B","]":"%5D"}[ch]));}
+function decodeDbKey(key){return String(key).replace(/%2E/g,".").replace(/%23/g,"#").replace(/%24/g,"$").replace(/%2F/g,"/").replace(/%5B/g,"[").replace(/%5D/g,"]");}
+function normalizeExamDates(raw){
+  const out={};
+  Object.entries(raw||{}).forEach(([examKey,modes])=>{
+    const key=decodeDbKey(examKey);
+    if(!EXAMS[key]||!modes||typeof modes!=="object")return;
+    Object.entries(modes).forEach(([modeKey,value])=>{
+      const mode=decodeDbKey(modeKey);
+      if(!EXAMS[key]?.modes?.[mode])return;
+      const date=typeof value==="string"?value:value?.date;
+      if(typeof date==="string")out[key]={...(out[key]||{}),[mode]:date};
+    });
+  });
+  return out;
+}
+function normalizeExamTips(raw){
+  const out={};
+  Object.entries(raw||{}).forEach(([examKey,modes])=>{
+    const key=decodeDbKey(examKey);
+    if(!EXAMS[key]||!modes||typeof modes!=="object")return;
+    Object.entries(modes).forEach(([modeKey,value])=>{
+      const mode=decodeDbKey(modeKey);
+      if(!EXAMS[key]?.modes?.[mode])return;
+      const tips=Array.isArray(value)?value:value?.tips;
+      if(Array.isArray(tips))out[key]={...(out[key]||{}),[mode]:tips};
+    });
+  });
+  return out;
+}
+function getExamDate(examDates,key,mode){
+  const exam=validExamKey(key);
+  const md=validExamMode(exam,mode);
+  return examDates?.[exam]?.[md]||EXAMS[exam]?.modes?.[md]?.date||"";
+}
+function getExamTips(examTips,key,mode){
+  const exam=validExamKey(key);
+  const md=validExamMode(exam,mode);
+  return examTips?.[exam]?.[md]||EXAMS[exam]?.modes?.[md]?.tips||[];
+}
+function buildExamState(key=DEFAULT_EXAM_KEY,mode=DEFAULT_EXAM_MODE,examDates={},examTips={}){
+  const exam=validExamKey(key);
+  const md=validExamMode(exam,mode);
+  const examDef=EXAMS[exam];
+  const modeDef=examDef.modes[md];
+  return {key:exam,mode:md,name:`${exam} ${md}`,date:getExamDate(examDates,exam,md),color:examDef.color,icon:examDef.icon,subjects:modeDef.subjects,tips:getExamTips(examTips,exam,md)};
+}
+async function saveExamDateToDb(uid,key,mode,date){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/examDates/${dbKey(key)}/${dbKey(mode)}`),date||"");
+}
+async function saveExamTipsToDb(uid,key,mode,tips){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/examTips/${dbKey(key)}/${dbKey(mode)}`),tips||[]);
+}
+async function saveExamSelectionToDb(uid,key,mode){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/examSelection`),{key:validExamKey(key),mode:validExamMode(validExamKey(key),mode)});
+}
 function avbg(c){return `hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}
 function Av({c,sz=36}){return <div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}
 
@@ -158,24 +225,29 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
 }
 
 // ── EXAM + CUSTOM SUBJECTS ────────────────────────────────────
-function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects}){
-  const [ex,setEx]=useState(es.key||"UPSC CSE");
-  const [md,setMd]=useState(es.mode||"Prelims");
-  const [dt,setDt]=useState(es.date||"");
+function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDates,setExamDates,examTips,setExamTips,user}){
+  const [ex,setEx]=useState(es.key||DEFAULT_EXAM_KEY);
+  const [md,setMd]=useState(es.mode||DEFAULT_EXAM_MODE);
+  const [dt,setDt]=useState(()=>getExamDate(examDates,es.key,es.mode));
   const [ns,setNs]=useState("");const [nc,setNc]=useState("#818cf8");
   const [editIdx,setEditIdx]=useState(null);const [editVal,setEditVal]=useState("");
   const [showCustom,setShowCustom]=useState(false);
   const cfg=EXAMS[ex];const modeData=cfg?.modes[md];
   const modes=Object.keys(cfg?.modes||{});
   const subjs=ex==="Custom"?customSubjects:(modeData?.subjects||[]);
+  const selectedTips=getExamTips(examTips,ex,md);
+  useEffect(()=>{setDt(getExamDate(examDates,ex,md));},[examDates,ex,md]);
   const apply=()=>{
-    const newEs={key:ex,mode:md,name:`${ex} ${md}`,date:dt||modeData?.date||"",color:cfg?.color||"#818cf8",icon:cfg?.icon||"🎯",subjects:[...subjs,...(ex!=="Custom"?customSubjects:[])],tips:modeData?.tips||[]};
+    const chosenDate=dt||modeData?.date||"";
+    const newEs={key:ex,mode:md,name:`${ex} ${md}`,date:chosenDate,color:cfg?.color||"#818cf8",icon:cfg?.icon||"🎯",subjects:[...subjs,...(ex!=="Custom"?customSubjects:[])],tips:selectedTips};
     setEs(newEs);
-    // Persist to Firebase if user logged in
-    if(window.__ssUser?.uid){
-      import("./firebase").then(mod=>{
-        mod.set(mod.ref(mod.db,`users/${window.__ssUser.uid}/examConfig`),{key:ex,mode:md,date:dt||modeData?.date||"",tips:modeData?.tips||[]});
-      }).catch(()=>{});
+    setExamDates(p=>({...p,[ex]:{...(p?.[ex]||{}),[md]:chosenDate}}));
+    if(window.__ssUser?.uid||user?.uid){
+      const uid=window.__ssUser?.uid||user?.uid;
+      Promise.all([
+        saveExamDateToDb(uid,ex,md,chosenDate),
+        saveExamSelectionToDb(uid,ex,md),
+      ]).catch(()=>{});
     }
     onClose();
   };
@@ -193,7 +265,7 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects}){
         {/* Exam list */}
         <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:12}}>
           {Object.entries(EXAMS).map(([k,v])=>(
-            <button key={k} onClick={()=>{setEx(k);setMd(Object.keys(v.modes)[0]);}} style={{display:"flex",alignItems:"center",gap:9,background:ex===k?`${v.color}15`:t.card,border:`1.5px solid ${ex===k?v.color:t.border}`,borderRadius:11,padding:"9px 11px",cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
+            <button key={k} onClick={()=>{const first=Object.keys(v.modes)[0];setEx(k);setMd(first);setDt(getExamDate(examDates,k,first));}} style={{display:"flex",alignItems:"center",gap:9,background:ex===k?`${v.color}15`:t.card,border:`1.5px solid ${ex===k?v.color:t.border}`,borderRadius:11,padding:"9px 11px",cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
               <span style={{fontSize:17}}>{v.icon}</span>
               <div style={{flex:1,textAlign:"left"}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{k}</div></div>
               {ex===k&&<div style={{width:6,height:6,borderRadius:"50%",background:v.color,boxShadow:`0 0 4px ${v.color}`}}/>}
@@ -204,7 +276,7 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects}){
         {/* Mode */}
         {modes.length>1&&<div style={{marginBottom:10}}>
           <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Mode</div>
-          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>setMd(m)} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{(()=>{const d=dl(EXAMS[ex]?.modes[m]?.date);return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
+          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>{setMd(m);setDt(getExamDate(examDates,ex,m));}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{(()=>{const d=dl(getExamDate(examDates,ex,m));return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
         </div>}
 
         {/* Date */}
@@ -648,7 +720,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,pushN:_}){
 }
 
 // ── EXAM DASHBOARD ────────────────────────────────────────────
-function ExamDash({t,es,setEs,onOpen,customSubjects,user}){
+function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,examTips,setExamTips}){
   const days=dl(es.date);
   const allSubjs=[...es.subjects,...customSubjects.filter(s=>!es.subjects.find(x=>x.n===s.n))];
   const prog={};allSubjs.forEach((s,i)=>{prog[s.n]=[20,45,60,35,75,50,40,65,30,55][i%10];});
@@ -659,22 +731,29 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user}){
   const [editTipIdx,setEditTipIdx]=useState(null);
   const [editTipVal,setEditTipVal]=useState("");
 
-  // Sync tips from es
-  useEffect(()=>setTips(es.tips||[]),[es.key,es.mode]);
+  // Sync current exam data from the selected exam/mode.
+  useEffect(()=>{setTips(es.tips||[]);setDateVal(es.date||"");setEditDateMode(false);},[es.key,es.mode,es.date]);
 
-  const saveToDb=async(updates)=>{
+  const persistDate=async(date)=>{
     if(!user?.uid)return;
-    try{
-      const mod=await import("./firebase");
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/examConfig`),updates);
-    }catch(e){}
+    try{await saveExamDateToDb(user.uid,es.key,es.mode,date);}catch(e){}
+  };
+  const persistTips=async(updatedTips)=>{
+    if(!user?.uid)return;
+    try{await saveExamTipsToDb(user.uid,es.key,es.mode,updatedTips);}catch(e){}
+  };
+  const persistSelection=async()=>{
+    if(!user?.uid)return;
+    try{await saveExamSelectionToDb(user.uid,es.key,es.mode);}catch(e){}
   };
 
   const saveDate=()=>{
     if(!dateVal)return;
     const updated={...es,date:dateVal};
     setEs(updated);
-    saveToDb({key:updated.key,mode:updated.mode,date:dateVal,tips:updated.tips||tips});
+    setExamDates(p=>({...p,[updated.key]:{...(p?.[updated.key]||{}),[updated.mode]:dateVal}}));
+    persistDate(dateVal);
+    persistSelection();
     setEditDateMode(false);
   };
 
@@ -683,25 +762,29 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user}){
     const updated=[...tips,newTip.trim()];
     setTips(updated);setNewTip("");
     setEs({...es,tips:updated});
-    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+    setExamTips(p=>({...p,[es.key]:{...(p?.[es.key]||{}),[es.mode]:updated}}));
+    persistTips(updated);
   };
   const deleteTip=(i)=>{
     const updated=tips.filter((_,idx)=>idx!==i);
     setTips(updated);setEs({...es,tips:updated});
-    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+    setExamTips(p=>({...p,[es.key]:{...(p?.[es.key]||{}),[es.mode]:updated}}));
+    persistTips(updated);
   };
   const startEditTip=(i)=>{setEditTipIdx(i);setEditTipVal(tips[i]);};
   const saveTip=()=>{
     const updated=tips.map((tp,i)=>i===editTipIdx?editTipVal:tp);
     setTips(updated);setEditTipIdx(null);setEs({...es,tips:updated});
-    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+    setExamTips(p=>({...p,[es.key]:{...(p?.[es.key]||{}),[es.mode]:updated}}));
+    persistTips(updated);
   };
   const moveTip=(i,dir)=>{
     const updated=[...tips];const j=i+dir;
     if(j<0||j>=updated.length)return;
     [updated[i],updated[j]]=[updated[j],updated[i]];
     setTips(updated);setEs({...es,tips:updated});
-    saveToDb({key:es.key,mode:es.mode,date:es.date,tips:updated});
+    setExamTips(p=>({...p,[es.key]:{...(p?.[es.key]||{}),[es.mode]:updated}}));
+    persistTips(updated);
   };
 
   return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -1911,33 +1994,43 @@ return () => unsub();
     };
   },[user?.uid]);
   const [customSubjects,setCustomSubjects]=useState([]);
-  const [es,setEs]=useState({key:"UPSC CSE",mode:"Prelims",name:"UPSC CSE Prelims",date:"2026-05-24",color:"#FF6B6B",icon:"🏛️",subjects:EXAMS["UPSC CSE"].modes.Prelims.subjects,tips:EXAMS["UPSC CSE"].modes.Prelims.tips});
+  const [examDates,setExamDates]=useState({});
+  const [examTips,setExamTips]=useState({});
+  const [es,setEs]=useState(()=>buildExamState());
 
-  // Load exam config from Firebase on login
+  // Load independent exam dates/tips from Firebase on login and migrate old examConfig once.
   useEffect(()=>{
-    if(!user?.uid)return;
+    if(!user?.uid){setExamDates({});setExamTips({});setEs(buildExamState());return;}
     (async()=>{
       try{
         const mod=await import("./firebase");
-        const snap=await new Promise(res=>mod.onValue(mod.ref(mod.db,`users/${user.uid}/examConfig`),(s)=>{res(s);},{onlyOnce:true}));
-        if(snap.exists()){
-          const cfg=snap.val();
-          const examDef=EXAMS[cfg.key];
-          if(examDef){
-            const modeDef=examDef.modes[cfg.mode];
-            if(modeDef){
-              setEs({
-                key:cfg.key,mode:cfg.mode,
-                name:`${cfg.key} ${cfg.mode}`,
-                date:cfg.date||modeDef.date,
-                color:examDef.color,icon:examDef.icon,
-                subjects:modeDef.subjects,
-                tips:cfg.tips||modeDef.tips,
-              });
-            }
+        const readOnce=path=>new Promise(res=>mod.onValue(mod.ref(mod.db,path),(s)=>{res(s);},{onlyOnce:true}));
+        const [datesSnap,tipsSnap,selectionSnap,legacySnap]=await Promise.all([
+          readOnce(`users/${user.uid}/examDates`),
+          readOnce(`users/${user.uid}/examTips`),
+          readOnce(`users/${user.uid}/examSelection`),
+          readOnce(`users/${user.uid}/examConfig`),
+        ]);
+        let dates=normalizeExamDates(datesSnap.exists()?datesSnap.val():{});
+        let savedTips=normalizeExamTips(tipsSnap.exists()?tipsSnap.val():{});
+        const legacy=legacySnap.exists()?legacySnap.val():null;
+        if(legacy?.key&&legacy?.mode&&EXAMS[legacy.key]?.modes?.[legacy.mode]){
+          if(legacy.date&&!dates?.[legacy.key]?.[legacy.mode]){
+            dates={...dates,[legacy.key]:{...(dates[legacy.key]||{}),[legacy.mode]:legacy.date}};
+            await mod.set(mod.ref(mod.db,`users/${user.uid}/examDates/${dbKey(legacy.key)}/${dbKey(legacy.mode)}`),legacy.date);
+          }
+          if(Array.isArray(legacy.tips)&&!savedTips?.[legacy.key]?.[legacy.mode]){
+            savedTips={...savedTips,[legacy.key]:{...(savedTips[legacy.key]||{}),[legacy.mode]:legacy.tips}};
+            await mod.set(mod.ref(mod.db,`users/${user.uid}/examTips/${dbKey(legacy.key)}/${dbKey(legacy.mode)}`),legacy.tips);
           }
         }
-      }catch(e){}
+        const selection=selectionSnap.exists()?selectionSnap.val():legacy;
+        const key=validExamKey(selection?.key);
+        const mode=validExamMode(key,selection?.mode);
+        setExamDates(dates);
+        setExamTips(savedTips);
+        setEs(buildExamState(key,mode,dates,savedTips));
+      }catch(e){console.error("exam dates load error",e);}
     })();
   },[user?.uid]);
   const tid=useRef(0);
@@ -2018,7 +2111,7 @@ return () => unsub();
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
-    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} customSubjects={customSubjects} setCustomSubjects={setCustomSubjects}/>}
+    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} customSubjects={customSubjects} setCustomSubjects={setCustomSubjects} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
     {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
     {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
@@ -2055,7 +2148,7 @@ return () => unsub();
       {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
-      {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} user={user}/>}
+      {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
       {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
