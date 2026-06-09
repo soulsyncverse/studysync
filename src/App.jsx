@@ -1912,26 +1912,44 @@ export default function App(){
   const [user,setUser]=useState(null);
     //added changes for retaining login session
   const [checkingAuth, setCheckingAuth] = useState(true); 
+  const buildUserProfile=useCallback(async(authUser)=>{
+    if(!authUser)return null;
+    const fallbackName=authUser.name||authUser.displayName||authUser.email||"Aspirant";
+    let savedName="";
+    if(authUser.uid){
+      try{
+        const mod=await import("./firebase");
+        const snap=await new Promise(res=>mod.onValue(mod.ref(mod.db,`users/${authUser.uid}/profile/name`),(s)=>{res(s);},{onlyOnce:true}));
+        if(snap.exists()&&typeof snap.val()==="string"&&snap.val().trim())savedName=snap.val().trim();
+      }catch(e){}
+    }
+    return {
+      name:savedName||fallbackName,
+      email:authUser.email||"",
+      uid:authUser.uid,
+      phone:authUser.phone,
+      photoURL:authUser.photoURL
+    };
+  },[]);
   useEffect(() => {
   const auth = getAuth();
+  let active=true;
 
-  const unsub = onAuthStateChanged(auth, (user) => {
-    if (user) {
-      setUser({
-  name: user.displayName,
-  email: user.email,
-  uid: user.uid,
-  photoURL: user.photoURL
-});
+  const unsub = onAuthStateChanged(auth, async (authUser) => {
+    if (authUser) {
+      const profile=await buildUserProfile(authUser);
+      if(!active)return;
+      setUser(profile);
       setLoggedIn(true);
     } else {
+      if(!active)return;
       setUser(null);
       setLoggedIn(false);
     }
     setCheckingAuth(false); // 👈 IMPORTANT
   });
-return () => unsub();
-}, []);
+return () => {active=false;unsub();};
+}, [buildUserProfile]);
 
    // changes end 
   const [isPro,setIsPro]=useState(false);
@@ -2103,7 +2121,7 @@ return () => unsub();
   const proIds=new Set(PRO.map(x=>x.id));
   const go=(id)=>{if(proIds.has(id)&&!isPro){setProOpen(true);return;}setTab(id);};
 
-  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={u=>{setUser(u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
+  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
 
   return(<div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s"}}>
     <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
