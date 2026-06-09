@@ -50,7 +50,14 @@ const COLS=["#FF6B6B","#6EE7F7","#B8FF6B","#FFB86B","#C16BFF","#FFE66D","#6BFFC1
 
 // ── HELPERS ───────────────────────────────────────────────────
 function pad(n){return String(n).padStart(2,"0");}
-function dl(date){if(!date)return null;return Math.max(0,Math.ceil((new Date(date)-new Date())/86400000));}
+function dl(date){
+  if(!date)return null;
+  // Use IST date for accurate countdown
+  const now=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));
+  const target=new Date(date+"T00:00:00");
+  const diff=Math.ceil((target-now)/86400000);
+  return Math.max(0,diff);
+}
 function avbg(c){return `hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}
 function Av({c,sz=36}){return <div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}
 
@@ -195,7 +202,7 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects}){
         {/* Mode */}
         {modes.length>1&&<div style={{marginBottom:10}}>
           <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Mode</div>
-          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>setMd(m)} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{dl(EXAMS[ex]?.modes[m]?.date)??"-"}d left</div></button>)}</div>
+          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>setMd(m)} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{(()=>{const d=dl(EXAMS[ex]?.modes[m]?.date);return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
         </div>}
 
         {/* Date */}
@@ -281,7 +288,8 @@ function Login({t,onLogin}){
         {step==="main"&&(<>
           <div style={{textAlign:"center",marginBottom:13}}>
             <div style={{fontSize:13,fontWeight:800,color:t.text}}>Sign in to StudySync</div>
-            <div style={{fontSize:10,color:t.sub,marginTop:2}}>Join 50,000+ aspirants 📚</div>
+            <div style={{fontSize:10,color:t.sub,marginTop:2}}>🇮🇳 Proudly built in India for aspirants who show up every day.</div>
+            <div style={{fontSize:9,color:t.muted,marginTop:3}}>Plan better. Study deeper. Stay consistent.</div>
           </div>
           <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"8px 10px",marginBottom:11,display:"flex",gap:7,alignItems:"center"}}>
             <span style={{fontSize:16}}>🎁</span>
@@ -445,8 +453,6 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
     <div style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoSess*pomoCf/60)}h${(pomoSess*pomoCf)%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
-    {/* Running indicator shown on other tabs */}
-    {pomoRun&&<div style={{background:`${sc}12`,border:`1px solid ${sc}30`,borderRadius:10,padding:"6px 14px",display:"flex",alignItems:"center",gap:6}}><div style={{width:6,height:6,borderRadius:"50%",background:sc,animation:"pulse 1s infinite"}}/><span style={{color:sc,fontSize:10,fontWeight:700}}>Timer running — {pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></div>}
   </div>);
 }
 
@@ -528,8 +534,8 @@ function Planner({t,subjects,customSubjects,user}){
         <select value={ns2} onChange={e=>setNs2(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:9,maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
       </div>
       <div style={{display:"flex",gap:5,alignItems:"center"}}>
-        <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:2}}>Start</div><input type="date" value={ntStart} onChange={e=>setNtStart(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/></div>
-        <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:2}}>End / Deadline</div><input type="date" value={ntEnd} onChange={e=>setNtEnd(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/></div>
+        <div style={{flex:1}}><div style={{color:t.sub,fontSize:9,marginBottom:3,fontWeight:600}}>Start Date</div><input type="date" value={ntStart} onChange={e=>setNtStart(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
+        <div style={{flex:1}}><div style={{color:t.sub,fontSize:9,marginBottom:3,fontWeight:600}}>End / Deadline</div><input type="date" value={ntEnd} onChange={e=>setNtEnd(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
         <button onClick={add} style={{background:t.a3,border:"none",borderRadius:8,padding:"10px 14px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:14,fontFamily:"inherit",alignSelf:"flex-end"}}>+</button>
       </div>
     </div>
@@ -560,8 +566,8 @@ function Planner({t,subjects,customSubjects,user}){
                   </div>
                 </div>
                 {(task.startDate||task.endDate)&&<div style={{display:"flex",gap:8,marginTop:4,paddingLeft:25}}>
-                  {task.startDate&&<span style={{color:t.muted,fontSize:8}}>▶ {task.startDate}</span>}
-                  {task.endDate&&<span style={{color:t.muted,fontSize:8}}>⏹ {task.endDate}</span>}
+                  {task.startDate&&<span style={{color:t.sub,fontSize:9,fontWeight:500}}>▶ {task.startDate}</span>}
+                  {task.endDate&&<span style={{color:task.done?t.sub:(deadlineStatus(task.endDate)?.color||t.sub),fontSize:9,fontWeight:600}}>⏹ {task.endDate}</span>}
                 </div>}
               </div>
             )}
@@ -1936,6 +1942,14 @@ return () => unsub();
   const t=dark?T.dark:T.light;
   const days=dl(es.date);
 
+  // Live IST date/time
+  const [istDate,setIstDate]=useState(()=>new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata",weekday:"short",day:"2-digit",month:"short"}));
+  useEffect(()=>{
+    const tick=()=>setIstDate(new Date().toLocaleString("en-IN",{timeZone:"Asia/Kolkata",weekday:"short",day:"2-digit",month:"short"}));
+    const iv=setInterval(tick,60000);
+    return()=>clearInterval(iv);
+  },[]);
+
   const onSessionComplete=useCallback(async()=>{
     if(!user?.uid)return;
     try{
@@ -2015,6 +2029,7 @@ return () => unsub();
             <div style={{display:"flex",alignItems:"center",gap:4}}>
               <div style={{fontSize:13,fontWeight:900,letterSpacing:-.3,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",lineHeight:1}}>StudySync</div>
               {isPro?<div style={{background:"linear-gradient(135deg,#818cf8,#34d399)",borderRadius:5,padding:"1px 5px",fontSize:7,fontWeight:900,color:"#fff"}}>PRO</div>:<div style={{background:"rgba(52,211,153,0.16)",border:"1px solid rgba(52,211,153,0.28)",borderRadius:5,padding:"1px 5px",fontSize:7,fontWeight:900,color:"#34d399"}}>7D FREE</div>}
+              <span style={{fontSize:8,color:t.sub,fontWeight:500,marginLeft:2}}>{istDate}</span>
             </div>
             <button onClick={()=>setExOpen(true)} style={{display:"flex",alignItems:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:0,marginTop:1}}>
               <div style={{width:4,height:4,borderRadius:"50%",background:es.color,boxShadow:`0 0 3px ${es.color}`,flexShrink:0}}/>
@@ -2053,8 +2068,8 @@ return () => unsub();
       <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:4,borderBottom:`1px solid ${t.border}`,marginBottom:3}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
           <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:2,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"3px 10px",borderRadius:13,position:"relative"}}>
-            <div style={{fontSize:11,filter:active?"none":!isPro?"grayscale(1) opacity(.22)":"opacity(.38)"}}>{tb.icon}</div>
-            <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.muted,letterSpacing:.3}}>{tb.l}</div>
+            <div style={{fontSize:11,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
+            <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.3}}>{tb.l}</div>
             {!isPro&&<div style={{position:"absolute",top:-1,right:3,fontSize:6,color:"#818cf8",fontWeight:900}}>⚡</div>}
           </button>
         );})}
@@ -2066,8 +2081,8 @@ return () => unsub();
       <div style={{display:"flex",justifyContent:"space-around"}}>
         {FREE.map(tb=>{const active=tab===tb.id;return(
           <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"2px 4px"}}>
-            <div style={{fontSize:15,filter:active?"none":"grayscale(1) opacity(.33)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
-            <div style={{fontSize:7,fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase"}}>{tb.l}</div>
+            <div style={{fontSize:15,filter:active?"none":"grayscale(1) opacity(.55)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
+            <div style={{fontSize:7,fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase",color:active?tb.c:t.sub}}>{tb.l}</div>
             {active&&<div style={{width:3,height:3,borderRadius:"50%",background:tb.c}}/>}
           </button>
         );})}
