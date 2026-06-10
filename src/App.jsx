@@ -137,6 +137,11 @@ async function deleteCustomExamFromDb(uid,examId){
   const mod=await import("./firebase");
   await mod.remove(mod.ref(mod.db,`users/${uid}/customExams/${examId}`));
 }
+async function saveCustomExamToDb(uid,examId,data){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/customExams/${examId}`),data);
+}
 function avbg(c){return `hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}
 function Av({c,sz=36}){return <div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}
 
@@ -2064,7 +2069,12 @@ function QRModal({t,user,onClose,setFriends}){
 
 // ── ROOT ──────────────────────────────────────────────────────
 export default function App(){
-  const [dark,setDark]=useState(true);
+  const [dark,setDark]=useState(()=>{
+    const saved=localStorage.getItem("ss_theme");
+    return saved!==null?saved==="dark":true;
+  });
+  // Persist theme to localStorage on every change
+  useEffect(()=>{localStorage.setItem("ss_theme",dark?"dark":"light");},[dark]);
   const [loggedIn,setLoggedIn]=useState(false);
   const [user,setUser]=useState(null);
     //added changes for retaining login session
@@ -2169,11 +2179,12 @@ return () => {active=false;unsub();};
     };
   },[user?.uid]);
   const [examSubjects,setExamSubjects]=useState({});
-  const customSubjects = examSubjects[es.key]?.[es.mode] || [];
   const [customExams,setCustomExams]=useState([]);
   const [examDates,setExamDates]=useState({});
   const [examTips,setExamTips]=useState({});
   const [es,setEs]=useState(()=>buildExamState());
+  // Derived: custom subjects scoped to current exam + mode (always after es)
+  const customSubjects=examSubjects[es.key]?.[es.mode]||[];
 
   // Load independent exam dates/tips + customSubjects + customExams from Firebase on login
   useEffect(()=>{
@@ -2228,8 +2239,6 @@ return () => {active=false;unsub();};
           }
         }
         
-        const key=validExamKey(selection?.key);
-        const mode=validExamMode(key,selection?.mode);
         setExamDates(dates);
         setExamTips(savedTips);
         setEs(buildExamState(key,mode,dates,savedTips));
