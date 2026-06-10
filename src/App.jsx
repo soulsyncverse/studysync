@@ -2177,7 +2177,7 @@ return () => {active=false;unsub();};
 
   // Load independent exam dates/tips + customSubjects + customExams from Firebase on login
   useEffect(()=>{
-    if(!user?.uid){setExamDates({});setExamTips({});setEs(buildExamState());setCustomSubjects([]);setCustomExams([]);return;}
+    if(!user?.uid){setExamDates({});setExamTips({});setEs(buildExamState());setExamSubjects({});setCustomExams([]);return;}
     (async()=>{
       try{
         const mod=await import("./firebase");
@@ -2227,7 +2227,7 @@ return () => {active=false;unsub();};
             await mod.set(mod.ref(mod.db,`users/${user.uid}/examTips/${dbKey(legacy.key)}/${dbKey(legacy.mode)}`),legacy.tips);
           }
         }
-        const selection=selectionSnap.exists()?selectionSnap.val():legacy;
+        
         const key=validExamKey(selection?.key);
         const mode=validExamMode(key,selection?.mode);
         setExamDates(dates);
