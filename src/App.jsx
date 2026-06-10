@@ -246,7 +246,7 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
     }
     onClose();
   };
-  const addCustom=()=>{if(!ns.trim())return;setCustomSubjects(p=>[...p,{n:ns.trim(),c:nc,i:"📌",w:0,custom:true}]);setNs("");};
+  const addCustom=()=>{if(!ns.trim())return;setCustomSubjects(p=>[...p,{n:ns.trim(),c:nc,i:"📚",w:0,custom:true}]);setNs("");};
   const delCustom=(i)=>setCustomSubjects(p=>p.filter((_,j)=>j!==i));
   const startEdit=(i,v)=>{setEditIdx(i);setEditVal(v);};
   const saveEdit=(i)=>{setCustomSubjects(p=>p.map((s,j)=>j===i?{...s,n:editVal}:s));setEditIdx(null);};
