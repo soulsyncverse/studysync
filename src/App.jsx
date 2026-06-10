@@ -122,6 +122,21 @@ async function saveExamSelectionToDb(uid,key,mode){
   const mod=await import("./firebase");
   await mod.set(mod.ref(mod.db,`users/${uid}/examSelection`),{key:validExamKey(key),mode:validExamMode(validExamKey(key),mode)});
 }
+async function saveCustomSubjectsToDb(uid,subjects){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/customSubjects`),subjects.length?subjects:[]);
+}
+async function saveCustomExamToDb(uid,examId,data){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.set(mod.ref(mod.db,`users/${uid}/customExams/${examId}`),data);
+}
+async function deleteCustomExamFromDb(uid,examId){
+  if(!uid)return;
+  const mod=await import("./firebase");
+  await mod.remove(mod.ref(mod.db,`users/${uid}/customExams/${examId}`));
+}
 function avbg(c){return `hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}
 function Av({c,sz=36}){return <div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}
 
@@ -220,36 +235,116 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
 }
 
 // ── EXAM + CUSTOM SUBJECTS ────────────────────────────────────
-function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDates,setExamDates,examTips,setExamTips,user}){
+function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customExams,setCustomExams,examDates,setExamDates,examTips,setExamTips,user}){
   const [ex,setEx]=useState(es.key||DEFAULT_EXAM_KEY);
   const [md,setMd]=useState(es.mode||DEFAULT_EXAM_MODE);
   const [dt,setDt]=useState(()=>getExamDate(examDates,es.key,es.mode));
   const [ns,setNs]=useState("");const [nc,setNc]=useState("#818cf8");
   const [editIdx,setEditIdx]=useState(null);const [editVal,setEditVal]=useState("");
   const [showCustom,setShowCustom]=useState(false);
-  const cfg=EXAMS[ex];const modeData=cfg?.modes[md];
-  const modes=Object.keys(cfg?.modes||{});
-  const subjs=ex==="Custom"?customSubjects:(modeData?.subjects||[]);
-  const selectedTips=getExamTips(examTips,ex,md);
-  useEffect(()=>{setDt(getExamDate(examDates,ex,md));},[examDates,ex,md]);
+  // Custom exam management
+  const [showNewCustom,setShowNewCustom]=useState(false);
+  const [newCustomName,setNewCustomName]=useState("");
+  const [editCustomId,setEditCustomId]=useState(null);
+  const [editCustomName,setEditCustomName]=useState("");
+  const [deleteConfirmId,setDeleteConfirmId]=useState(null);
+
+  const uid=user?.uid||window.__ssUser?.uid;
+
+  // Is currently selected exam a custom one?
+  const isCustomExam=customExams.some(c=>c.id===ex);
+  const cfg=EXAMS[ex]||(isCustomExam?{icon:"🎯",color:"#C16BFF",modes:{Exam:{date:"",subjects:[],tips:[]}}}:null);
+  const modeData=isCustomExam?{date:getExamDate(examDates,ex,"Exam"),subjects:customSubjects,tips:[]}:cfg?.modes[md];
+  const modes=isCustomExam?["Exam"]:Object.keys(cfg?.modes||{});
+  const subjs=isCustomExam?customSubjects:(modeData?.subjects||[]);
+  const selectedTips=isCustomExam?[]:(getExamTips(examTips,ex,md));
+  useEffect(()=>{setDt(getExamDate(examDates,ex,isCustomExam?"Exam":md));},[examDates,ex,md,isCustomExam]);
+
   const apply=()=>{
+    const effectiveMd=isCustomExam?"Exam":md;
     const chosenDate=dt||modeData?.date||"";
-    const newEs={key:ex,mode:md,name:`${ex} ${md}`,date:chosenDate,color:cfg?.color||"#818cf8",icon:cfg?.icon||"🎯",subjects:[...subjs,...(ex!=="Custom"?customSubjects:[])],tips:selectedTips};
+    const color=isCustomExam?"#C16BFF":(cfg?.color||"#818cf8");
+    const icon=isCustomExam?"🎯":(cfg?.icon||"🎯");
+    const allSubjs=isCustomExam?customSubjects:[...subjs,...customSubjects];
+    const newEs={key:ex,mode:effectiveMd,name:isCustomExam?ex:`${ex} ${effectiveMd}`,date:chosenDate,color,icon,subjects:allSubjs,tips:selectedTips};
     setEs(newEs);
-    setExamDates(p=>({...p,[ex]:{...(p?.[ex]||{}),[md]:chosenDate}}));
-    if(window.__ssUser?.uid||user?.uid){
-      const uid=window.__ssUser?.uid||user?.uid;
+    setExamDates(p=>({...p,[ex]:{...(p?.[ex]||{}),[effectiveMd]:chosenDate}}));
+    if(uid){
       Promise.all([
-        saveExamDateToDb(uid,ex,md,chosenDate),
-        saveExamSelectionToDb(uid,ex,md),
+        saveExamDateToDb(uid,ex,effectiveMd,chosenDate),
+        saveExamSelectionToDb(uid,ex,effectiveMd),
       ]).catch(()=>{});
     }
     onClose();
   };
-  const addCustom=()=>{if(!ns.trim())return;setCustomSubjects(p=>[...p,{n:ns.trim(),c:nc,i:"📚",w:0,custom:true}]);setNs("");};
-  const delCustom=(i)=>setCustomSubjects(p=>p.filter((_,j)=>j!==i));
+
+  // Custom subjects — deduplicated, Firebase-persisted
+  const addCustom=()=>{
+    const name=ns.trim();
+    if(!name)return;
+    const isDupe=customSubjects.some(s=>s.n.toLowerCase()===name.toLowerCase());
+    if(isDupe){setNs("");return;}
+    const updated=[...customSubjects,{n:name,c:nc,i:"📚",w:0,custom:true}];
+    setCustomSubjects(updated);
+    if(uid)saveCustomSubjectsToDb(uid,updated);
+    setNs("");
+  };
+  const delCustom=(i)=>{
+    const updated=customSubjects.filter((_,j)=>j!==i);
+    setCustomSubjects(updated);
+    if(uid)saveCustomSubjectsToDb(uid,updated);
+  };
   const startEdit=(i,v)=>{setEditIdx(i);setEditVal(v);};
-  const saveEdit=(i)=>{setCustomSubjects(p=>p.map((s,j)=>j===i?{...s,n:editVal}:s));setEditIdx(null);};
+  const saveEdit=(i)=>{
+    const name=editVal.trim();
+    if(!name){setEditIdx(null);return;}
+    const isDupe=customSubjects.some((s,j)=>j!==i&&s.n.toLowerCase()===name.toLowerCase());
+    if(isDupe){setEditIdx(null);return;}
+    const updated=customSubjects.map((s,j)=>j===i?{...s,n:name}:s);
+    setCustomSubjects(updated);
+    if(uid)saveCustomSubjectsToDb(uid,updated);
+    setEditIdx(null);
+  };
+
+  // Multi custom exams
+  const createCustomExam=()=>{
+    const name=newCustomName.trim();
+    if(!name)return;
+    const isDupe=customExams.some(c=>c.name.toLowerCase()===name.toLowerCase());
+    if(isDupe){setNewCustomName("");return;}
+    const id=`cx_${Date.now()}`;
+    const data={id,name,date:"",createdAt:Date.now()};
+    const updated=[...customExams,data];
+    setCustomExams(updated);
+    if(uid)saveCustomExamToDb(uid,id,data);
+    setNewCustomName("");setShowNewCustom(false);
+    setEx(id);setMd("Exam");setDt("");
+  };
+  const startEditCustom=(id,name)=>{setEditCustomId(id);setEditCustomName(name);};
+  const saveEditCustom=(id)=>{
+    const name=editCustomName.trim();
+    if(!name){setEditCustomId(null);return;}
+    const updated=customExams.map(c=>c.id===id?{...c,name}:c);
+    setCustomExams(updated);
+    if(uid){
+      const exam=updated.find(c=>c.id===id);
+      saveCustomExamToDb(uid,id,exam);
+    }
+    // If currently selected, update es name
+    if(ex===id)setEs(p=>({...p,name}));
+    setEditCustomId(null);
+  };
+  const confirmDeleteCustom=(id)=>setDeleteConfirmId(id);
+  const doDeleteCustom=(id)=>{
+    const updated=customExams.filter(c=>c.id!==id);
+    setCustomExams(updated);
+    if(uid)deleteCustomExamFromDb(uid,id);
+    // Also remove its dates
+    setExamDates(p=>{const n={...p};delete n[id];return n;});
+    if(ex===id){setEx(DEFAULT_EXAM_KEY);setMd(DEFAULT_EXAM_MODE);}
+    setDeleteConfirmId(null);
+  };
+
   return(
     <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:540,maxHeight:"90vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 34px"}}>
@@ -257,9 +352,21 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
         <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:1}}>🎯 Set Your Exam</div>
         <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Choose exam & mode — subjects auto-load</div>
 
-        {/* Exam list */}
+        {/* Delete confirmation */}
+        {deleteConfirmId&&(
+          <div style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:12,padding:"12px",marginBottom:10,textAlign:"center"}}>
+            <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:8}}>Delete this custom exam?</div>
+            <div style={{display:"flex",gap:7}}>
+              <button onClick={()=>setDeleteConfirmId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:8,padding:"8px",color:t.text,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={()=>doDeleteCustom(deleteConfirmId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:8,padding:"8px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+            </div>
+          </div>
+        )}
+
+        {/* Built-in exams */}
+        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Built-in Exams</div>
         <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:12}}>
-          {Object.entries(EXAMS).map(([k,v])=>(
+          {Object.entries(EXAMS).filter(([k])=>k!=="Custom").map(([k,v])=>(
             <button key={k} onClick={()=>{const first=Object.keys(v.modes)[0];setEx(k);setMd(first);setDt(getExamDate(examDates,k,first));}} style={{display:"flex",alignItems:"center",gap:9,background:ex===k?`${v.color}15`:t.card,border:`1.5px solid ${ex===k?v.color:t.border}`,borderRadius:11,padding:"9px 11px",cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
               <span style={{fontSize:17}}>{v.icon}</span>
               <div style={{flex:1,textAlign:"left"}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{k}</div></div>
@@ -268,7 +375,42 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
           ))}
         </div>
 
-        {/* Mode */}
+        {/* Custom exams section */}
+        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>My Custom Exams</div>
+        <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
+          {customExams.map(c=>(
+            <div key={c.id} style={{display:"flex",alignItems:"center",gap:7,background:ex===c.id?"rgba(193,107,255,0.12)":t.card,border:`1.5px solid ${ex===c.id?"#C16BFF":t.border}`,borderRadius:11,padding:"7px 10px",transition:"all .2s"}}>
+              {editCustomId===c.id?(
+                <input autoFocus value={editCustomName} onChange={e=>setEditCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEditCustom(c.id);if(e.key==="Escape")setEditCustomId(null);}} style={{flex:1,background:t.input,border:`1px solid #C16BFF`,borderRadius:7,padding:"5px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              ):(
+                <button onClick={()=>{setEx(c.id);setMd("Exam");setDt(getExamDate(examDates,c.id,"Exam"));}} style={{flex:1,background:"none",border:"none",textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
+                  <span style={{fontSize:15}}>🎯</span> <span style={{color:t.text,fontWeight:700,fontSize:12,marginLeft:5}}>{c.name}</span>
+                </button>
+              )}
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                {editCustomId===c.id?(
+                  <button onClick={()=>saveEditCustom(c.id)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                ):(
+                  <button onClick={()=>startEditCustom(c.id,c.name)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                )}
+                <button onClick={()=>confirmDeleteCustom(c.id)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+              {ex===c.id&&editCustomId!==c.id&&<div style={{width:6,height:6,borderRadius:"50%",background:"#C16BFF",flexShrink:0}}/>}
+            </div>
+          ))}
+          {/* New custom exam */}
+          {showNewCustom?(
+            <div style={{display:"flex",gap:5}}>
+              <input autoFocus value={newCustomName} onChange={e=>setNewCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")createCustomExam();if(e.key==="Escape")setShowNewCustom(false);}} placeholder="Exam name e.g. SSC JE, Mock Test…" style={{flex:1,background:t.input,border:"1px solid #C16BFF",borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={createCustomExam} style={{background:"#C16BFF",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:900,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>+</button>
+              <button onClick={()=>setShowNewCustom(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 9px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11}}>✕</button>
+            </div>
+          ):(
+            <button onClick={()=>setShowNewCustom(true)} style={{background:"rgba(193,107,255,0.1)",border:"1.5px dashed rgba(193,107,255,0.4)",borderRadius:11,padding:"8px",color:"#C16BFF",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>+ New Custom Exam</button>
+          )}
+        </div>
+
+        {/* Mode selector */}
         {modes.length>1&&<div style={{marginBottom:10}}>
           <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Mode</div>
           <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>{setMd(m);setDt(getExamDate(examDates,ex,m));}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{(()=>{const d=dl(getExamDate(examDates,ex,m));return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
@@ -280,20 +422,19 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
           <input type="date" value={dt} onChange={e=>setDt(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/>
         </div>
 
-        {/* Default subjects */}
-        {ex!=="Custom"&&subjs.length>0&&<div style={{marginBottom:10}}>
+        {/* Default subjects preview */}
+        {!isCustomExam&&subjs.length>0&&<div style={{marginBottom:10}}>
           <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Subjects ({subjs.length} auto-loaded)</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{subjs.map(s=><div key={s.n} style={{background:`${s.c}20`,color:s.c,border:`1px solid ${s.c}44`,borderRadius:13,padding:"2px 7px",fontSize:9,fontWeight:700}}>{s.i} {s.n}</div>)}</div>
         </div>}
 
-        {/* Custom subjects section */}
+        {/* Custom subjects */}
         <div style={{background:t.card,border:`1px solid ${showCustom?"#818cf8":t.border}40`,borderRadius:12,padding:"11px",marginBottom:12,transition:"border .2s"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showCustom?10:0}}>
-            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam</div></div>
+            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam · {customSubjects.length} saved</div></div>
             <button onClick={()=>setShowCustom(v=>!v)} style={{background:showCustom?"#818cf8":t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:showCustom?"#fff":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{showCustom?"Done":"Manage"}</button>
           </div>
           {showCustom&&(<>
-            {/* Existing custom subjects */}
             {customSubjects.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:9}}>
               {customSubjects.map((s,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",gap:7,background:t.input,borderRadius:8,padding:"7px 9px",border:`1px solid ${s.c}30`}}>
@@ -312,7 +453,6 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
                 </div>
               ))}
             </div>}
-            {/* Add new */}
             <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:7}}>{COLS.map(c=><div key={c} onClick={()=>setNc(c)} style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:nc===c?"2.5px solid white":"2px solid transparent",transition:"all .2s"}}/>)}</div>
             <div style={{display:"flex",gap:5}}>
               <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
@@ -322,9 +462,8 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,examDate
           </>)}
         </div>
 
-
         <button onClick={apply} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"11px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 16px rgba(129,140,248,0.28)"}}>
-          {cfg?.icon} Set {ex} — {md} ✓
+          {isCustomExam?"🎯":cfg?.icon} Set {isCustomExam?customExams.find(c=>c.id===ex)?.name:ex} — {isCustomExam?"Exam":md} ✓
         </button>
       </div>
     </div>
@@ -2025,23 +2164,37 @@ return () => {active=false;unsub();};
     };
   },[user?.uid]);
   const [customSubjects,setCustomSubjects]=useState([]);
+  const [customExams,setCustomExams]=useState([]);
   const [examDates,setExamDates]=useState({});
   const [examTips,setExamTips]=useState({});
   const [es,setEs]=useState(()=>buildExamState());
 
-  // Load independent exam dates/tips from Firebase on login and migrate old examConfig once.
+  // Load independent exam dates/tips + customSubjects + customExams from Firebase on login
   useEffect(()=>{
-    if(!user?.uid){setExamDates({});setExamTips({});setEs(buildExamState());return;}
+    if(!user?.uid){setExamDates({});setExamTips({});setEs(buildExamState());setCustomSubjects([]);setCustomExams([]);return;}
     (async()=>{
       try{
         const mod=await import("./firebase");
         const readOnce=path=>new Promise(res=>mod.onValue(mod.ref(mod.db,path),(s)=>{res(s);},{onlyOnce:true}));
-        const [datesSnap,tipsSnap,selectionSnap,legacySnap]=await Promise.all([
+        const [datesSnap,tipsSnap,selectionSnap,legacySnap,customSubjSnap,customExamsSnap]=await Promise.all([
           readOnce(`users/${user.uid}/examDates`),
           readOnce(`users/${user.uid}/examTips`),
           readOnce(`users/${user.uid}/examSelection`),
           readOnce(`users/${user.uid}/examConfig`),
+          readOnce(`users/${user.uid}/customSubjects`),
+          readOnce(`users/${user.uid}/customExams`),
         ]);
+        // Custom subjects
+        if(customSubjSnap.exists()){
+          const raw=customSubjSnap.val();
+          setCustomSubjects(Array.isArray(raw)?raw:Object.values(raw));
+        }
+        // Custom exams
+        if(customExamsSnap.exists()){
+          const raw=customExamsSnap.val();
+          const arr=Object.entries(raw).map(([id,v])=>({...v,id}));
+          setCustomExams(arr);
+        }
         let dates=normalizeExamDates(datesSnap.exists()?datesSnap.val():{});
         let savedTips=normalizeExamTips(tipsSnap.exists()?tipsSnap.val():{});
         const legacy=legacySnap.exists()?legacySnap.val():null;
@@ -2142,7 +2295,7 @@ return () => {active=false;unsub();};
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
-    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} customSubjects={customSubjects} setCustomSubjects={setCustomSubjects} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
+    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} customSubjects={customSubjects} setCustomSubjects={setCustomSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
     {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
     {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
@@ -2179,7 +2332,7 @@ return () => {active=false;unsub();};
       {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
-      {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
+      {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
       {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
