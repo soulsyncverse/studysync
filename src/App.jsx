@@ -127,10 +127,10 @@ async function saveCustomSubjectsToDb(uid,subjects){
   const mod=await import("./firebase");
   await mod.set(mod.ref(mod.db,`users/${uid}/customSubjects`),subjects.length?subjects:[]);
 }
-async function saveCustomExamToDb(uid,examId,data){
+async function saveExamSubjectsToDb(uid,key,mode,subjects){
   if(!uid)return;
   const mod=await import("./firebase");
-  await mod.set(mod.ref(mod.db,`users/${uid}/customExams/${examId}`),data);
+  await mod.set(mod.ref(mod.db,`users/${uid}/examSubjects/${dbKey(key)}/${dbKey(mode)}`),subjects.length?subjects:[]);
 }
 async function deleteCustomExamFromDb(uid,examId){
   if(!uid)return;
@@ -235,7 +235,7 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
 }
 
 // ── EXAM + CUSTOM SUBJECTS ────────────────────────────────────
-function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customExams,setCustomExams,examDates,setExamDates,examTips,setExamTips,user}){
+function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,setCustomExams,examDates,setExamDates,examTips,setExamTips,user}){
   const [ex,setEx]=useState(es.key||DEFAULT_EXAM_KEY);
   const [md,setMd]=useState(es.mode||DEFAULT_EXAM_MODE);
   const [dt,setDt]=useState(()=>getExamDate(examDates,es.key,es.mode));
@@ -254,19 +254,24 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customEx
   // Is currently selected exam a custom one?
   const isCustomExam=customExams.some(c=>c.id===ex);
   const cfg=EXAMS[ex]||(isCustomExam?{icon:"🎯",color:"#C16BFF",modes:{Exam:{date:"",subjects:[],tips:[]}}}:null);
-  const modeData=isCustomExam?{date:getExamDate(examDates,ex,"Exam"),subjects:customSubjects,tips:[]}:cfg?.modes[md];
+  
+  const effectiveMode = isCustomExam ? "Exam" : md;
+  const currentCustomSubjs = examSubjects[ex]?.[effectiveMode] || [];
+  
+  const modeData=isCustomExam?{date:getExamDate(examDates,ex,"Exam"),subjects:currentCustomSubjs,tips:[]}:cfg?.modes[md];
   const modes=isCustomExam?["Exam"]:Object.keys(cfg?.modes||{});
-  const subjs=isCustomExam?customSubjects:(modeData?.subjects||[]);
+  const subjs=isCustomExam?currentCustomSubjs:(modeData?.subjects||[]);
   const selectedTips=isCustomExam?[]:(getExamTips(examTips,ex,md));
   useEffect(()=>{setDt(getExamDate(examDates,ex,isCustomExam?"Exam":md));},[examDates,ex,md,isCustomExam]);
 
-  const apply=()=>{
+const apply=()=>{
     const effectiveMd=isCustomExam?"Exam":md;
     const chosenDate=dt||modeData?.date||"";
     const color=isCustomExam?"#C16BFF":(cfg?.color||"#818cf8");
     const icon=isCustomExam?"🎯":(cfg?.icon||"🎯");
-    const allSubjs=isCustomExam?customSubjects:[...subjs,...customSubjects];
-    const newEs={key:ex,mode:effectiveMd,name:isCustomExam?ex:`${ex} ${effectiveMd}`,date:chosenDate,color,icon,subjects:allSubjs,tips:selectedTips};
+    const allSubjs=isCustomExam?currentCustomSubjs:[...subjs,...currentCustomSubjs];
+    const customName = customExams.find(c=>c.id===ex)?.name || ex;
+    const newEs={key:ex,mode:effectiveMd,name:isCustomExam?customName:`${ex} ${effectiveMd}`,date:chosenDate,color,icon,subjects:allSubjs,tips:selectedTips};
     setEs(newEs);
     setExamDates(p=>({...p,[ex]:{...(p?.[ex]||{}),[effectiveMd]:chosenDate}}));
     if(uid){
@@ -278,31 +283,31 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customEx
     onClose();
   };
 
-  // Custom subjects — deduplicated, Firebase-persisted
+ // Custom subjects — isolated to current exam/mode, Firebase-persisted
   const addCustom=()=>{
     const name=ns.trim();
     if(!name)return;
-    const isDupe=customSubjects.some(s=>s.n.toLowerCase()===name.toLowerCase());
+    const isDupe=currentCustomSubjs.some(s=>s.n.toLowerCase()===name.toLowerCase());
     if(isDupe){setNs("");return;}
-    const updated=[...customSubjects,{n:name,c:nc,i:"📚",w:0,custom:true}];
-    setCustomSubjects(updated);
-    if(uid)saveCustomSubjectsToDb(uid,updated);
+    const updated=[...currentCustomSubjs,{n:name,c:nc,i:"📚",w:0,custom:true}];
+    setExamSubjects(p=>({...p, [ex]: {...(p[ex]||{}), [effectiveMode]: updated}}));
+    if(uid)saveExamSubjectsToDb(uid, ex, effectiveMode, updated);
     setNs("");
   };
   const delCustom=(i)=>{
-    const updated=customSubjects.filter((_,j)=>j!==i);
-    setCustomSubjects(updated);
-    if(uid)saveCustomSubjectsToDb(uid,updated);
+    const updated=currentCustomSubjs.filter((_,j)=>j!==i);
+    setExamSubjects(p=>({...p, [ex]: {...(p[ex]||{}), [effectiveMode]: updated}}));
+    if(uid)saveExamSubjectsToDb(uid, ex, effectiveMode, updated);
   };
   const startEdit=(i,v)=>{setEditIdx(i);setEditVal(v);};
   const saveEdit=(i)=>{
     const name=editVal.trim();
     if(!name){setEditIdx(null);return;}
-    const isDupe=customSubjects.some((s,j)=>j!==i&&s.n.toLowerCase()===name.toLowerCase());
+    const isDupe=currentCustomSubjs.some((s,j)=>j!==i&&s.n.toLowerCase()===name.toLowerCase());
     if(isDupe){setEditIdx(null);return;}
-    const updated=customSubjects.map((s,j)=>j===i?{...s,n:name}:s);
-    setCustomSubjects(updated);
-    if(uid)saveCustomSubjectsToDb(uid,updated);
+    const updated=currentCustomSubjs.map((s,j)=>j===i?{...s,n:name}:s);
+    setExamSubjects(p=>({...p, [ex]: {...(p[ex]||{}), [effectiveMode]: updated}}));
+    if(uid)saveExamSubjectsToDb(uid, ex, effectiveMode, updated);
     setEditIdx(null);
   };
 
@@ -431,12 +436,12 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customEx
         {/* Custom subjects */}
         <div style={{background:t.card,border:`1px solid ${showCustom?"#818cf8":t.border}40`,borderRadius:12,padding:"11px",marginBottom:12,transition:"border .2s"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showCustom?10:0}}>
-            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam · {customSubjects.length} saved</div></div>
+            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam · {currentCustomSubjs.length} saved</div></div>
             <button onClick={()=>setShowCustom(v=>!v)} style={{background:showCustom?"#818cf8":t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:showCustom?"#fff":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{showCustom?"Done":"Manage"}</button>
           </div>
           {showCustom&&(<>
-            {customSubjects.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:9}}>
-              {customSubjects.map((s,i)=>(
+            {currentCustomSubjs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:9}}>
+              {currentCustomSubjs.map((s,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",gap:7,background:t.input,borderRadius:8,padding:"7px 9px",border:`1px solid ${s.c}30`}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:s.c,flexShrink:0}}/>
                   {editIdx===i?(
@@ -458,7 +463,7 @@ function ExamSetup({t,es,setEs,onClose,customSubjects,setCustomSubjects,customEx
               <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={addCustom} style={{background:nc,border:"none",borderRadius:8,padding:"7px 11px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+</button>
             </div>
-            {customSubjects.length===0&&<div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>No custom subjects yet. Add your first one!</div>}
+            {currentCustomSubjs.length===0&&<div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>No custom subjects yet. Add your first one!</div>}
           </>)}
         </div>
 
@@ -2163,7 +2168,8 @@ return () => {active=false;unsub();};
       }
     };
   },[user?.uid]);
-  const [customSubjects,setCustomSubjects]=useState([]);
+  const [examSubjects,setExamSubjects]=useState({});
+  const customSubjects = examSubjects[es.key]?.[es.mode] || [];
   const [customExams,setCustomExams]=useState([]);
   const [examDates,setExamDates]=useState({});
   const [examTips,setExamTips]=useState({});
@@ -2176,18 +2182,31 @@ return () => {active=false;unsub();};
       try{
         const mod=await import("./firebase");
         const readOnce=path=>new Promise(res=>mod.onValue(mod.ref(mod.db,path),(s)=>{res(s);},{onlyOnce:true}));
-        const [datesSnap,tipsSnap,selectionSnap,legacySnap,customSubjSnap,customExamsSnap]=await Promise.all([
+       const [datesSnap,tipsSnap,selectionSnap,legacySnap,customSubjSnap,examSubjectsSnap,customExamsSnap]=await Promise.all([
           readOnce(`users/${user.uid}/examDates`),
           readOnce(`users/${user.uid}/examTips`),
           readOnce(`users/${user.uid}/examSelection`),
           readOnce(`users/${user.uid}/examConfig`),
           readOnce(`users/${user.uid}/customSubjects`),
+          readOnce(`users/${user.uid}/examSubjects`),
           readOnce(`users/${user.uid}/customExams`),
         ]);
-        // Custom subjects
-        if(customSubjSnap.exists()){
+        
+        const selection=selectionSnap.exists()?selectionSnap.val():legacySnap.exists()?legacySnap.val():null;
+        const key=validExamKey(selection?.key);
+        const mode=validExamMode(key,selection?.mode);
+
+        // Custom subjects & Migration
+        if(examSubjectsSnap.exists()){
+          const rawObj = examSubjectsSnap.val();
+          const parsed = {};
+          Object.keys(rawObj).forEach(k => { parsed[decodeDbKey(k)] = {}; Object.keys(rawObj[k]).forEach(m => { parsed[decodeDbKey(k)][decodeDbKey(m)] = rawObj[k][m]; }); });
+          setExamSubjects(parsed);
+        } else if(customSubjSnap.exists()){
           const raw=customSubjSnap.val();
-          setCustomSubjects(Array.isArray(raw)?raw:Object.values(raw));
+          const arr=Array.isArray(raw)?raw:Object.values(raw);
+          setExamSubjects({ [key]: { [mode]: arr } });
+          saveExamSubjectsToDb(user.uid, key, mode, arr);
         }
         // Custom exams
         if(customExamsSnap.exists()){
@@ -2295,7 +2314,7 @@ return () => {active=false;unsub();};
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
-    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} customSubjects={customSubjects} setCustomSubjects={setCustomSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
+    {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
     {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
     {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
