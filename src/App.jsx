@@ -567,73 +567,12 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   // Set default subject on first load
   useEffect(()=>{if(!pomoCs&&allSubjects.length>0)setPomoCs(allSubjects[0].n);},[allSubjects.length]);
 
-  // Play sound via Web Audio API — no external deps
-  const playSound=useCallback((type)=>{
-    if(!ns?.sound)return;
-    try{
-      const ctx=new(window.AudioContext||window.webkitAudioContext)();
-      const gain=ctx.createGain();
-      gain.connect(ctx.destination);
-      if(type==="focus"){
-        // Three ascending tones — pleasant session complete
-        [[523,0],[659,0.15],[784,0.3]].forEach(([freq,delay])=>{
-          const o=ctx.createOscillator();o.type="sine";
-          o.frequency.value=freq;
-          o.connect(gain);
-          gain.gain.setValueAtTime(0,ctx.currentTime+delay);
-          gain.gain.linearRampToValueAtTime(0.18,ctx.currentTime+delay+0.05);
-          gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.55);
-          o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
-        });
-      } else {
-        // Single soft bell — break complete
-        const o=ctx.createOscillator();o.type="sine";o.frequency.value=440;
-        o.connect(gain);
-        gain.gain.setValueAtTime(0,ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.12,ctx.currentTime+0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
-        o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
-      }
-    }catch(e){}
-  },[ns?.sound]);
+  // Sounds handled at App level
 
-  const saveSession=async(subject,minutes)=>{
-    if(!user?.uid)return;
-    try{
-      const mod=await import("./firebase");
-      const today=new Date().toISOString().split("T")[0];
-      const sessionData={subject,minutes,completedAt:Date.now(),date:today};
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),sessionData);
-      const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
-      const snap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
-      const prev=snap.exists()?snap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
-      await mod.set(statsRef,{totalSessions:(prev.totalSessions||0)+1,totalMinutes:(prev.totalMinutes||0)+minutes,lastStudyDate:today});
-      if(onSessionComplete) onSessionComplete();
-    }catch(e){console.error("saveSession error",e);}
-  };
+  // Session saving handled at App level to avoid stale closure issues
 
-  // Global timer — runs even when tab is switched because state lives in App
-  useEffect(()=>{
-    if(pomoRun){
-      ref.current=setInterval(()=>setPomoSec(s=>{
-        if(s<=1){
-          clearInterval(ref.current);setPomoRun(false);
-          if(pomoMode==="focus"){
-            setPomoSess(n=>n+1);
-            saveSession(pomoCs,pomoCf);
-            playSound("focus");
-            if(ns?.pomoDone)pushN({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCs}!`,col:sc});
-          } else {
-            playSound("break");
-            if(ns?.pomoDone)pushN({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:t.a3});
-          }
-          return 0;
-        }
-        return s-1;
-      }),1000);
-    } else clearInterval(ref.current);
-    return()=>clearInterval(ref.current);
-  },[pomoRun,pomoMode]);
+  // Timer interval lives in App-level useEffect (never unmounts on tab switch)
+  // Pomo reads/controls state via props only — no interval here
 
   const sw=(m,cm)=>{setPomoMode(m);setPomoSec((cm??dur[m])*60);setPomoRun(false);};
   const applyDur=(v)=>{const val=Math.min(v,maxMin);setPomoCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
@@ -2142,13 +2081,49 @@ return () => {active=false;unsub();};
   const [toasts,setToasts]=useState([]);
   const [nHist,setNHist]=useState([]);
   const [ns,setNs]=useState({streakBreak:true,studyReminder:true,pomoDone:true,friendActivity:false,leaderboard:false,sound:true});
-  // ── LIFTED POMO STATE (persists across tab switches) ──
-  const [pomoMode,setPomoMode]=useState("focus");
+  // ── LIFTED POMO STATE — persists across all tab switches ──
+  const POMO_LS_KEY="ss_pomo_state";
+  const [pomoMode,setPomoMode]=useState(()=>{
+    try{const s=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");return s.mode||"focus";}catch{return"focus";}
+  });
   const [pomoCf,setPomoCf]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25"));
-  const [pomoSec,setPomoSec]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25")*60);
-  const [pomoRun,setPomoRun]=useState(false);
+  const [pomoRun,setPomoRun]=useState(false); // never restore as running — calculate elapsed instead
   const [pomoSess,setPomoSess]=useState(0);
   const [pomoCs,setPomoCs]=useState("");
+  // Restore remaining seconds accounting for elapsed time while page was closed
+  const [pomoSec,setPomoSec]=useState(()=>{
+    try{
+      const s=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");
+      if(s.running&&s.endTime){
+        const remaining=Math.round((s.endTime-Date.now())/1000);
+        if(remaining>0&&remaining<=s.totalSec){
+          // Page was refreshed mid-session — resume with correct time
+          return remaining;
+        }
+      }
+      return s.sec||(parseInt(localStorage.getItem("ss_pomo_dur")||"25")*60);
+    }catch{return parseInt(localStorage.getItem("ss_pomo_dur")||"25")*60;}
+  });
+  // Restore running state after we know the time is valid
+  const [_pomoRestored]=useState(()=>{
+    try{
+      const s=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");
+      return s.running&&s.endTime&&Math.round((s.endTime-Date.now())/1000)>0;
+    }catch{return false;}
+  });
+  const pomoIntervalRef=useRef(null);
+
+  // Restore running after mount (needs pomoSec to be set first)
+  // Also prime the endTime ref so the interval has an accurate endTime immediately
+  useEffect(()=>{
+    if(_pomoRestored){
+      try{
+        const saved=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");
+        if(saved.endTime&&saved.endTime>Date.now()) pomoEndTimeRef.current=saved.endTime;
+      }catch{}
+      setPomoRun(true);
+    }
+  },[]);
   const [streak,setStreak]=useState(0);
   const [stats,setStats]=useState({totalSessions:0,totalMinutes:0,lastStudyDate:""});
 
@@ -2313,6 +2288,127 @@ return () => {active=false;unsub();};
       }
     }catch(e){console.error("onSessionComplete error",e);}
   },[user?.uid]);
+
+  // ── APP-LEVEL TIMER — timestamp-based, never stale, survives all navigation ──
+  // pomoEndTimeRef is the source of truth. Remaining seconds are derived from it every tick.
+  const pomoEndTimeRef=useRef(null);
+
+  // Sync endTime ref when pomoRun starts
+  useEffect(()=>{
+    if(pomoRun){
+      // Restore from localStorage if valid, else set fresh
+      try{
+        const saved=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");
+        if(saved.running&&saved.endTime&&saved.endTime>Date.now()){
+          pomoEndTimeRef.current=saved.endTime;
+        } else {
+          pomoEndTimeRef.current=Date.now()+(pomoSec*1000);
+        }
+      }catch{pomoEndTimeRef.current=Date.now()+(pomoSec*1000);}
+    } else {
+      pomoEndTimeRef.current=null;
+    }
+  },[pomoRun]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(()=>{
+    clearInterval(pomoIntervalRef.current);
+    if(!pomoRun){
+      const dur={focus:pomoCf,short:5,long:15};
+      localStorage.setItem(POMO_LS_KEY,JSON.stringify({
+        mode:pomoMode,sec:pomoSec,totalSec:dur[pomoMode]*60,
+        running:false,cf:pomoCf,cs:pomoCs
+      }));
+      return;
+    }
+    const dur={focus:pomoCf,short:5,long:15};
+    const totalSec=dur[pomoMode]*60;
+    pomoIntervalRef.current=setInterval(()=>{
+      if(!pomoEndTimeRef.current)return;
+      const remaining=Math.round((pomoEndTimeRef.current-Date.now())/1000);
+      if(remaining<=0){
+        clearInterval(pomoIntervalRef.current);
+        pomoEndTimeRef.current=null;
+        setPomoSec(0);
+        setPomoRun(false);
+        localStorage.setItem(POMO_LS_KEY,JSON.stringify({
+          mode:pomoModeRef.current,sec:totalSec,totalSec,
+          running:false,cf:pomoCfRef.current,cs:pomoCsRef.current
+        }));
+        if(pomoModeRef.current==="focus") setPomoSess(n=>n+1);
+        return;
+      }
+      setPomoSec(remaining);
+      if(remaining%5===0){
+        localStorage.setItem(POMO_LS_KEY,JSON.stringify({
+          mode:pomoModeRef.current,sec:remaining,totalSec,
+          running:true,endTime:pomoEndTimeRef.current,
+          cf:pomoCfRef.current,cs:pomoCsRef.current
+        }));
+      }
+    },500);
+    localStorage.setItem(POMO_LS_KEY,JSON.stringify({
+      mode:pomoMode,sec:pomoSec,totalSec,
+      running:true,endTime:pomoEndTimeRef.current,
+      cf:pomoCf,cs:pomoCs
+    }));
+    return()=>clearInterval(pomoIntervalRef.current);
+  },[pomoRun,pomoMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle session completion side-effects (sound, notification, Firebase) — separate to avoid stale closures
+  const pomoRunRef=useRef(pomoRun);
+  const pomoModeRef=useRef(pomoMode);
+  const pomoSecRef=useRef(pomoSec);
+  const pomoSessRef=useRef(pomoSess);
+  const pomoCsRef=useRef(pomoCs);
+  const pomoCfRef=useRef(pomoCf);
+  useEffect(()=>{pomoRunRef.current=pomoRun;},[pomoRun]);
+  useEffect(()=>{pomoModeRef.current=pomoMode;},[pomoMode]);
+  useEffect(()=>{pomoSecRef.current=pomoSec;
+    // When sec hits 0 and was running focus, fire completion effects
+    if(pomoSec===0&&!pomoRun&&pomoModeRef.current==="focus"){
+      // Play sound
+      try{
+        const ctx=new(window.AudioContext||window.webkitAudioContext)();
+        const gain=ctx.createGain();gain.connect(ctx.destination);
+        [[523,0],[659,0.15],[784,0.3]].forEach(([freq,delay])=>{
+          const o=ctx.createOscillator();o.type="sine";o.frequency.value=freq;o.connect(gain);
+          gain.gain.setValueAtTime(0,ctx.currentTime+delay);
+          gain.gain.linearRampToValueAtTime(ns?.sound?0.18:0,ctx.currentTime+delay+0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.55);
+          o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
+        });
+      }catch(e){}
+      if(ns?.pomoDone)push({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
+      // Save session to Firebase
+      if(user?.uid){
+        const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
+        import("./firebase").then(mod=>{
+          const today=new Date().toISOString().split("T")[0];
+          mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
+          const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
+          mod.onValue(statsRef,(snap)=>{
+            const prev=snap.exists()?snap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
+            mod.set(statsRef,{totalSessions:(prev.totalSessions||0)+1,totalMinutes:(prev.totalMinutes||0)+minutes,lastStudyDate:today});
+          },{onlyOnce:true});
+          onSessionComplete();
+        }).catch(()=>{});
+      }
+    }
+    if(pomoSec===0&&!pomoRun&&pomoModeRef.current!=="focus"){
+      try{
+        const ctx=new(window.AudioContext||window.webkitAudioContext)();
+        const gain=ctx.createGain();gain.connect(ctx.destination);
+        const o=ctx.createOscillator();o.type="sine";o.frequency.value=440;o.connect(gain);
+        gain.gain.setValueAtTime(0,ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(ns?.sound?0.12:0,ctx.currentTime+0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
+        o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
+      }catch(e){}
+      if(ns?.pomoDone)push({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:"#34d399"});
+    }
+  },[pomoSec,pomoRun]);
+  useEffect(()=>{pomoCsRef.current=pomoCs;},[pomoCs]);
+  useEffect(()=>{pomoCfRef.current=pomoCf;},[pomoCf]);
 
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
