@@ -2057,170 +2057,104 @@ function Notes({t,subjects,customSubjects,es,user}){
   </div>);
 }
 
-// ── MOCK TEST TRACKER ─────────────────────────────────────────
-function MockTests({t,es,user}){
-  const examKey=es?.key||"UPSC CSE";
-  const examMode=es?.mode||"Prelims";
-  const uid=user?.uid||window.__ssUser?.uid;
-
-  const [tests,setTests]=useState([]);
+// ── MOCK TEST TRACKER ────────────────────────────────────────
+function MockTest({t,es,user}){
+  const [mocks,setMocks]=useState([]);
   const [loading,setLoading]=useState(true);
-  const [view,setView]=useState("history"); // "history" | "analytics"
-
-  // Add/Edit form state
-  const [adding,setAdding]=useState(false);
-  const [editId,setEditId]=useState(null);
+  const [showAdd,setShowAdd]=useState(false);
   const [form,setForm]=useState({name:"",date:"",score:"",total:""});
   const [saving,setSaving]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [editForm,setEditForm]=useState({name:"",date:"",score:"",total:""});
   const [delId,setDelId]=useState(null);
 
-  const basePath=`users/${uid}/mockTests/${dbKey(examKey)}/${dbKey(examMode)}`;
+  const examKey=es?.key||"UPSC CSE";
+  const examMode=es?.mode||"Prelims";
+  const basePath=`users/${user?.uid}/mockTests/${dbKey(examKey)}/${dbKey(examMode)}`;
 
-  // Load tests from Firebase with real-time listener
+  // Load mocks from Firebase
   useEffect(()=>{
-    if(!uid)return;
-    setLoading(true);setTests([]);
-    let cleanup=()=>{};
+    if(!user?.uid)return;
+    setLoading(true);setMocks([]);
+    let dbMod,dbRef,listener;
     (async()=>{
       try{
         const mod=await import("./firebase");
-        const ref=mod.ref(mod.db,basePath);
-        const unsub=mod.onValue(ref,(snap)=>{
-          if(!snap.exists()){setTests([]);setLoading(false);return;}
-          const raw=snap.val();
-          const arr=Object.entries(raw).map(([id,v])=>({id,...v}));
-          arr.sort((a,b)=>new Date(a.date)-new Date(b.date));
-          setTests(arr);setLoading(false);
+        dbRef=mod.ref(mod.db,basePath);dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const arr=Object.entries(snap.val()).map(([id,v])=>({...v,id})).sort((a,b)=>b.createdAt-a.createdAt);
+            setMocks(arr);
+          } else setMocks([]);
+          setLoading(false);
         });
-        cleanup=()=>unsub();
-      }catch(e){setLoading(false);}
+      }catch{setLoading(false);}
     })();
-    return cleanup;
-  },[uid,examKey,examMode]);
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid,examKey,examMode]);
 
-  const resetForm=()=>setForm({name:"",date:"",score:"",total:""});
+  const pct=(score,total)=>total>0?Math.round((score/total)*100):0;
 
-  const startAdd=()=>{
-    setEditId(null);resetForm();setAdding(true);
-  };
-  const startEdit=(test)=>{
-    setEditId(test.id);
-    setForm({name:test.name,date:test.date,score:String(test.score),total:String(test.total)});
-    setAdding(true);
-  };
-  const cancelForm=()=>{setAdding(false);setEditId(null);resetForm();};
-
-  const saveTest=async()=>{
-    const name=form.name.trim();
-    const score=parseFloat(form.score);
-    const total=parseFloat(form.total);
-    if(!name||!form.date||isNaN(score)||isNaN(total)||total<=0)return;
+  const saveMock=async()=>{
+    const s=Number(form.score),tot=Number(form.total);
+    if(!form.name.trim()||!form.date||isNaN(s)||isNaN(tot)||tot<=0||s<0||s>tot)return;
     setSaving(true);
     try{
       const mod=await import("./firebase");
-      const entry={name,date:form.date,score,total,savedAt:Date.now()};
-      if(editId){
-        await mod.set(mod.ref(mod.db,`${basePath}/${editId}`),entry);
-      }else{
-        const id=`mt_${Date.now()}`;
-        await mod.set(mod.ref(mod.db,`${basePath}/${id}`),entry);
-      }
-      cancelForm();
-    }catch(e){}
+      const id=`m_${Date.now()}`;
+      await mod.set(mod.ref(mod.db,`${basePath}/${id}`),{
+        name:form.name.trim(),date:form.date,score:s,totalMarks:tot,
+        percentage:pct(s,tot),createdAt:Date.now()
+      });
+      setForm({name:"",date:"",score:"",total:""});setShowAdd(false);
+    }catch{}
     setSaving(false);
   };
 
-  const deleteTest=async(id)=>{
+  const startEdit=(m)=>{setEditId(m.id);setEditForm({name:m.name,date:m.date,score:String(m.score),total:String(m.totalMarks)});};
+  const saveEdit=async()=>{
+    const s=Number(editForm.score),tot=Number(editForm.total);
+    if(!editForm.name.trim()||!editForm.date||isNaN(s)||isNaN(tot)||tot<=0||s<0||s>tot)return;
     try{
       const mod=await import("./firebase");
-      await mod.remove(mod.ref(mod.db,`${basePath}/${id}`));
-    }catch(e){}
-    setDelId(null);
+      const orig=mocks.find(m=>m.id===editId);
+      await mod.set(mod.ref(mod.db,`${basePath}/${editId}`),{
+        name:editForm.name.trim(),date:editForm.date,score:s,totalMarks:tot,
+        percentage:pct(s,tot),createdAt:orig?.createdAt||Date.now()
+      });
+      setEditId(null);
+    }catch{}
+  };
+  const deleteMock=async(id)=>{
+    try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`${basePath}/${id}`));setDelId(null);}catch{}
   };
 
-  // Analytics calculations
-  const pct=(s,t)=>t>0?Math.round((s/t)*100):0;
-  const analytics=useMemo(()=>{
-    if(tests.length===0)return null;
-    const scores=tests.map(t=>t.score);
-    const pcts=tests.map(t=>pct(t.score,t.total));
-    const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
-    const avgPct=pcts.reduce((a,b)=>a+b,0)/pcts.length;
-    const best=Math.max(...scores);const worst=Math.min(...scores);
-    const bestTest=tests.find(t=>t.score===best);
-    // Trend: last 5 vs prev 5
-    let trend=null;let trendMsg="";
-    if(tests.length>=5){
-      const last5=tests.slice(-5).map(t=>t.score);
-      const prev5=tests.slice(-10,-5).map(t=>t.score);
-      const avgLast=last5.reduce((a,b)=>a+b,0)/last5.length;
-      if(prev5.length>=3){
-        const avgPrev=prev5.reduce((a,b)=>a+b,0)/prev5.length;
-        const diff=Math.round((avgLast-avgPrev)*10)/10;
-        if(diff>2){trend="up";trendMsg=`↑ Improved by ${diff} marks over last 5 mocks`;}
-        else if(diff<-2){trend="down";trendMsg=`↓ Declined by ${Math.abs(diff)} marks over last 5 mocks`;}
-        else{trend="stable";trendMsg="→ Performance stable over last 5 mocks";}
-      }else{trend="up";trendMsg=`↑ Avg last 5 mocks: ${Math.round(avgLast*10)/10}`;}
-    }
-    return{count:tests.length,avg:Math.round(avg*10)/10,avgPct:Math.round(avgPct*10)/10,best,worst,bestTest,trend,trendMsg};
-  },[tests]);
+  // Analytics
+  const scores=mocks.map(m=>m.score);
+  const pcts=mocks.map(m=>m.percentage);
+  const total=mocks.length;
+  const avg=total>0?Math.round(scores.reduce((a,b)=>a+b,0)/total*10)/10:0;
+  const best=total>0?Math.max(...scores):0;
+  const worst=total>0?Math.min(...scores):0;
+  const avgPct=total>0?Math.round(pcts.reduce((a,b)=>a+b,0)/total*10)/10:0;
+  // Trend: compare last 5 vs prev 5
+  const sorted=[...mocks].sort((a,b)=>a.createdAt-b.createdAt);
+  const last5=sorted.slice(-5);const prev5=sorted.slice(-10,-5);
+  const avgOf=(arr)=>arr.length?Math.round(arr.reduce((a,m)=>a+m.score,0)/arr.length*10)/10:null;
+  const l5avg=avgOf(last5);const p5avg=avgOf(prev5);
+  const trend=l5avg!=null&&p5avg!=null?l5avg-p5avg:null;
 
-  // SVG Line Graph
-  const Graph=({tests,t})=>{
-    if(tests.length<2)return null;
-    const W=320,H=110,PAD={l:32,r:12,t:12,b:24};
-    const scores=tests.map(x=>x.score);
-    const minS=Math.min(...scores),maxS=Math.max(...scores);
-    const rng=maxS-minS||1;
-    const xOf=(i)=>PAD.l+(i/(tests.length-1))*(W-PAD.l-PAD.r);
-    const yOf=(s)=>PAD.t+(1-(s-minS)/rng)*(H-PAD.t-PAD.b);
-    const pts=tests.map((x,i)=>`${xOf(i)},${yOf(x.score)}`).join(" ");
-    const fillPts=`${xOf(0)},${H-PAD.b} ${pts} ${xOf(tests.length-1)},${H-PAD.b}`;
-    const color=es.color||"#818cf8";
-    return(
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:"visible"}}>
-        <defs>
-          <linearGradient id="mgfill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.22"/>
-            <stop offset="100%" stopColor={color} stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-        {/* Y gridlines */}
-        {[0,0.5,1].map(f=>{
-          const y=PAD.t+f*(H-PAD.t-PAD.b);
-          const val=Math.round(maxS-f*rng);
-          return(<g key={f}>
-            <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
-            <text x={PAD.l-4} y={y+3} textAnchor="end" fontSize="7" fill="rgba(255,255,255,0.3)">{val}</text>
-          </g>);
-        })}
-        {/* X labels */}
-        {tests.map((x,i)=>{
-          if(tests.length<=8||i===0||i===tests.length-1||(i%(Math.ceil(tests.length/5))===0))
-            return <text key={i} x={xOf(i)} y={H-PAD.b+11} textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.3)">{i+1}</text>;
-          return null;
-        })}
-        {/* Area fill */}
-        <polygon points={fillPts} fill="url(#mgfill)"/>
-        {/* Line */}
-        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
-        {/* Dots */}
-        {tests.map((x,i)=>(
-          <circle key={i} cx={xOf(i)} cy={yOf(x.score)} r={tests.length>15?2:3} fill={color} stroke={t.bg} strokeWidth="1.5"/>
-        ))}
-      </svg>
-    );
-  };
+  // Mini trend graph data (chronological, last 10)
+  const graphMocks=sorted.slice(-10);
+  const graphMax=graphMocks.length?Math.max(...graphMocks.map(m=>m.score)):200;
+  const graphMin=graphMocks.length?Math.min(...graphMocks.map(m=>m.score)):0;
+  const graphRange=graphMax-graphMin||1;
+  const H=80,W_CELL=28;
 
-  const fmtDate=(d)=>{
-    if(!d)return"";
-    try{const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});}catch{return d;}
-  };
+  const fmtDate=(d)=>{if(!d)return"";const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"});};
 
-  const trendColor=analytics?.trend==="up"?"#34d399":analytics?.trend==="down"?"#FF6B6B":"#FFB86B";
-
-  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
-    {/* Delete confirm modal */}
+  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+    {/* Delete confirm */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
         <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
@@ -2228,7 +2162,7 @@ function MockTests({t,es,user}){
         <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>deleteTest(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+          <button onClick={()=>deleteMock(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
         </div>
       </div>
     </div>}
@@ -2237,155 +2171,150 @@ function MockTests({t,es,user}){
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
         <div style={{color:t.text,fontWeight:900,fontSize:14}}>📈 Mock Test Tracker</div>
-        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{es.name} · {tests.length} mock{tests.length!==1?"s":""} recorded</div>
+        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {total} test{total!==1?"s":""}</div>
       </div>
-      <button onClick={startAdd} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 12px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Add Mock</button>
+      <button onClick={()=>{setShowAdd(v=>!v);setEditId(null);}} style={{background:showAdd?"#818cf8":"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.1))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:10,padding:"7px 13px",color:showAdd?"#fff":"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
+        {showAdd?"✕ Cancel":"+ Add Mock"}
+      </button>
     </div>
 
-    {/* View toggle */}
-    {tests.length>0&&<div style={{display:"flex",background:t.pill,borderRadius:10,padding:3,gap:3}}>
-      {[["history","📋 History"],["analytics","📊 Analytics"]].map(([v,l])=>(
-        <button key={v} onClick={()=>setView(v)} style={{flex:1,background:view===v?t.card:"transparent",border:view===v?`1px solid ${t.border}`:"1px solid transparent",borderRadius:8,padding:"5px",color:view===v?t.text:t.sub,fontWeight:view===v?800:600,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>
-      ))}
-    </div>}
-
-    {/* Add / Edit form */}
-    {adding&&<div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}44`,borderRadius:13,padding:"13px"}}>
-      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:10}}>{editId?"Edit Mock Test":"Add Mock Test"}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        <div>
-          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Test Name</div>
-          <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Vision IAS FLT 12" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+    {/* Add form */}
+    {showAdd&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"13px"}}>
+      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:10}}>New Mock Test</div>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Test name e.g. Vision IAS FLT 12" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+        <div style={{display:"flex",gap:7}}>
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>DATE</div><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/></div>
         </div>
-        <div>
-          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Date</div>
-          <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box",colorScheme:"dark"}}/>
+        <div style={{display:"flex",gap:7}}>
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>MARKS SCORED</div><input type="number" min="0" value={form.score} onChange={e=>setForm(f=>({...f,score:e.target.value}))} placeholder="82" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>TOTAL MARKS</div><input type="number" min="1" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+          {form.score&&form.total&&Number(form.total)>0&&<div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:1}}><div style={{background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.22)",borderRadius:8,padding:"7px 9px",color:"#818cf8",fontWeight:900,fontSize:13,textAlign:"center",whiteSpace:"nowrap"}}>{pct(Number(form.score),Number(form.total))}%</div></div>}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <div>
-            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Marks Obtained</div>
-            <input type="number" value={form.score} onChange={e=>setForm(f=>({...f,score:e.target.value}))} placeholder="e.g. 82" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-          </div>
-          <div>
-            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Total Marks</div>
-            <input type="number" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="e.g. 200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-          </div>
-        </div>
-        {form.score&&form.total&&parseFloat(form.total)>0&&<div style={{background:`${es.color||"#818cf8"}12`,border:`1px solid ${es.color||"#818cf8"}30`,borderRadius:8,padding:"7px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{color:t.sub,fontSize:10}}>Calculated percentage</span>
-          <span style={{color:es.color||"#818cf8",fontWeight:900,fontSize:14}}>{pct(parseFloat(form.score),parseFloat(form.total))}%</span>
-        </div>}
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={saveTest} disabled={saving||!form.name.trim()||!form.date||!form.score||!form.total} style={{flex:1,background:saving||!form.name.trim()||!form.date||!form.score||!form.total?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!form.name.trim()||!form.date||!form.score||!form.total?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":editId?"Update Test":"Save Mock"}</button>
-          <button onClick={cancelForm} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-        </div>
+        <button onClick={saveMock} disabled={saving} style={{background:saving?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Mock Test"}</button>
       </div>
     </div>}
 
-    {/* Loading */}
-    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading mock tests…</div>}
-
-    {/* Empty state */}
-    {!loading&&tests.length===0&&!adding&&<div style={{background:`${es.color||"#818cf8"}08`,border:`1px dashed ${es.color||"#818cf8"}30`,borderRadius:13,padding:"28px",textAlign:"center"}}>
-      <div style={{fontSize:36,marginBottom:10}}>📝</div>
-      <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:5}}>No mock tests yet</div>
-      <div style={{color:t.sub,fontSize:11,marginBottom:14,lineHeight:1.6}}>Track your mock test scores here instead of Excel. Automatically calculates percentages, analytics & improvement trends.</div>
-      <button onClick={startAdd} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 20px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
-    </div>}
-
-    {/* HISTORY VIEW */}
-    {!loading&&tests.length>0&&view==="history"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {/* Trend banner */}
-      {analytics?.trend&&<div style={{background:`${trendColor}12`,border:`1px solid ${trendColor}30`,borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:7}}>
-        <span style={{fontSize:14}}>{analytics.trend==="up"?"📈":analytics.trend==="down"?"📉":"➡️"}</span>
-        <span style={{color:trendColor,fontSize:10,fontWeight:700}}>{analytics.trendMsg}</span>
-      </div>}
-      {[...tests].reverse().map(test=>{
-        const p=pct(test.score,test.total);
-        const c=p>=60?"#34d399":p>=40?(es.color||"#818cf8"):"#FF6B6B";
-        return(
-          <div key={test.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px 12px"}}>
-            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{test.name}</div>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{color:c,fontWeight:900,fontSize:15}}>{test.score}<span style={{color:t.sub,fontSize:11,fontWeight:600}}>/{test.total}</span></span>
-                  <span style={{background:`${c}18`,color:c,borderRadius:7,padding:"1px 7px",fontWeight:800,fontSize:10}}>{p}%</span>
-                </div>
-                <div style={{color:t.muted,fontSize:9,marginTop:3}}>{fmtDate(test.date)}</div>
-              </div>
-              <div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>startEdit(test)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                <button onClick={()=>setDelId(test.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 8px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
-              </div>
-            </div>
-            {/* Mini progress bar */}
-            <div style={{height:3,background:t.pill,borderRadius:2,overflow:"hidden",marginTop:8}}>
-              <div style={{height:"100%",width:`${Math.min(p,100)}%`,background:c,borderRadius:2,transition:"width .5s ease"}}/>
-            </div>
-          </div>
-        );
-      })}
-    </div>}
-
-    {/* ANALYTICS VIEW */}
-    {!loading&&tests.length>0&&view==="analytics"&&analytics&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {/* Stat cards */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        {[
-          {l:"Mocks Taken",v:analytics.count,icon:"📋",c:"#818cf8"},
-          {l:"Average Score",v:analytics.avg,icon:"📊",c:es.color||"#6EE7F7"},
-          {l:"Highest Score",v:analytics.best,icon:"🏆",c:"#34d399"},
-          {l:"Lowest Score",v:analytics.worst,icon:"📉",c:"#FF6B6B"},
-        ].map(card=>(
-          <div key={card.l} style={{background:t.card,border:`1px solid ${card.c}20`,borderRadius:11,padding:"11px 12px"}}>
-            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}>
-              <span style={{fontSize:14}}>{card.icon}</span>
-              <span style={{color:t.sub,fontSize:9}}>{card.l}</span>
-            </div>
-            <div style={{color:card.c,fontWeight:900,fontSize:22}}>{card.v}</div>
+    {/* Analytics cards */}
+    {total>0&&<>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+        {[{l:"Mocks Taken",v:String(total),c:"#818cf8",i:"📝"},{l:"Average Score",v:String(avg),c:"#34d399",i:"📊"},{l:"Best Score",v:String(best),c:"#FFB86B",i:"🏆"},{l:"Worst Score",v:String(worst),c:"#FF6B6B",i:"📉"},{l:"Avg Percentage",v:avgPct+"%",c:"#6EE7F7",i:"📈"},{l:"Latest",v:mocks[0]?mocks[0].score+"/"+mocks[0].totalMarks:"—",c:"#C16BFF",i:"✅"}].map(s=>(
+          <div key={s.l} style={{background:t.card,border:`1px solid ${s.c}20`,borderRadius:11,padding:"10px 11px"}}>
+            <div style={{fontSize:15,marginBottom:3}}>{s.i}</div>
+            <div style={{fontSize:18,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+            <div style={{fontSize:8,color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
           </div>
         ))}
       </div>
 
-      {/* Average percentage */}
-      <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}22`,borderRadius:11,padding:"12px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-          <span style={{color:t.text,fontWeight:700,fontSize:12}}>Average Percentage</span>
-          <span style={{color:es.color||"#818cf8",fontWeight:900,fontSize:18}}>{analytics.avgPct}%</span>
-        </div>
-        <div style={{height:6,background:t.pill,borderRadius:3,overflow:"hidden"}}>
-          <div style={{height:"100%",width:`${Math.min(analytics.avgPct,100)}%`,background:`linear-gradient(90deg,${es.color||"#818cf8"},#34d399)`,borderRadius:3,transition:"width .6s ease"}}/>
-        </div>
-        <div style={{color:t.muted,fontSize:9,marginTop:5}}>Based on {analytics.count} mock{analytics.count!==1?"s":""}</div>
-      </div>
-
-      {/* Trend */}
-      {analytics.trend&&<div style={{background:`${trendColor}10`,border:`1px solid ${trendColor}28`,borderRadius:11,padding:"12px",display:"flex",alignItems:"center",gap:10}}>
-        <div style={{fontSize:28}}>{analytics.trend==="up"?"📈":analytics.trend==="down"?"📉":"➡️"}</div>
+      {/* Trend indicator */}
+      {trend!==null&&<div style={{background:trend>=0?"rgba(52,211,153,0.07)":"rgba(255,107,107,0.07)",border:`1px solid ${trend>=0?"rgba(52,211,153,0.22)":"rgba(255,107,107,0.22)"}`,borderRadius:11,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
+        <div style={{fontSize:18}}>{trend>=0?"📈":"📉"}</div>
         <div>
-          <div style={{color:trendColor,fontWeight:800,fontSize:12,marginBottom:2}}>{analytics.trend==="up"?"Improving":analytics.trend==="down"?"Declining":"Stable"}</div>
-          <div style={{color:t.sub,fontSize:10}}>{analytics.trendMsg}</div>
+          <div style={{color:trend>=0?"#34d399":"#FF6B6B",fontWeight:800,fontSize:12}}>
+            {trend>=0?"↑":"↓"} {Math.abs(Math.round(trend*10)/10)} marks {trend>=0?"improvement":"decline"}
+          </div>
+          <div style={{color:t.sub,fontSize:9,marginTop:1}}>Last 5 avg: {l5avg} · Prev 5 avg: {p5avg}</div>
         </div>
       </div>}
 
-      {/* Trend graph */}
-      {tests.length>=2&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"12px"}}>
-        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:8}}>Score Trend</div>
-        <Graph tests={tests} t={t}/>
-        <div style={{color:t.muted,fontSize:8,textAlign:"center",marginTop:4}}>Mock number (oldest → latest) · Y-axis: Score</div>
-      </div>}
-
-      {/* Best performance */}
-      {analytics.bestTest&&<div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:11,padding:"12px"}}>
-        <div style={{color:"#34d399",fontWeight:700,fontSize:11,marginBottom:5}}>🏆 Best Performance</div>
-        <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:3}}>{analytics.bestTest.name}</div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{color:"#34d399",fontWeight:900,fontSize:16}}>{analytics.bestTest.score}/{analytics.bestTest.total}</span>
-          <span style={{background:"rgba(52,211,153,0.18)",color:"#34d399",borderRadius:7,padding:"1px 7px",fontWeight:800,fontSize:11}}>{pct(analytics.bestTest.score,analytics.bestTest.total)}%</span>
-          <span style={{color:t.muted,fontSize:10}}>{fmtDate(analytics.bestTest.date)}</span>
+      {/* Mini trend graph */}
+      {graphMocks.length>1&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
+        <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Score Trend — Last {graphMocks.length} Mocks</div>
+        <div style={{overflowX:"auto"}}>
+          <svg width={Math.max(graphMocks.length*W_CELL+20,200)} height={H+30} style={{display:"block"}}>
+            {/* Grid lines */}
+            {[0,0.25,0.5,0.75,1].map(f=><line key={f} x1={10} x2={graphMocks.length*W_CELL+10} y1={H-f*H} y2={H-f*H} stroke={t.border} strokeWidth={0.5} strokeDasharray="3,3"/>)}
+            {/* Line */}
+            <polyline fill="none" stroke="#818cf8" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round"
+              points={graphMocks.map((m,i)=>{
+                const x=10+i*W_CELL+(W_CELL/2);
+                const y=H-((m.score-graphMin)/graphRange)*H;
+                return`${x},${Math.max(4,Math.min(H-2,y))}`;
+              }).join(" ")}/>
+            {/* Area fill */}
+            <polygon fill="rgba(129,140,248,0.08)"
+              points={[
+                ...graphMocks.map((m,i)=>{
+                  const x=10+i*W_CELL+(W_CELL/2);
+                  const y=H-((m.score-graphMin)/graphRange)*H;
+                  return`${x},${Math.max(4,Math.min(H-2,y))}`;
+                }),
+                `${10+(graphMocks.length-1)*W_CELL+(W_CELL/2)},${H}`,
+                `${10+(W_CELL/2)},${H}`
+              ].join(" ")}/>
+            {/* Dots + score labels */}
+            {graphMocks.map((m,i)=>{
+              const x=10+i*W_CELL+(W_CELL/2);
+              const y=H-((m.score-graphMin)/graphRange)*H;
+              const cy=Math.max(4,Math.min(H-2,y));
+              const isLatest=i===graphMocks.length-1;
+              return(<g key={m.id}>
+                <circle cx={x} cy={cy} r={isLatest?5:3.5} fill={isLatest?"#34d399":"#818cf8"} stroke={t.bg} strokeWidth={1.5}/>
+                <text x={x} y={cy-8} textAnchor="middle" fontSize={7} fill={isLatest?"#34d399":t.sub} fontWeight={isLatest?"900":"600"}>{m.score}</text>
+                <text x={x} y={H+14} textAnchor="middle" fontSize={6} fill={t.muted}>M{i+1}</text>
+              </g>);
+            })}
+          </svg>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+          <div style={{color:t.muted,fontSize:8}}>First: {graphMocks[0]?.name?.slice(0,12)||"Mock 1"}</div>
+          <div style={{color:"#34d399",fontSize:8,fontWeight:700}}>Latest: {graphMocks[graphMocks.length-1]?.name?.slice(0,12)||"Latest"}</div>
         </div>
       </div>}
+    </>}
+
+    {/* Mock history */}
+    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading tests…</div>}
+    {!loading&&total===0&&!showAdd&&<div style={{background:"rgba(129,140,248,0.05)",border:"1px dashed rgba(129,140,248,0.25)",borderRadius:13,padding:"24px",textAlign:"center"}}>
+      <div style={{fontSize:32,marginBottom:8}}>📈</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No mock tests yet</div>
+      <div style={{color:t.sub,fontSize:11,marginBottom:14}}>Track your {examKey} {examMode} performance</div>
+      <button onClick={()=>setShowAdd(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
+    </div>}
+    {!loading&&mocks.length>0&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
+      <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5}}>History — {total} test{total!==1?"s":""}</div>
+      {mocks.map((m,idx)=>{
+        const p=m.percentage;
+        const pc=p>=60?"#34d399":p>=40?"#FFB86B":"#FF6B6B";
+        const isEdit=editId===m.id;
+        return(<div key={m.id} style={{background:t.card,border:`1px solid ${pc}22`,borderRadius:12,padding:"11px 12px",transition:"border .2s"}}>
+          {isEdit?(
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Edit Test</div>
+              <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              <div style={{display:"flex",gap:6}}>
+                <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/>
+                <input type="number" value={editForm.score} onChange={e=>setEditForm(f=>({...f,score:e.target.value}))} placeholder="Score" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+                <input type="number" value={editForm.total} onChange={e=>setEditForm(f=>({...f,total:e.target.value}))} placeholder="Total" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </div>
+            </div>
+          ):(
+            <div style={{display:"flex",alignItems:"center",gap:9}}>
+              {/* Rank badge */}
+              <div style={{width:30,height:30,borderRadius:9,background:`${pc}15`,border:`1px solid ${pc}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{color:pc,fontWeight:900,fontSize:9}}>#{total-idx}</span>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:t.text,fontWeight:700,fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
+                <div style={{color:t.sub,fontSize:9,marginTop:1}}>{fmtDate(m.date)}</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{color:t.text,fontWeight:800,fontSize:12}}>{m.score}<span style={{color:t.muted,fontSize:9,fontWeight:600}}>/{m.totalMarks}</span></div>
+                <div style={{color:pc,fontWeight:900,fontSize:10}}>{p}%</div>
+              </div>
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button onClick={()=>startEdit(m)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                <button onClick={()=>setDelId(m.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 7px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+            </div>
+          )}
+        </div>);
+      })}
     </div>}
   </div>);
 }
@@ -2980,7 +2909,7 @@ return () => {active=false;unsub();};
 
   // Nav config — free tabs + pro tabs (no revise)
   const FREE=[{id:"timer",icon:"⏱",l:"Timer",c:"#FF6B6B"},{id:"planner",icon:"📅",l:"Planner",c:"#FFB86B"},{id:"streak",icon:"🔥",l:"Streak",c:"#FF6B6B"},{id:"exam",icon:"🎯",l:"Exam",c:es.color||"#818cf8"},{id:"circle",icon:"👥",l:"Circle",c:"#C16BFF"},{id:"report",icon:"📊",l:"Report",c:"#6EE7F7"},{id:"profile",icon:"👤",l:"Me",c:"#818cf8"}];
-  const PRO=[{id:"ai",icon:"🤖",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"📋",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"🃏",l:"Recall",c:"#6EE7F7"},{id:"mocks",icon:"📈",l:"Mocks",c:"#FFB86B"}];
+  const PRO=[{id:"ai",icon:"🤖",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"📋",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"🃏",l:"Recall",c:"#6EE7F7"},{id:"mock",icon:"📈",l:"Mocks",c:"#FFB86B"}];
   const proIds=new Set(PRO.map(x=>x.id));
   const go=(id)=>{if(proIds.has(id)&&!isPro){setProOpen(true);return;}setTab(id);};
 
@@ -3036,7 +2965,7 @@ return () => {active=false;unsub();};
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
       {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects} es={es} user={user}/>:<Gate t={t} name="Active Recall Cards"  icon="🃏" onPro={()=>setProOpen(true)}/>)}
-      {tab==="mocks"   &&(isPro?<MockTests t={t} es={es} user={user}/>:<Gate t={t} name="Mock Test Tracker" icon="📈" onPro={()=>setProOpen(true)}/>)}
+      {tab==="mock"    &&(isPro?<MockTest t={t} es={es} user={user}/>:<Gate t={t} name="Mock Test Tracker" icon="📈" onPro={()=>setProOpen(true)}/>)}
     </div>
 
     {/* Nav */}
