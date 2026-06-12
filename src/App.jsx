@@ -1817,34 +1817,576 @@ function AI({t,subjects,customSubjects}){
 }
 
 // ── NOTES ─────────────────────────────────────────────────────
-function Notes({t,subjects,customSubjects}){
+function Notes({t,subjects,customSubjects,es,user}){
   const allSubjects=[...subjects,...customSubjects];
-  const [view,setView]=useState("notes");const [ns,setNs]=useState(allSubjects[0]?.n||"History");const [nn,setNn]=useState("");
-  const [notes,setNotes]=useState({[allSubjects[0]?.n||"History"]:["Core concepts — add your first note!"],"Polity":["Article 356 — President's Rule when state machinery fails","73rd Amendment — Panchayati Raj, 3-tier system"]});
-  const [cards]=useState([{id:1,q:"What is Article 356?",a:"President's Rule — constitutional machinery fails in a state.",subj:subjects.find(s=>s.n==="Polity")?.n||allSubjects[0]?.n||"History"},{id:2,q:"Define Fiscal Deficit",a:"Total expenditure minus total receipts excluding borrowings.",subj:subjects.find(s=>s.n==="Economy")?.n||allSubjects[0]?.n||"History"},{id:3,q:"What is La Niña?",a:"Cooling of Pacific SSTs → above-normal monsoon in India.",subj:subjects.find(s=>s.n==="Geography")?.n||allSubjects[0]?.n||"History"}]);
-  const [ci,setCi]=useState(0);const [sa,setSa]=useState(false);
-  const card=cards[ci];const cs=allSubjects.find(s=>s.n===card?.subj)||{c:"#818cf8"};
-  const addN=()=>{if(!nn.trim())return;setNotes(x=>({...x,[ns]:[...(x[ns]||[]),nn.trim()]}));setNn("");};
+  const [selSubj,setSelSubj]=useState(allSubjects[0]?.n||"");
+  const [cards,setCards]=useState([]);
+  const [loading,setLoading]=useState(false);
+  const [search,setSearch]=useState("");
+  // Create card state
+  const [newQ,setNewQ]=useState("");
+  const [newA,setNewA]=useState("");
+  const [adding,setAdding]=useState(false);
+  const [saving,setSaving]=useState(false);
+  // Edit state
+  const [editId,setEditId]=useState(null);
+  const [editQ,setEditQ]=useState("");
+  const [editA,setEditA]=useState("");
+  // Delete confirm
+  const [delId,setDelId]=useState(null);
+  // Reveal state — set of card ids that are revealed
+  const [revealed,setRevealed]=useState(new Set());
+  // Review mode
+  const [reviewMode,setReviewMode]=useState(false);
+  const [reviewIdx,setReviewIdx]=useState(0);
+  const [reviewRevealed,setReviewRevealed]=useState(false);
+
+  const examKey=es?.key||"UPSC CSE";
+  const examMode=es?.mode||"Prelims";
+
+  // Firebase path helper
+  const cardPath=(id="")=>`users/${user?.uid}/activeRecallCards/${dbKey(examKey)}/${dbKey(examMode)}/${dbKey(selSubj)}${id?"/"+id:""}`;
+
+  // Load cards when exam/mode/subject changes
+  useEffect(()=>{
+    if(!user?.uid||!selSubj)return;
+    setLoading(true);setCards([]);setRevealed(new Set());setReviewMode(false);
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,cardPath());
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const raw=snap.val();
+            const arr=Object.entries(raw).map(([id,v])=>({...v,id})).sort((a,b)=>a.createdAt-b.createdAt);
+            setCards(arr);
+          } else setCards([]);
+          setLoading(false);
+        });
+      }catch(e){setLoading(false);}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid,selSubj,examKey,examMode]);
+
+  // Set default subject when subjects change
+  useEffect(()=>{
+    if(allSubjects.length>0&&!allSubjects.find(s=>s.n===selSubj)){
+      setSelSubj(allSubjects[0].n);
+    }
+  },[allSubjects.length]);
+
+  const saveCard=async()=>{
+    if(!newQ.trim()||!newA.trim()||!user?.uid)return;
+    setSaving(true);
+    try{
+      const mod=await import("./firebase");
+      const id=`c_${Date.now()}`;
+      await mod.set(mod.ref(mod.db,cardPath(id)),{question:newQ.trim(),answer:newA.trim(),createdAt:Date.now()});
+      setNewQ("");setNewA("");setAdding(false);
+    }catch(e){}
+    setSaving(false);
+  };
+
+  const startEdit=(card)=>{setEditId(card.id);setEditQ(card.question);setEditA(card.answer);};
+  const saveEdit=async()=>{
+    if(!editQ.trim()||!editA.trim()||!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      await mod.set(mod.ref(mod.db,cardPath(editId)),{question:editQ.trim(),answer:editA.trim(),createdAt:cards.find(c=>c.id===editId)?.createdAt||Date.now()});
+      setEditId(null);
+    }catch(e){}
+  };
+
+  const deleteCard=async(id)=>{
+    if(!user?.uid)return;
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,cardPath(id)));
+      setDelId(null);
+    }catch(e){}
+  };
+
+  const toggleReveal=(id)=>{
+    setRevealed(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
+  };
+
+  const sc=allSubjects.find(s=>s.n===selSubj)||{c:"#818cf8",i:"📌"};
+  const filtered=cards.filter(c=>!search||c.question.toLowerCase().includes(search.toLowerCase())||c.answer.toLowerCase().includes(search.toLowerCase()));
+  const reviewCards=filtered.length>0?filtered:cards;
+  const reviewCard=reviewCards[reviewIdx]||null;
+
   return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
-    <div style={{display:"flex",gap:3,background:t.pill,borderRadius:22,padding:3,alignSelf:"flex-start"}}>{[["notes","📝 Notes"],["cards","🃏 Cards"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:18,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}</div>
-    {view==="notes"&&(<><div style={{display:"flex",gap:3,flexWrap:"wrap"}}>{allSubjects.map(s=><button key={s.n} onClick={()=>setNs(s.n)} style={{padding:"2px 7px",borderRadius:12,border:`1.5px solid ${ns===s.n?s.c:"transparent"}`,background:ns===s.n?`${s.c}18`:t.pill,color:ns===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s.i||"📌"} {s.n}</button>)}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:4}}>{(notes[ns]||[]).map((note,i)=>{const sc=allSubjects.find(x=>x.n===ns)||{c:"#818cf8"};return<div key={i} style={{background:t.card,border:`1px solid ${sc.c+"18"}`,borderRadius:8,padding:"7px 10px",display:"flex",gap:6}}><div style={{width:4,height:4,borderRadius:"50%",background:sc.c,flexShrink:0,marginTop:4}}/><div style={{color:t.text,fontSize:11,lineHeight:1.6,flex:1}}>{note}</div></div>;})}
+    {/* Delete confirmation */}
+    {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
+      <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this card?</div>
+        <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>deleteCard(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+        </div>
       </div>
-      <div style={{display:"flex",gap:4}}><input value={nn} onChange={e=>setNn(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addN()} placeholder={`Add note for ${ns}…`} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/><button onClick={addN} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:900,cursor:"pointer",fontSize:12,fontFamily:"inherit"}}>+</button></div>
-    </>)}
-    {view==="cards"&&card&&(<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{color:t.sub,fontSize:10}}>{ci+1}/{cards.length}</div><div style={{color:cs.c,fontSize:10,fontWeight:700,background:`${cs.c}14`,padding:"1px 7px",borderRadius:12}}>{card.subj}</div></div>
-      <div style={{display:"flex",gap:2}}>{cards.map((_,i)=><div key={i} style={{flex:1,height:2,borderRadius:2,background:i===ci?(cs.c||"#818cf8"):"rgba(255,255,255,0.07)"}}/>)}</div>
-      <div onClick={()=>setSa(v=>!v)} style={{background:t.card,border:`2px solid ${sa?(cs.c||"#818cf8")+"48":t.border}`,borderRadius:15,padding:"20px 15px",minHeight:145,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",transition:"all .3s"}}>
-        <div style={{fontSize:8,color:t.muted,textTransform:"uppercase",letterSpacing:1.5,marginBottom:9}}>{sa?"ANSWER":"QUESTION — tap to reveal"}</div>
-        <div style={{color:t.text,fontSize:13,fontWeight:700,lineHeight:1.6}}>{sa?card.a:card.q}</div>
-        {!sa&&<div style={{marginTop:10,fontSize:17,opacity:.2}}>👆</div>}
+    </div>}
+
+    {/* Header row */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+      <div>
+        <div style={{color:t.text,fontWeight:900,fontSize:14}}>🃏 Active Recall</div>
+        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {cards.length} card{cards.length!==1?"s":""}</div>
       </div>
-      <div style={{display:"flex",gap:6,justifyContent:"center",alignItems:"center"}}>
-        <button onClick={()=>{setCi(i=>(i-1+cards.length)%cards.length);setSa(false);}} style={{background:t.pill,border:"none",borderRadius:9,padding:"6px 13px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:10}}>← Prev</button>
-        {sa&&<div style={{display:"flex",gap:4}}>{[["Again","#FF6B6B"],["Hard","#FFB86B"],["Easy","#B8FF6B"]].map(([l,c])=><button key={l} onClick={()=>{setCi(i=>(i+1)%cards.length);setSa(false);}} style={{padding:"6px 9px",borderRadius:8,border:"none",background:`${c}20`,color:c,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div>}
-        <button onClick={()=>{setCi(i=>(i+1)%cards.length);setSa(false);}} style={{background:t.pill,border:"none",borderRadius:9,padding:"6px 13px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:10}}>Next →</button>
+      <div style={{display:"flex",gap:5}}>
+        {cards.length>0&&<button onClick={()=>{setReviewMode(true);setReviewIdx(0);setReviewRevealed(false);}} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>▶ Review</button>}
+        <button onClick={()=>{setAdding(v=>!v);setEditId(null);}} style={{background:adding?"#818cf8":t.pill,border:"none",borderRadius:9,padding:"6px 11px",color:adding?"#fff":t.sub,fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Card</button>
       </div>
-    </>)}
+    </div>
+
+    {/* Subject pills */}
+    <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
+      {allSubjects.map(s=><button key={s.n} onClick={()=>{setSelSubj(s.n);setReviewMode(false);setSearch("");setAdding(false);setEditId(null);}} style={{padding:"3px 8px",borderRadius:13,border:`1.5px solid ${selSubj===s.n?s.c:"transparent"}`,background:selSubj===s.n?`${s.c}18`:t.pill,color:selSubj===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+    </div>
+
+    {/* Review mode */}
+    {reviewMode&&reviewCard&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{color:t.sub,fontSize:10}}>{reviewIdx+1} / {reviewCards.length}</div>
+        <button onClick={()=>setReviewMode(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Exit Review</button>
+      </div>
+      <div style={{display:"flex",gap:2,marginBottom:2}}>
+        {reviewCards.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<reviewIdx?"#34d399":i===reviewIdx?(sc.c||"#818cf8"):t.pill,transition:"background .3s"}}/>)}
+      </div>
+      <div onClick={()=>setReviewRevealed(v=>!v)} style={{background:t.card,border:`2px solid ${reviewRevealed?(sc.c||"#818cf8")+"55":t.border}`,borderRadius:16,padding:"22px 16px",minHeight:160,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:10,transition:"all .3s",userSelect:"none"}}>
+        <div style={{fontSize:8,color:t.muted,textTransform:"uppercase",letterSpacing:1.5}}>{reviewRevealed?"ANSWER":"QUESTION — tap to reveal"}</div>
+        <div style={{color:t.text,fontSize:14,fontWeight:700,lineHeight:1.6}}>{reviewRevealed?reviewCard.answer:reviewCard.question}</div>
+        {!reviewRevealed&&<div style={{fontSize:20,opacity:.25}}>👆</div>}
+      </div>
+      {reviewRevealed&&<div style={{display:"flex",gap:6,justifyContent:"center"}}>
+        {[["Again","#FF6B6B"],["Hard","#FFB86B"],["Good","#34d399"]].map(([l,c])=>(
+          <button key={l} onClick={()=>{
+            const next=(reviewIdx+1)%reviewCards.length;
+            setReviewIdx(next);setReviewRevealed(false);
+          }} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:`${c}18`,color:c,fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+      </div>}
+      {!reviewRevealed&&<div style={{display:"flex",gap:6}}>
+        <button onClick={()=>{setReviewIdx(i=>(i-1+reviewCards.length)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Prev</button>
+        <button onClick={()=>{setReviewIdx(i=>(i+1)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Next →</button>
+      </div>}
+    </div>}
+
+    {/* Add card form */}
+    {!reviewMode&&adding&&<div style={{background:t.card,border:`1px solid ${sc.c}44`,borderRadius:13,padding:"12px"}}>
+      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:9}}>New Card · {selSubj}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        <div>
+          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Question</div>
+          <input value={newQ} onChange={e=>setNewQ(e.target.value)} placeholder="e.g. What is Article 32?" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Answer</div>
+          <textarea value={newA} onChange={e=>setNewA(e.target.value)} placeholder="e.g. Right to Constitutional Remedies" rows={2} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={saveCard} disabled={saving||!newQ.trim()||!newA.trim()} style={{flex:1,background:saving||!newQ.trim()||!newA.trim()?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!newQ.trim()||!newA.trim()?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving||!newQ.trim()||!newA.trim()?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Card"}</button>
+          <button onClick={()=>{setAdding(false);setNewQ("");setNewA("");}} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* Search */}
+    {!reviewMode&&cards.length>2&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search cards…" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>}
+
+    {/* Card list */}
+    {!reviewMode&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
+      {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading cards…</div>}
+      {!loading&&filtered.length===0&&!adding&&(
+        <div style={{background:`${sc.c}08`,border:`1px dashed ${sc.c}30`,borderRadius:13,padding:"22px",textAlign:"center"}}>
+          <div style={{fontSize:28,marginBottom:8}}>🃏</div>
+          <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>{search?"No matching cards":"No cards yet"}</div>
+          <div style={{color:t.sub,fontSize:11,marginBottom:12}}>{search?"Try a different search term":`Add your first card for ${selSubj}`}</div>
+          {!search&&<button onClick={()=>setAdding(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Create First Card</button>}
+        </div>
+      )}
+      {filtered.map(card=>{
+        const isRevealed=revealed.has(card.id);
+        const isEditing=editId===card.id;
+        return(
+          <div key={card.id} style={{background:t.card,border:`1px solid ${isRevealed?sc.c+"40":t.border}`,borderRadius:12,padding:"11px 12px",transition:"border .2s"}}>
+            {isEditing?(
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Edit Card</div>
+                <input value={editQ} onChange={e=>setEditQ(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+                <textarea value={editA} onChange={e=>setEditA(e.target.value)} rows={2} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",resize:"vertical"}}/>
+                <div style={{display:"flex",gap:5}}>
+                  <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                  <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 10px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                </div>
+              </div>
+            ):(
+              <>
+                {/* Question row */}
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:isRevealed?8:0}}>
+                  <div style={{flex:1}}>
+                    <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Q</div>
+                    <div style={{color:t.text,fontSize:12,fontWeight:600,lineHeight:1.5}}>{card.question}</div>
+                  </div>
+                  <div style={{display:"flex",gap:4,flexShrink:0,marginTop:2}}>
+                    <button onClick={()=>startEdit(card)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                    <button onClick={()=>setDelId(card.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                  </div>
+                </div>
+                {/* Answer reveal */}
+                {isRevealed?(
+                  <div>
+                    <div style={{height:1,background:sc.c+"22",marginBottom:8}}/>
+                    <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>A</div>
+                    <div style={{color:sc.c||"#34d399",fontSize:12,fontWeight:600,lineHeight:1.5,marginBottom:8}}>{card.answer}</div>
+                    <button onClick={()=>toggleReveal(card.id)} style={{background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"5px 12px",color:sc.c,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Hide Answer</button>
+                  </div>
+                ):(
+                  <button onClick={()=>toggleReveal(card.id)} style={{marginTop:8,width:"100%",background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"6px",color:sc.c,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>Show Answer</button>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>}
+  </div>);
+}
+
+// ── MOCK TEST TRACKER ─────────────────────────────────────────
+function MockTests({t,es,user}){
+  const examKey=es?.key||"UPSC CSE";
+  const examMode=es?.mode||"Prelims";
+  const uid=user?.uid||window.__ssUser?.uid;
+
+  const [tests,setTests]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [view,setView]=useState("history"); // "history" | "analytics"
+
+  // Add/Edit form state
+  const [adding,setAdding]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [form,setForm]=useState({name:"",date:"",score:"",total:""});
+  const [saving,setSaving]=useState(false);
+  const [delId,setDelId]=useState(null);
+
+  const basePath=`users/${uid}/mockTests/${dbKey(examKey)}/${dbKey(examMode)}`;
+
+  // Load tests from Firebase with real-time listener
+  useEffect(()=>{
+    if(!uid)return;
+    setLoading(true);setTests([]);
+    let cleanup=()=>{};
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const ref=mod.ref(mod.db,basePath);
+        const unsub=mod.onValue(ref,(snap)=>{
+          if(!snap.exists()){setTests([]);setLoading(false);return;}
+          const raw=snap.val();
+          const arr=Object.entries(raw).map(([id,v])=>({id,...v}));
+          arr.sort((a,b)=>new Date(a.date)-new Date(b.date));
+          setTests(arr);setLoading(false);
+        });
+        cleanup=()=>unsub();
+      }catch(e){setLoading(false);}
+    })();
+    return cleanup;
+  },[uid,examKey,examMode]);
+
+  const resetForm=()=>setForm({name:"",date:"",score:"",total:""});
+
+  const startAdd=()=>{
+    setEditId(null);resetForm();setAdding(true);
+  };
+  const startEdit=(test)=>{
+    setEditId(test.id);
+    setForm({name:test.name,date:test.date,score:String(test.score),total:String(test.total)});
+    setAdding(true);
+  };
+  const cancelForm=()=>{setAdding(false);setEditId(null);resetForm();};
+
+  const saveTest=async()=>{
+    const name=form.name.trim();
+    const score=parseFloat(form.score);
+    const total=parseFloat(form.total);
+    if(!name||!form.date||isNaN(score)||isNaN(total)||total<=0)return;
+    setSaving(true);
+    try{
+      const mod=await import("./firebase");
+      const entry={name,date:form.date,score,total,savedAt:Date.now()};
+      if(editId){
+        await mod.set(mod.ref(mod.db,`${basePath}/${editId}`),entry);
+      }else{
+        const id=`mt_${Date.now()}`;
+        await mod.set(mod.ref(mod.db,`${basePath}/${id}`),entry);
+      }
+      cancelForm();
+    }catch(e){}
+    setSaving(false);
+  };
+
+  const deleteTest=async(id)=>{
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`${basePath}/${id}`));
+    }catch(e){}
+    setDelId(null);
+  };
+
+  // Analytics calculations
+  const pct=(s,t)=>t>0?Math.round((s/t)*100):0;
+  const analytics=useMemo(()=>{
+    if(tests.length===0)return null;
+    const scores=tests.map(t=>t.score);
+    const pcts=tests.map(t=>pct(t.score,t.total));
+    const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
+    const avgPct=pcts.reduce((a,b)=>a+b,0)/pcts.length;
+    const best=Math.max(...scores);const worst=Math.min(...scores);
+    const bestTest=tests.find(t=>t.score===best);
+    // Trend: last 5 vs prev 5
+    let trend=null;let trendMsg="";
+    if(tests.length>=5){
+      const last5=tests.slice(-5).map(t=>t.score);
+      const prev5=tests.slice(-10,-5).map(t=>t.score);
+      const avgLast=last5.reduce((a,b)=>a+b,0)/last5.length;
+      if(prev5.length>=3){
+        const avgPrev=prev5.reduce((a,b)=>a+b,0)/prev5.length;
+        const diff=Math.round((avgLast-avgPrev)*10)/10;
+        if(diff>2){trend="up";trendMsg=`↑ Improved by ${diff} marks over last 5 mocks`;}
+        else if(diff<-2){trend="down";trendMsg=`↓ Declined by ${Math.abs(diff)} marks over last 5 mocks`;}
+        else{trend="stable";trendMsg="→ Performance stable over last 5 mocks";}
+      }else{trend="up";trendMsg=`↑ Avg last 5 mocks: ${Math.round(avgLast*10)/10}`;}
+    }
+    return{count:tests.length,avg:Math.round(avg*10)/10,avgPct:Math.round(avgPct*10)/10,best,worst,bestTest,trend,trendMsg};
+  },[tests]);
+
+  // SVG Line Graph
+  const Graph=({tests,t})=>{
+    if(tests.length<2)return null;
+    const W=320,H=110,PAD={l:32,r:12,t:12,b:24};
+    const scores=tests.map(x=>x.score);
+    const minS=Math.min(...scores),maxS=Math.max(...scores);
+    const rng=maxS-minS||1;
+    const xOf=(i)=>PAD.l+(i/(tests.length-1))*(W-PAD.l-PAD.r);
+    const yOf=(s)=>PAD.t+(1-(s-minS)/rng)*(H-PAD.t-PAD.b);
+    const pts=tests.map((x,i)=>`${xOf(i)},${yOf(x.score)}`).join(" ");
+    const fillPts=`${xOf(0)},${H-PAD.b} ${pts} ${xOf(tests.length-1)},${H-PAD.b}`;
+    const color=es.color||"#818cf8";
+    return(
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{overflow:"visible"}}>
+        <defs>
+          <linearGradient id="mgfill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.22"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {/* Y gridlines */}
+        {[0,0.5,1].map(f=>{
+          const y=PAD.t+f*(H-PAD.t-PAD.b);
+          const val=Math.round(maxS-f*rng);
+          return(<g key={f}>
+            <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1"/>
+            <text x={PAD.l-4} y={y+3} textAnchor="end" fontSize="7" fill="rgba(255,255,255,0.3)">{val}</text>
+          </g>);
+        })}
+        {/* X labels */}
+        {tests.map((x,i)=>{
+          if(tests.length<=8||i===0||i===tests.length-1||(i%(Math.ceil(tests.length/5))===0))
+            return <text key={i} x={xOf(i)} y={H-PAD.b+11} textAnchor="middle" fontSize="7" fill="rgba(255,255,255,0.3)">{i+1}</text>;
+          return null;
+        })}
+        {/* Area fill */}
+        <polygon points={fillPts} fill="url(#mgfill)"/>
+        {/* Line */}
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"/>
+        {/* Dots */}
+        {tests.map((x,i)=>(
+          <circle key={i} cx={xOf(i)} cy={yOf(x.score)} r={tests.length>15?2:3} fill={color} stroke={t.bg} strokeWidth="1.5"/>
+        ))}
+      </svg>
+    );
+  };
+
+  const fmtDate=(d)=>{
+    if(!d)return"";
+    try{const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"});}catch{return d;}
+  };
+
+  const trendColor=analytics?.trend==="up"?"#34d399":analytics?.trend==="down"?"#FF6B6B":"#FFB86B";
+
+  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+    {/* Delete confirm modal */}
+    {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
+      <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
+        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this mock test?</div>
+        <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>deleteTest(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* Header */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div>
+        <div style={{color:t.text,fontWeight:900,fontSize:14}}>📈 Mock Test Tracker</div>
+        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{es.name} · {tests.length} mock{tests.length!==1?"s":""} recorded</div>
+      </div>
+      <button onClick={startAdd} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 12px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Add Mock</button>
+    </div>
+
+    {/* View toggle */}
+    {tests.length>0&&<div style={{display:"flex",background:t.pill,borderRadius:10,padding:3,gap:3}}>
+      {[["history","📋 History"],["analytics","📊 Analytics"]].map(([v,l])=>(
+        <button key={v} onClick={()=>setView(v)} style={{flex:1,background:view===v?t.card:"transparent",border:view===v?`1px solid ${t.border}`:"1px solid transparent",borderRadius:8,padding:"5px",color:view===v?t.text:t.sub,fontWeight:view===v?800:600,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>
+      ))}
+    </div>}
+
+    {/* Add / Edit form */}
+    {adding&&<div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}44`,borderRadius:13,padding:"13px"}}>
+      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:10}}>{editId?"Edit Mock Test":"Add Mock Test"}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <div>
+          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Test Name</div>
+          <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Vision IAS FLT 12" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+        </div>
+        <div>
+          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Date</div>
+          <input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box",colorScheme:"dark"}}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <div>
+            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Marks Obtained</div>
+            <input type="number" value={form.score} onChange={e=>setForm(f=>({...f,score:e.target.value}))} placeholder="e.g. 82" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Total Marks</div>
+            <input type="number" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="e.g. 200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+        </div>
+        {form.score&&form.total&&parseFloat(form.total)>0&&<div style={{background:`${es.color||"#818cf8"}12`,border:`1px solid ${es.color||"#818cf8"}30`,borderRadius:8,padding:"7px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{color:t.sub,fontSize:10}}>Calculated percentage</span>
+          <span style={{color:es.color||"#818cf8",fontWeight:900,fontSize:14}}>{pct(parseFloat(form.score),parseFloat(form.total))}%</span>
+        </div>}
+        <div style={{display:"flex",gap:6}}>
+          <button onClick={saveTest} disabled={saving||!form.name.trim()||!form.date||!form.score||!form.total} style={{flex:1,background:saving||!form.name.trim()||!form.date||!form.score||!form.total?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!form.name.trim()||!form.date||!form.score||!form.total?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":editId?"Update Test":"Save Mock"}</button>
+          <button onClick={cancelForm} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* Loading */}
+    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading mock tests…</div>}
+
+    {/* Empty state */}
+    {!loading&&tests.length===0&&!adding&&<div style={{background:`${es.color||"#818cf8"}08`,border:`1px dashed ${es.color||"#818cf8"}30`,borderRadius:13,padding:"28px",textAlign:"center"}}>
+      <div style={{fontSize:36,marginBottom:10}}>📝</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:5}}>No mock tests yet</div>
+      <div style={{color:t.sub,fontSize:11,marginBottom:14,lineHeight:1.6}}>Track your mock test scores here instead of Excel. Automatically calculates percentages, analytics & improvement trends.</div>
+      <button onClick={startAdd} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 20px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
+    </div>}
+
+    {/* HISTORY VIEW */}
+    {!loading&&tests.length>0&&view==="history"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
+      {/* Trend banner */}
+      {analytics?.trend&&<div style={{background:`${trendColor}12`,border:`1px solid ${trendColor}30`,borderRadius:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:7}}>
+        <span style={{fontSize:14}}>{analytics.trend==="up"?"📈":analytics.trend==="down"?"📉":"➡️"}</span>
+        <span style={{color:trendColor,fontSize:10,fontWeight:700}}>{analytics.trendMsg}</span>
+      </div>}
+      {[...tests].reverse().map(test=>{
+        const p=pct(test.score,test.total);
+        const c=p>=60?"#34d399":p>=40?(es.color||"#818cf8"):"#FF6B6B";
+        return(
+          <div key={test.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px 12px"}}>
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{test.name}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{color:c,fontWeight:900,fontSize:15}}>{test.score}<span style={{color:t.sub,fontSize:11,fontWeight:600}}>/{test.total}</span></span>
+                  <span style={{background:`${c}18`,color:c,borderRadius:7,padding:"1px 7px",fontWeight:800,fontSize:10}}>{p}%</span>
+                </div>
+                <div style={{color:t.muted,fontSize:9,marginTop:3}}>{fmtDate(test.date)}</div>
+              </div>
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button onClick={()=>startEdit(test)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                <button onClick={()=>setDelId(test.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 8px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              </div>
+            </div>
+            {/* Mini progress bar */}
+            <div style={{height:3,background:t.pill,borderRadius:2,overflow:"hidden",marginTop:8}}>
+              <div style={{height:"100%",width:`${Math.min(p,100)}%`,background:c,borderRadius:2,transition:"width .5s ease"}}/>
+            </div>
+          </div>
+        );
+      })}
+    </div>}
+
+    {/* ANALYTICS VIEW */}
+    {!loading&&tests.length>0&&view==="analytics"&&analytics&&<div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {/* Stat cards */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        {[
+          {l:"Mocks Taken",v:analytics.count,icon:"📋",c:"#818cf8"},
+          {l:"Average Score",v:analytics.avg,icon:"📊",c:es.color||"#6EE7F7"},
+          {l:"Highest Score",v:analytics.best,icon:"🏆",c:"#34d399"},
+          {l:"Lowest Score",v:analytics.worst,icon:"📉",c:"#FF6B6B"},
+        ].map(card=>(
+          <div key={card.l} style={{background:t.card,border:`1px solid ${card.c}20`,borderRadius:11,padding:"11px 12px"}}>
+            <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:5}}>
+              <span style={{fontSize:14}}>{card.icon}</span>
+              <span style={{color:t.sub,fontSize:9}}>{card.l}</span>
+            </div>
+            <div style={{color:card.c,fontWeight:900,fontSize:22}}>{card.v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Average percentage */}
+      <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}22`,borderRadius:11,padding:"12px"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{color:t.text,fontWeight:700,fontSize:12}}>Average Percentage</span>
+          <span style={{color:es.color||"#818cf8",fontWeight:900,fontSize:18}}>{analytics.avgPct}%</span>
+        </div>
+        <div style={{height:6,background:t.pill,borderRadius:3,overflow:"hidden"}}>
+          <div style={{height:"100%",width:`${Math.min(analytics.avgPct,100)}%`,background:`linear-gradient(90deg,${es.color||"#818cf8"},#34d399)`,borderRadius:3,transition:"width .6s ease"}}/>
+        </div>
+        <div style={{color:t.muted,fontSize:9,marginTop:5}}>Based on {analytics.count} mock{analytics.count!==1?"s":""}</div>
+      </div>
+
+      {/* Trend */}
+      {analytics.trend&&<div style={{background:`${trendColor}10`,border:`1px solid ${trendColor}28`,borderRadius:11,padding:"12px",display:"flex",alignItems:"center",gap:10}}>
+        <div style={{fontSize:28}}>{analytics.trend==="up"?"📈":analytics.trend==="down"?"📉":"➡️"}</div>
+        <div>
+          <div style={{color:trendColor,fontWeight:800,fontSize:12,marginBottom:2}}>{analytics.trend==="up"?"Improving":analytics.trend==="down"?"Declining":"Stable"}</div>
+          <div style={{color:t.sub,fontSize:10}}>{analytics.trendMsg}</div>
+        </div>
+      </div>}
+
+      {/* Trend graph */}
+      {tests.length>=2&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"12px"}}>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:8}}>Score Trend</div>
+        <Graph tests={tests} t={t}/>
+        <div style={{color:t.muted,fontSize:8,textAlign:"center",marginTop:4}}>Mock number (oldest → latest) · Y-axis: Score</div>
+      </div>}
+
+      {/* Best performance */}
+      {analytics.bestTest&&<div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.2)",borderRadius:11,padding:"12px"}}>
+        <div style={{color:"#34d399",fontWeight:700,fontSize:11,marginBottom:5}}>🏆 Best Performance</div>
+        <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:3}}>{analytics.bestTest.name}</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{color:"#34d399",fontWeight:900,fontSize:16}}>{analytics.bestTest.score}/{analytics.bestTest.total}</span>
+          <span style={{background:"rgba(52,211,153,0.18)",color:"#34d399",borderRadius:7,padding:"1px 7px",fontWeight:800,fontSize:11}}>{pct(analytics.bestTest.score,analytics.bestTest.total)}%</span>
+          <span style={{color:t.muted,fontSize:10}}>{fmtDate(analytics.bestTest.date)}</span>
+        </div>
+      </div>}
+    </div>}
   </div>);
 }
 
@@ -2438,7 +2980,7 @@ return () => {active=false;unsub();};
 
   // Nav config — free tabs + pro tabs (no revise)
   const FREE=[{id:"timer",icon:"⏱",l:"Timer",c:"#FF6B6B"},{id:"planner",icon:"📅",l:"Planner",c:"#FFB86B"},{id:"streak",icon:"🔥",l:"Streak",c:"#FF6B6B"},{id:"exam",icon:"🎯",l:"Exam",c:es.color||"#818cf8"},{id:"circle",icon:"👥",l:"Circle",c:"#C16BFF"},{id:"report",icon:"📊",l:"Report",c:"#6EE7F7"},{id:"profile",icon:"👤",l:"Me",c:"#818cf8"}];
-  const PRO=[{id:"ai",icon:"🤖",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"📋",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"📝",l:"Notes",c:"#6EE7F7"}];
+  const PRO=[{id:"ai",icon:"🤖",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"📋",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"🃏",l:"Recall",c:"#6EE7F7"},{id:"mocks",icon:"📈",l:"Mocks",c:"#FFB86B"}];
   const proIds=new Set(PRO.map(x=>x.id));
   const go=(id)=>{if(proIds.has(id)&&!isPro){setProOpen(true);return;}setTab(id);};
 
@@ -2493,7 +3035,8 @@ return () => {active=false;unsub();};
       {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
-      {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="Notes & Flashcards"  icon="📝" onPro={()=>setProOpen(true)}/>)}
+      {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects} es={es} user={user}/>:<Gate t={t} name="Active Recall Cards"  icon="🃏" onPro={()=>setProOpen(true)}/>)}
+      {tab==="mocks"   &&(isPro?<MockTests t={t} es={es} user={user}/>:<Gate t={t} name="Mock Test Tracker" icon="📈" onPro={()=>setProOpen(true)}/>)}
     </div>
 
     {/* Nav */}
