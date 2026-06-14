@@ -2738,25 +2738,35 @@ return () => {active=false;unsub();};
     if(!user?.uid)return;
     try{
       const mod=await import("./firebase");
-      const today=new Date().toISOString().split("T")[0];
+      const today=new Date().toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
+      const yesterday=new Date(Date.now()-86400000).toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
       const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
-      const statsSnap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
-      const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
-      const yesterday=new Date(Date.now()-86400000).toISOString().split("T")[0];
       const streakRef=mod.ref(mod.db,`users/${user.uid}/streak`);
-      const streakSnap=await new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true}));
-      let currentStreak=streakSnap.exists()?streakSnap.val():0;
-      if(prev.lastStudyDate===today){
-        // Already studied today, streak stays
-      } else if(prev.lastStudyDate===yesterday){
-        currentStreak+=1;
+      const [statsSnap,streakSnap]=await Promise.all([
+        new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true})),
+        new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true})),
+      ]);
+      const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
+      let currentStreak=streakSnap.exists()?Number(streakSnap.val())||0:0;
+      // Stats: always increment (each session counts)
+      await mod.set(statsRef,{
+        totalSessions:(prev.totalSessions||0)+1,
+        totalMinutes:(prev.totalMinutes||0)+(pomoCfRef.current||25),
+        lastStudyDate:today,
+      });
+      // Streak: only update once per day — guard against same-day double sessions
+      if(prev.lastStudyDate!==today){
+        if(prev.lastStudyDate===yesterday){
+          currentStreak=currentStreak+1; // consecutive day
+        } else if(!prev.lastStudyDate){
+          currentStreak=1; // very first session ever
+        } else {
+          currentStreak=1; // missed one or more days — reset to 1
+        }
         await mod.set(streakRef,currentStreak);
         setStreak(currentStreak);
-      } else {
-        currentStreak=1;
-        await mod.set(streakRef,1);
-        setStreak(1);
       }
+      // Same day: streak unchanged, only totalSessions/totalMinutes updated above
     }catch(e){console.error("onSessionComplete error",e);}
   },[user?.uid]);
 
@@ -2764,18 +2774,21 @@ return () => {active=false;unsub();};
   // pomoEndTimeRef is the source of truth. Remaining seconds are derived from it every tick.
   const pomoEndTimeRef=useRef(null);
 
-  // Sync endTime ref when pomoRun starts
+  // Sync endTime ref when pomoRun starts; reset completion guard ONLY if starting a fresh session (sec > 0)
   useEffect(()=>{
     if(pomoRun){
-      // Restore from localStorage if valid, else set fresh
+      // Only reset completion guard if there are seconds remaining — never reset at sec=0
+      if(pomoSecRef.current>0){
+        completionFiredRef.current=false;
+      }
       try{
         const saved=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");
         if(saved.running&&saved.endTime&&saved.endTime>Date.now()){
           pomoEndTimeRef.current=saved.endTime;
         } else {
-          pomoEndTimeRef.current=Date.now()+(pomoSec*1000);
+          pomoEndTimeRef.current=Date.now()+(pomoSecRef.current*1000);
         }
-      }catch{pomoEndTimeRef.current=Date.now()+(pomoSec*1000);}
+      }catch{pomoEndTimeRef.current=Date.now()+(pomoSecRef.current*1000);}
     } else {
       pomoEndTimeRef.current=null;
     }
@@ -2805,7 +2818,7 @@ return () => {active=false;unsub();};
           mode:pomoModeRef.current,sec:totalSec,totalSec,
           running:false,cf:pomoCfRef.current,cs:pomoCsRef.current
         }));
-        if(pomoModeRef.current==="focus") setPomoSess(n=>n+1);
+        // setPomoSess and onSessionComplete handled exclusively by completion useEffect (guarded by completionFiredRef)
         return;
       }
       setPomoSec(remaining);
@@ -2832,50 +2845,58 @@ return () => {active=false;unsub();};
   const pomoSessRef=useRef(pomoSess);
   const pomoCsRef=useRef(pomoCs);
   const pomoCfRef=useRef(pomoCf);
+  // Guard: completion effects fire exactly once per session
+  const completionFiredRef=useRef(false);
+
   useEffect(()=>{pomoRunRef.current=pomoRun;},[pomoRun]);
   useEffect(()=>{pomoModeRef.current=pomoMode;},[pomoMode]);
+  // Tracks whether sec rose above 0 during this session — prevents false completion at session start or after reset
+  const secEverPositiveRef=useRef(false);
+  useEffect(()=>{
+    if(pomoRun&&pomoSec>0)secEverPositiveRef.current=true;
+    if(!pomoRun&&pomoSec>0)secEverPositiveRef.current=false; // paused before zero — not a completion
+  },[pomoRun,pomoSec]);
+
   useEffect(()=>{pomoSecRef.current=pomoSec;
-    // When sec hits 0 and was running focus, fire completion effects
-    if(pomoSec===0&&!pomoRun&&pomoModeRef.current==="focus"){
-      // Play sound
-      try{
-        const ctx=new(window.AudioContext||window.webkitAudioContext)();
-        const gain=ctx.createGain();gain.connect(ctx.destination);
-        [[523,0],[659,0.15],[784,0.3]].forEach(([freq,delay])=>{
-          const o=ctx.createOscillator();o.type="sine";o.frequency.value=freq;o.connect(gain);
-          gain.gain.setValueAtTime(0,ctx.currentTime+delay);
-          gain.gain.linearRampToValueAtTime(ns?.sound?0.18:0,ctx.currentTime+delay+0.05);
-          gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.55);
-          o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
-        });
-      }catch(e){}
-      if(ns?.pomoDone)push({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
-      // Save session to Firebase
-      if(user?.uid){
-        const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
-        import("./firebase").then(mod=>{
-          const today=new Date().toISOString().split("T")[0];
-          mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
-          const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
-          mod.onValue(statsRef,(snap)=>{
-            const prev=snap.exists()?snap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
-            mod.set(statsRef,{totalSessions:(prev.totalSessions||0)+1,totalMinutes:(prev.totalMinutes||0)+minutes,lastStudyDate:today});
-          },{onlyOnce:true});
-          onSessionComplete();
-        }).catch(()=>{});
+    // Completion fires ONLY when: sec===0, not running, sec was previously >0 this session, guard not yet fired
+    if(pomoSec===0&&!pomoRun&&secEverPositiveRef.current){
+      if(completionFiredRef.current)return;
+      completionFiredRef.current=true;
+      secEverPositiveRef.current=false; // consumed — require new session to build up again
+      if(pomoModeRef.current==="focus"){
+        setPomoSess(n=>n+1); // single authoritative increment — guarded by completionFiredRef above
+        try{
+          const ctx=new(window.AudioContext||window.webkitAudioContext)();
+          const gain=ctx.createGain();gain.connect(ctx.destination);
+          [[523,0],[659,0.15],[784,0.3]].forEach(([freq,delay])=>{
+            const o=ctx.createOscillator();o.type="sine";o.frequency.value=freq;o.connect(gain);
+            gain.gain.setValueAtTime(0,ctx.currentTime+delay);
+            gain.gain.linearRampToValueAtTime(ns?.sound?0.18:0,ctx.currentTime+delay+0.05);
+            gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.55);
+            o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
+          });
+        }catch(e){}
+        if(ns?.pomoDone)push({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
+        if(user?.uid){
+          const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
+          import("./firebase").then(mod=>{
+            const today=new Date().toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
+            mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
+            onSessionComplete();
+          }).catch(()=>{});
+        }
+      } else {
+        try{
+          const ctx=new(window.AudioContext||window.webkitAudioContext)();
+          const gain=ctx.createGain();gain.connect(ctx.destination);
+          const o=ctx.createOscillator();o.type="sine";o.frequency.value=440;o.connect(gain);
+          gain.gain.setValueAtTime(0,ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(ns?.sound?0.12:0,ctx.currentTime+0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
+          o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
+        }catch(e){}
+        if(ns?.pomoDone)push({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:"#34d399"});
       }
-    }
-    if(pomoSec===0&&!pomoRun&&pomoModeRef.current!=="focus"){
-      try{
-        const ctx=new(window.AudioContext||window.webkitAudioContext)();
-        const gain=ctx.createGain();gain.connect(ctx.destination);
-        const o=ctx.createOscillator();o.type="sine";o.frequency.value=440;o.connect(gain);
-        gain.gain.setValueAtTime(0,ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(ns?.sound?0.12:0,ctx.currentTime+0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
-        o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
-      }catch(e){}
-      if(ns?.pomoDone)push({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:"#34d399"});
     }
   },[pomoSec,pomoRun]);
   useEffect(()=>{pomoCsRef.current=pomoCs;},[pomoCs]);
