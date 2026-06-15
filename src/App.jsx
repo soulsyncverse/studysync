@@ -55,6 +55,12 @@ function dl(date){
   const diff=Math.ceil((target-now)/86400000);
   return Math.max(0,diff);
 }
+function istDateString(offsetDays=0){
+  const d=new Date(Date.now()+offsetDays*86400000);
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
+  const get=type=>parts.find(p=>p.type===type)?.value;
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
 const DEFAULT_EXAM_KEY="UPSC CSE";
 const DEFAULT_EXAM_MODE="Prelims";
 function validExamKey(key,customExamIds=[]){if(EXAMS[key])return key;if(customExamIds.includes(key))return key;return DEFAULT_EXAM_KEY;}
@@ -792,8 +798,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro}){
       </div>
     ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:18}}>👑</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:11}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>See your streak journey and all milestones</div></div></div>}
 
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-      <button onClick={()=>ns?.streakBreak&&pushN({icon:"🔥",title:"Streak at risk!",body:`${streak}-day streak on the line! Study now 😬`,col:t.a1})} style={{background:`${t.a1}12`,border:`1px solid ${t.a1}28`,borderRadius:10,padding:"9px",color:t.a1,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🔥 Test Alert</button>
+    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:7}}>
       <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>💔 Restore Streak</button>
     </div>
 
@@ -2453,12 +2458,12 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
 }
 
 // ── NOTIF CENTER ──────────────────────────────────────────────
-function NCenter({t,onClose,history,settings,setSettings,test}){
+function NCenter({t,onClose,history,settings,setSettings}){
   const list=[{k:"streakBreak",i:"🔥",l:"Streak Break Warning",d:"Alert if not studied by 9 PM"},{k:"studyReminder",i:"📖",l:"Daily Study Reminder",d:"Morning study nudge"},{k:"pomoDone",i:"⏱",l:"Pomodoro Complete",d:"Notify when session ends"},{k:"friendActivity",i:"👥",l:"Friend Activity",d:"When friends start studying"},{k:"leaderboard",i:"🏆",l:"Leaderboard Updates",d:"Weekly rank changes"},{k:"sound",i:"🔊",l:"Timer Sounds",d:"Play sound on session/break completion"}];
   return(<div style={{position:"fixed",inset:0,zIndex:8000,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,maxHeight:"80vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 32px"}}>
       <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:800,color:t.text}}>🔔 Notifications</div><button onClick={test} style={{background:`${t.a2}20`,border:`1px solid ${t.a2}40`,borderRadius:8,padding:"4px 10px",color:t.a2,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Test</button></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:800,color:t.text}}>🔔 Notifications</div></div>
       <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
         {list.map(s=><div key={s.k} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:16}}>{s.i}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:12}}>{s.l}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{s.d}</div></div><div onClick={()=>setSettings(p=>({...p,[s.k]:!p[s.k]}))} style={{width:38,height:21,borderRadius:10,cursor:"pointer",background:settings[s.k]?t.a3:t.pill,position:"relative",transition:"all .3s",flexShrink:0}}><div style={{position:"absolute",top:2,left:settings[s.k]?17:2,width:17,height:17,borderRadius:"50%",background:settings[s.k]?"#0a0a0f":"#888",transition:"all .3s"}}/></div></div>)}
       </div>
@@ -2617,17 +2622,7 @@ return () => {active=false;unsub();};
         statsListener=mod.onValue(statsRef,(snap)=>{
           if(snap.exists()) setStats(snap.val());
         });
-        // Update streak logic: if last study date was yesterday or today, maintain/increment
-        const statsSnap=await new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true}));
-        const today=new Date().toISOString().split("T")[0];
-        const yesterday=new Date(Date.now()-86400000).toISOString().split("T")[0];
-        const streakSnap=await new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true}));
-        const lastStudy=statsSnap.exists()?statsSnap.val().lastStudyDate:"";
-        const currentStreak=streakSnap.exists()?streakSnap.val():0;
-        // If last study was not today or yesterday, reset streak
-        if(lastStudy&&lastStudy!==today&&lastStudy!==yesterday){
-          await mod.set(streakRef,0);
-        }
+        // Streak is loaded here only. Study-session completion is the single normal writer/resetter.
       }catch(e){console.error("stats load error",e);}
     })();
     return()=>{
@@ -2739,8 +2734,8 @@ return () => {active=false;unsub();};
     if(!user?.uid)return;
     try{
       const mod=await import("./firebase");
-      const today=new Date().toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
-      const yesterday=new Date(Date.now()-86400000).toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
+      const today=istDateString();
+      const yesterday=istDateString(-1);
       const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
       const streakRef=mod.ref(mod.db,`users/${user.uid}/streak`);
       const [statsSnap,streakSnap]=await Promise.all([
@@ -2881,7 +2876,7 @@ return () => {active=false;unsub();};
         if(user?.uid){
           const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
           import("./firebase").then(mod=>{
-            const today=new Date().toLocaleString("en-CA",{timeZone:"Asia/Kolkata"}).split(",")[0];
+            const today=istDateString();
             mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
             onSessionComplete();
           }).catch(()=>{});
@@ -2905,8 +2900,6 @@ return () => {active=false;unsub();};
 
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
-  const test=()=>push({icon:"🔔",title:"Test notification",body:"Notifications working! 🎉",col:t.a2});
-
   // Expose user globally for components that can't receive it via props
   useEffect(()=>{window.__ssUser=user;},[user]);
   const [pendingGroupCode,setPendingGroupCode]=useState(()=>{
@@ -2941,7 +2934,7 @@ return () => {active=false;unsub();};
     <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(132px + env(safe-area-inset-bottom));}.ss-bottom-nav{box-shadow:0 10px 34px rgba(0,0,0,.42);}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(138px + env(safe-area-inset-bottom))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-controls{order:3}.ss-pomo-stats{order:4}.ss-pomo-subjects{order:5}.ss-pomo-settings{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
-    {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
+    {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
     {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
     {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
