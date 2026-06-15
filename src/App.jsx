@@ -577,7 +577,7 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   const sw=(m,cm)=>{setPomoMode(m);setPomoSec((cm??dur[m])*60);setPomoRun(false);};
   const applyDur=(v)=>{const val=Math.min(v,maxMin);setPomoCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
   const fmtTime=(m)=>m>=60?`${Math.floor(m/60)}h${m%60?` ${m%60}m`:""}`:m+"m";
-  return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:15}}>
+  return(<div className="ss-feature-grid ss-feature-center" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:15}}>
     <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3}}>{[["focus","Focus"],["short","Short Brk"],["long","Long Brk"]].map(([m,l])=><button key={m} onClick={()=>sw(m)} style={{padding:"6px 11px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,background:pomoMode===m?sc:t.pill,color:pomoMode===m?"#0a0a0f":t.sub,transition:"all .2s"}}>{l}</button>)}</div>
     <div style={{position:"relative",width:196,height:196}}>
       <svg width={196} height={196} style={{transform:"rotate(-90deg)"}}><circle cx={98} cy={98} r={86} fill="none" stroke={t.border} strokeWidth={9}/><circle cx={98} cy={98} r={86} fill="none" stroke={sc} strokeWidth={9} strokeDasharray={circ} strokeDashoffset={dash} strokeLinecap="round" style={{transition:"stroke-dashoffset 1s linear,stroke .3s"}}/></svg>
@@ -668,7 +668,7 @@ function Planner({t,subjects,customSubjects,user}){
   const daysLeft=(endDate)=>{if(!endDate)return null;const diff=Math.ceil((new Date(endDate)-new Date(todayStr))/(86400000));return diff;};
   const deadlineStatus=(endDate)=>{if(!endDate)return null;const d=daysLeft(endDate);if(d<0)return{label:"Overdue",color:"#FF6B6B"};if(d===0)return{label:"Due today",color:"#FFB86B"};if(d<=3)return{label:`${d}d left`,color:"#FFB86B"};return{label:`${d}d left`,color:"#34d399"};};
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:11}}>
     {delConfirm&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
         <div style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
@@ -743,7 +743,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro}){
   const badge=getBadge(streak);
   const nextBadge=BADGES.find(b=>b.min>streak);
   const [showBadge,setShowBadge]=useState(false);
-  return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:13}}>
     {/* Badge reveal modal */}
     {showBadge&&<div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(8px)"}} onClick={()=>setShowBadge(false)}>
       <div style={{background:t.bg,border:`1px solid ${badge.color}40`,borderRadius:20,padding:28,maxWidth:280,width:"100%",textAlign:"center",boxShadow:`0 0 40px ${badge.color}25`}}>
@@ -877,7 +877,7 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
     persistTips(updated);
   };
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:12}}>
     <div style={{background:`${es.color||"#818cf8"}10`,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:14,padding:"12px 12px",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-8,right:-8,width:65,height:65,borderRadius:"50%",background:`radial-gradient(circle,${es.color||"#818cf8"}16,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
@@ -1067,7 +1067,7 @@ function Syllabus({t,subjects,customSubjects,user}){
       try{const mod=await import("./firebase");await mod.remove(mod.ref(mod.db,`users/${user.uid}/syllabi/${sylId}`));}catch(e){}
     }
   };
-  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:12}}>
     {!selId?(
       <>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1456,7 +1456,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }
   };
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:11}}>
     {/* Group QR modal */}
     {grpQrId&&(()=>{const g=myGroups.find(x=>x.id===grpQrId);return g?(
       <div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}} onClick={()=>setGrpQrId(null)}>
@@ -1706,7 +1706,7 @@ function Report({t,es,user,streak}){
     setRep(result);setLd(false);
   };
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:13}}>
     <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>
       {[["stats","Stats"],["calendar","Calendar"],["subjects","Subjects"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:19,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}
     </div>
@@ -1917,7 +1917,7 @@ function Notes({t,subjects,customSubjects,es,user}){
   const reviewCards=filtered.length>0?filtered:cards;
   const reviewCard=reviewCards[reviewIdx]||null;
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:11}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:11}}>
     {/* Delete confirmation */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
@@ -2153,7 +2153,7 @@ function MockTest({t,es,user}){
 
   const fmtDate=(d)=>{if(!d)return"";const dt=new Date(d+"T00:00:00");return dt.toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"2-digit"});};
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:12}}>
     {/* Delete confirm */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
@@ -2368,7 +2368,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     }catch(e){setDeleteStep(0);}
   };
 
-  return(<div style={{display:"flex",flexDirection:"column",gap:13}}>
+  return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:13}}>
     {/* Delete confirmation modals */}
     {deleteStep===1&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
@@ -2937,7 +2937,7 @@ return () => {active=false;unsub();};
   if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
 
   return(<div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s"}}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}`}</style>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(132px + env(safe-area-inset-bottom));}.ss-bottom-nav{box-shadow:0 10px 34px rgba(0,0,0,.42);}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(138px + env(safe-area-inset-bottom))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs} test={test}/>}
@@ -2975,7 +2975,7 @@ return () => {active=false;unsub();};
     </div>
 
     {/* Content */}
-    <div style={{maxWidth:520,margin:"0 auto",padding:"14px 11px 116px"}}>
+    <div className="ss-content">
       {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
@@ -2990,24 +2990,24 @@ return () => {active=false;unsub();};
     </div>
 
     {/* Nav */}
-    <div style={{position:"fixed",bottom:0,left:0,right:0,background:t.nav,backdropFilter:"blur(20px)",borderTop:`1px solid ${t.border}`,zIndex:100,padding:"5px 0 14px"}}>
+    <div className="ss-bottom-nav" style={{position:"fixed",bottom:"calc(8px + env(safe-area-inset-bottom))",left:8,right:8,background:t.nav,backdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,zIndex:100,padding:"7px 0 10px"}}>
       {/* Pro row */}
       <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:4,borderBottom:`1px solid ${t.border}`,marginBottom:3}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
-          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:2,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"3px 10px",borderRadius:13,position:"relative"}}>
+          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:2,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"6px 12px",minHeight:32,borderRadius:13,position:"relative"}}>
             <div style={{fontSize:11,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
             <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.3}}>{tb.l}</div>
             {!isPro&&<div style={{position:"absolute",top:-1,right:3,fontSize:6,color:"#818cf8",fontWeight:900}}>⚡</div>}
           </button>
         );})}
-        {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"3px 9px",cursor:"pointer",fontFamily:"inherit",marginLeft:3}}>
+        {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"6px 10px",minHeight:32,cursor:"pointer",fontFamily:"inherit",marginLeft:3}}>
           <span style={{fontSize:8,color:"#818cf8",fontWeight:800}}>⚡ Try Free</span>
         </button>}
       </div>
       {/* Free row */}
       <div style={{display:"flex",justifyContent:"space-around"}}>
         {FREE.map(tb=>{const active=tab===tb.id;return(
-          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"2px 4px"}}>
+          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"6px 4px",minHeight:44,minWidth:42,flex:1}}>
             <div style={{fontSize:15,filter:active?"none":"grayscale(1) opacity(.55)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
             <div style={{fontSize:7,fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase",color:active?tb.c:t.sub}}>{tb.l}</div>
             {active&&<div style={{width:3,height:3,borderRadius:"50%",background:tb.c}}/>}
