@@ -42,7 +42,7 @@ const SUBJECT_DATA=[
   {subj:"Cur. Affairs",c:"#FFE66D",hours:[1,1,1,1,1,1,1.5],   total:7.5},
 ];
 const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-const CHAIN=Array.from({length:35},(_,i)=>({d:i+1,done:i<17||(i>=20&&i<29),today:i===29}));
+// CHAIN removed — streak calendar now built dynamically from real session data
 const COLS=["#FF6B6B","#6EE7F7","#B8FF6B","#FFB86B","#C16BFF","#FFE66D","#6BFFC1","#FF8B94","#818cf8","#34d399"];
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -746,10 +746,61 @@ function Planner({t,subjects,customSubjects,user}){
 }
 
 // ── STREAK (Feature 6 — badges for Pro) ──────────────────────
-function Streak({t,pushN,ns,onRestore,streak,isPro}){
+function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
   const badge=getBadge(streak);
   const nextBadge=BADGES.find(b=>b.min>streak);
   const [showBadge,setShowBadge]=useState(false);
+  // Calendar state — always initialise to current local month/year
+  const now=new Date();
+  const [calYear,setCalYear]=useState(now.getFullYear());
+  const [calMonth,setCalMonth]=useState(now.getMonth()); // 0-indexed
+  const [studiedDates,setStudiedDates]=useState(new Set()); // "YYYY-MM-DD" strings
+
+  // Load session dates from Firebase to mark studied days
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/sessions`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(snap.exists()){
+            const dates=new Set(Object.values(snap.val()).map(s=>s.date).filter(Boolean));
+            setStudiedDates(dates);
+          } else setStudiedDates(new Set());
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // Calendar helpers
+  const todayStr=istDateString(); // "YYYY-MM-DD" in IST — matches session write format
+  const firstDayOfMonth=new Date(calYear,calMonth,1).getDay(); // 0=Sun
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const prevMonth=()=>{if(calMonth===0){setCalMonth(11);setCalYear(y=>y-1);}else setCalMonth(m=>m-1);};
+  const nextMonth=()=>{
+    const n=new Date();
+    // Don't navigate past current month
+    if(calYear>n.getFullYear()||(calYear===n.getFullYear()&&calMonth>=n.getMonth()))return;
+    if(calMonth===11){setCalMonth(0);setCalYear(y=>y+1);}else setCalMonth(m=>m+1);
+  };
+  const isCurrentMonth=calYear===now.getFullYear()&&calMonth===now.getMonth();
+
+  // Build calendar grid
+  const calCells=[];
+  for(let i=0;i<firstDayOfMonth;i++) calCells.push(null); // empty leading cells
+  for(let d=1;d<=daysInMonth;d++) calCells.push(d);
+
+  const dayStr=(d)=>{
+    const m=String(calMonth+1).padStart(2,"0");
+    const day=String(d).padStart(2,"0");
+    return`${calYear}-${m}-${day}`;
+  };
+
   return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:13}}>
     {/* Badge reveal modal */}
     {showBadge&&<div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(8px)"}} onClick={()=>setShowBadge(false)}>
@@ -782,7 +833,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro}){
       <div style={{color:t.muted,fontSize:11}}>›</div>
     </div>
 
-    {/* All badges — pro only */}
+    {/* All badges */}
     {isPro?(
       <div>
         <div style={{fontSize:8,color:t.sub,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>All Badges</div>
@@ -802,10 +853,40 @@ function Streak({t,pushN,ns,onRestore,streak,isPro}){
       <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>💔 Restore Streak</button>
     </div>
 
-    <div><div style={{fontSize:8,color:t.sub,marginBottom:7,textTransform:"uppercase",letterSpacing:1.5}}>May 2026 — Don't Break the Chain</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
-        {CHAIN.map(d=><div key={d.d} style={{aspectRatio:"1",borderRadius:5,background:d.today?t.a1:d.done?`${t.a1}26`:t.pill,border:d.today?`2px solid ${t.a1}`:d.done?`1px solid ${t.a1}36`:`1px solid ${t.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:d.today?"#fff":d.done?t.a1:t.muted,fontWeight:d.today?900:500}}>{d.done||d.today?(d.today?"●":"✓"):d.d}</div>)}
+    {/* Dynamic study calendar — real session data, correct month/year */}
+    <div>
+      {/* Month navigation header */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
+        <button onClick={prevMonth} style={{background:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:t.sub,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>‹</button>
+        <div style={{fontSize:10,color:t.text,fontWeight:800}}>{MONTH_NAMES[calMonth]} {calYear}</div>
+        <button onClick={nextMonth} disabled={isCurrentMonth} style={{background:isCurrentMonth?t.pill:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:isCurrentMonth?t.muted:t.sub,fontWeight:700,fontSize:13,cursor:isCurrentMonth?"default":"pointer",fontFamily:"inherit",opacity:isCurrentMonth?.35:1}}>›</button>
       </div>
+      {/* Day headers */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
+        {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:8,color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}
+      </div>
+      {/* Day cells */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
+        {calCells.map((d,i)=>{
+          if(!d) return <div key={`e${i}`}/>;
+          const ds=dayStr(d);
+          const isToday=ds===todayStr;
+          const studied=studiedDates.has(ds);
+          const isFuture=ds>todayStr;
+          return(<div key={ds} style={{
+            aspectRatio:"1",borderRadius:5,
+            background:isToday?t.a1:studied?`${t.a1}26`:t.pill,
+            border:isToday?`2px solid ${t.a1}`:studied?`1px solid ${t.a1}36`:`1px solid ${t.border}`,
+            display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:8,
+            color:isToday?"#fff":studied?t.a1:isFuture?t.border:t.muted,
+            fontWeight:isToday?900:studied?700:400,
+          }}>
+            {isToday?"●":studied?"✓":d}
+          </div>);
+        })}
+      </div>
+      {studiedDates.size===0&&<div style={{color:t.muted,fontSize:9,textAlign:"center",marginTop:8}}>Complete a Pomodoro session to mark your study days</div>}
     </div>
   </div>);
 }
@@ -819,7 +900,42 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
     const extras=customSubjects.filter(s=>!builtInNames.has((s.n||"").toLowerCase()));
     return[...builtIn,...extras];
   },[es.subjects,customSubjects]);
-  const prog={};allSubjs.forEach((s,i)=>{prog[s.n]=[20,45,60,35,75,50,40,65,30,55][i%10];});
+
+  // Real subject progress from Firebase session data — never hardcoded
+  const [sessionMinutes,setSessionMinutes]=useState({}); // {subjectName: totalMinutes}
+  useEffect(()=>{
+    if(!user?.uid){setSessionMinutes({});return;}
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/sessions`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(!snap.exists()){setSessionMinutes({});return;}
+          const mins={};
+          Object.values(snap.val()).forEach(s=>{
+            if(s.subject&&s.minutes>0) mins[s.subject]=(mins[s.subject]||0)+s.minutes;
+          });
+          setSessionMinutes(mins);
+        });
+      }catch(e){setSessionMinutes({});}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // Calculate progress percentage per subject (capped at 100%)
+  // Formula: (minutes studied / target minutes) * 100
+  // Target: 300 minutes (5 hours) = 100% — reasonable for one subject
+  const FULL_MINUTES=300;
+  const prog=useMemo(()=>{
+    const result={};
+    allSubjs.forEach(s=>{
+      const studied=sessionMinutes[s.n]||0;
+      result[s.n]=Math.min(100,Math.round((studied/FULL_MINUTES)*100));
+    });
+    return result;
+  },[allSubjs,sessionMinutes]);
   const [tips,setTips]=useState(es.tips||[]);
   const [editDateMode,setEditDateMode]=useState(false);
   const [dateVal,setDateVal]=useState(es.date||"");
@@ -2972,7 +3088,7 @@ return () => {active=false;unsub();};
     <div className="ss-content">
       {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
-      {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro}/>}
+      {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro} user={user}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
