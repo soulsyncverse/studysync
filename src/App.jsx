@@ -746,7 +746,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
   },[user?.uid]);
 
   // Calendar helpers
-  const todayStr=istToday(); // "YYYY-MM-DD"
+  const todayStr=istDateString(); // "YYYY-MM-DD"
   const firstDayOfMonth=new Date(calYear,calMonth,1).getDay(); // 0=Sun
   const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
   const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
