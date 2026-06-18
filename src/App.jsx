@@ -2586,8 +2586,17 @@ export default function App(){
     const saved=localStorage.getItem("ss_theme");
     return saved!==null?saved==="dark":true;
   });
-  // Persist theme to localStorage on every change
-  useEffect(()=>{localStorage.setItem("ss_theme",dark?"dark":"light");},[dark]);
+ // Persist theme to localStorage on every change
+useEffect(()=>{
+  localStorage.setItem("ss_theme",dark?"dark":"light");
+},[dark]);
+
+// Sync document background with current theme (iPhone safe area)
+useEffect(()=>{
+  const theme = dark ? T.dark : T.light;
+  document.documentElement.style.background = theme.bg;
+  document.body.style.background = theme.bg;
+},[dark]);
   const [loggedIn,setLoggedIn]=useState(false);
   const [user,setUser]=useState(null);
     //added changes for retaining login session
