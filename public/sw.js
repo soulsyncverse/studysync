@@ -1,5 +1,5 @@
 // StudySync Service Worker v1.0
-const CACHE = 'studysync-v1';
+const CACHE = 'studysync-v2';
 const STATIC = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', e => {
