@@ -3078,7 +3078,7 @@ return () => {active=false;unsub();};
     </div>
 
     {/* Nav */}
-    <div className="ss-bottom-nav" style={{position:"fixed",bottom:0,left:8,right:8,background:"red",backdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,zIndex:100,padding:"7px 0 10px"}}>
+    <div className="ss-bottom-nav" style={{position:"fixed",bottom:0,left:8,right:8,background:"rgba(255,0,0,0.95)",border:`1px solid ${t.border}`,borderRadius:18,zIndex:100,padding:"7px 0 10px"}}>
       {/* Pro row */}
       <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:4,borderBottom:`1px solid ${t.border}`,marginBottom:3}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
