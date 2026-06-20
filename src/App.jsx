@@ -3078,24 +3078,24 @@ return () => {active=false;unsub();};
     </div>
 
     {/* Nav */}
-    <div className="ss-bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${t.border}`,zIndex:100,paddingTop:7,paddingBottom:"calc(10px + env(safe-area-inset-bottom))"}}>
+    <div className="ss-bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${t.border}`,zIndex:100,paddingTop:5,paddingBottom:"calc(6px + env(safe-area-inset-bottom))"}}>
       {/* Pro row */}
-      <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:4,borderBottom:`1px solid ${t.border}`,marginBottom:3}}>
+      <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:3,borderBottom:`1px solid ${t.border}`,marginBottom:2}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
-          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:2,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"6px 12px",minHeight:32,borderRadius:13,position:"relative"}}>
+          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:2,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"4px 10px",minHeight:26,borderRadius:13,position:"relative"}}>
             <div style={{fontSize:11,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
             <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.3}}>{tb.l}</div>
             {!isPro&&<div style={{position:"absolute",top:-1,right:3,fontSize:6,color:"#818cf8",fontWeight:900}}>⚡</div>}
           </button>
         );})}
-        {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"6px 10px",minHeight:32,cursor:"pointer",fontFamily:"inherit",marginLeft:3}}>
+        {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"4px 9px",minHeight:26,cursor:"pointer",fontFamily:"inherit",marginLeft:3}}>
           <span style={{fontSize:8,color:"#818cf8",fontWeight:800}}>⚡ Try Free</span>
         </button>}
       </div>
       {/* Free row */}
       <div style={{display:"flex",justifyContent:"space-around"}}>
         {FREE.map(tb=>{const active=tab===tb.id;return(
-          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"6px 4px",minHeight:44,minWidth:42,flex:1}}>
+          <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"4px 4px",minHeight:38,minWidth:42,flex:1}}>
             <div style={{fontSize:15,filter:active?"none":"grayscale(1) opacity(.55)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
             <div style={{fontSize:7,fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase",color:active?tb.c:t.sub}}>{tb.l}</div>
             {active&&<div style={{width:3,height:3,borderRadius:"50%",background:tb.c}}/>}
