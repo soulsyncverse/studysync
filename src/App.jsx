@@ -2620,7 +2620,7 @@ useEffect(()=>{
   const t2=setTimeout(()=>measure("500ms"),500);
   const t3=setTimeout(()=>measure("1000ms"),1000);
   return()=>{clearTimeout(t1);clearTimeout(t2);clearTimeout(t3);};
-},[]);
+},[loggedIn]);
 // ── END TEMPORARY DIAGNOSTIC ──
 
   const [loggedIn,setLoggedIn]=useState(false);
