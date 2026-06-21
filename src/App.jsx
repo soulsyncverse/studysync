@@ -2,34 +2,34 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-// ── THEME ─────────────────────────────────────────────────────
+// â”€â”€ THEME â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const T = {
   dark:  { bg:"#08080f", card:"rgba(255,255,255,0.05)", input:"rgba(255,255,255,0.07)", border:"rgba(255,255,255,0.09)", text:"#f0f0f0", sub:"#666", muted:"#2a2a3a", nav:"rgba(8,8,15,0.96)", pill:"rgba(255,255,255,0.07)", a1:"#FF6B6B", a2:"#6EE7F7", a3:"#B8FF6B", a4:"#FFB86B", a5:"#C16BFF", sh:"0 8px 32px rgba(0,0,0,0.5)", nb:"rgba(12,12,20,0.99)" },
   light: { bg:"#f5f5f7", card:"#ffffff",                input:"#ffffff",                border:"rgba(0,0,0,0.08)",        text:"#111",    sub:"#888", muted:"#ddd",    nav:"rgba(245,245,247,0.96)", pill:"rgba(0,0,0,0.05)",          a1:"#FF4757", a2:"#00B8D4", a3:"#36B37E", a4:"#FF8C00", a5:"#8E44AD", sh:"0 4px 20px rgba(0,0,0,0.08)", nb:"rgba(255,255,255,0.99)" },
 };
 
-// ── EXAM CONFIG ───────────────────────────────────────────────
+// â”€â”€ EXAM CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const EXAMS = {
-  "UPSC CSE": { icon:"🏛️", color:"#FF6B6B", modes: { "Prelims": { date:"2026-05-24", subjects:[{n:"History",c:"#FF6B6B",i:"📜",w:15},{n:"Geography",c:"#6EE7F7",i:"🗺️",w:15},{n:"Polity",c:"#B8FF6B",i:"⚖️",w:20},{n:"Economy",c:"#FFB86B",i:"📈",w:15},{n:"Environment",c:"#6BFFC1",i:"🌿",w:10},{n:"Science & Tech",c:"#FF8B94",i:"🔬",w:10},{n:"Cur. Affairs",c:"#FFE66D",i:"📰",w:15},{n:"CSAT",c:"#C16BFF",i:"🧠",w:0}], tips:["NCERTs first — build strong foundation","Solve 10 years PYQs daily","Read The Hindu + PIB every morning","CSAT is qualifying (33%) — don't ignore","Revise each topic minimum 3 times"] }, "Mains": { date:"2026-09-20", subjects:[{n:"Essay",c:"#FF6B6B",i:"✍️",w:15},{n:"GS I",c:"#FFB86B",i:"🕌",w:15},{n:"GS II",c:"#B8FF6B",i:"🏛️",w:15},{n:"GS III",c:"#6EE7F7",i:"📈",w:15},{n:"GS IV Ethics",c:"#818cf8",i:"💎",w:15},{n:"Optional I",c:"#FFE66D",i:"📚",w:12},{n:"Optional II",c:"#6BFFC1",i:"📚",w:13}], tips:["Write 5 answers daily","Use diagrams in answers","Ethics: read ARC reports","Essay: 2 per week","Integrate current affairs"] } } },
-  "UPPCS":    { icon:"🏔️", color:"#6EE7F7", modes: { "Prelims": { date:"2026-12-15", subjects:[{n:"History",c:"#FF6B6B",i:"📜",w:15},{n:"UP History",c:"#FFB86B",i:"🕌",w:10},{n:"Geography",c:"#6EE7F7",i:"🗺️",w:10},{n:"UP Geography",c:"#B8FF6B",i:"🌄",w:10},{n:"Polity",c:"#C16BFF",i:"⚖️",w:15},{n:"Economy",c:"#FFE66D",i:"📈",w:10},{n:"UP Economy",c:"#6BFFC1",i:"🏭",w:10},{n:"Cur. Affairs",c:"#FF8B94",i:"📰",w:20}], tips:["Focus on UP-specific topics","UP Budget & ODOP scheme","Solve UPPCS PYQs last 10 years","Include UP state news","GS Paper II qualifying — 33%"] }, "Mains": { date:"2027-03-01", subjects:[{n:"General Hindi",c:"#FF6B6B",i:"📝",w:20},{n:"Essay",c:"#FFB86B",i:"✍️",w:15},{n:"GS I",c:"#6EE7F7",i:"📜",w:15},{n:"GS II",c:"#B8FF6B",i:"⚖️",w:15},{n:"GS III",c:"#FFE66D",i:"📈",w:15},{n:"GS IV Ethics",c:"#818cf8",i:"💎",w:10},
-{n:"GS Paper 5",c:"#6BFFC1",i:"📚",w:10},
-{n:"GS Paper 6",c:"#FF8B94",i:"📘",w:10}], tips:["Hindi paper is scoring","UP schemes: ODOP","Answer in Hindi for bonus","Read UP govt portal","Focus on UP Budget"] } } },
-  "CAPF":     { icon:"🛡️", color:"#B8FF6B", modes: { "Paper I": { date:"2026-08-10", subjects:[{n:"General Ability",c:"#B8FF6B",i:"🧠",w:25},{n:"General Science",c:"#6EE7F7",i:"🔬",w:20},{n:"Current Events",c:"#FFE66D",i:"📰",w:20},{n:"Indian Polity",c:"#FF6B6B",i:"⚖️",w:20},{n:"History & Culture",c:"#FFB86B",i:"📜",w:15}], tips:["Physical test + academics","General Science is key","Know security forces roles","Focus on defence news","Previous year papers"] }, "Paper II": { date:"2026-08-10", subjects:[{n:"Essay",c:"#B8FF6B",i:"✍️",w:40},{n:"Comprehension",c:"#6EE7F7",i:"📖",w:30},{n:"Précis Writing",c:"#FFB86B",i:"✂️",w:30}], tips:["Essay writing daily","Précis: 1/3rd of original","Read passage twice"] } } },
-  "NDA/CDS":  { icon:"⭐", color:"#FFB86B", modes: { "NDA": { date:"2026-09-14", subjects:[{n:"Mathematics",c:"#FFB86B",i:"🔢",w:50},{n:"General Ability",c:"#6EE7F7",i:"🧠",w:50}], tips:["Maths is scoring — master it","English in GAT important","NCERT Physics/Chemistry","Start SSB prep now","Physical fitness matters"] }, "CDS": { date:"2026-11-09", subjects:[{n:"English",c:"#FF8B94",i:"🔤",w:33},{n:"General Knowledge",c:"#6EE7F7",i:"🌍",w:33},{n:"Elementary Maths",c:"#FFB86B",i:"🔢",w:34}], tips:["English grammar is key","GK: defence + current affairs","Maths: Class 10 level","SSB mock interviews","Physical fitness"] } } },
-  "SSC CGL":    { icon:"📋", color:"#6BFFC1", modes: { "Tier I": { date:"2026-09-01", subjects:[{n:"General Intelligence",c:"#6BFFC1",i:"🧩",w:25},{n:"General Awareness",c:"#FFE66D",i:"🌍",w:25},{n:"Quantitative Aptitude",c:"#FFB86B",i:"🔢",w:25},{n:"English Comprehension",c:"#FF8B94",i:"🔤",w:25}], tips:["Tier I is qualifying — target 160+","Quant: practice 30 questions daily","English: vocab + reading comprehension","GK: static + current affairs mix","Solve last 5 years PYQs"] }, "Tier II": { date:"2026-12-10", subjects:[{n:"Quant (Paper I)",c:"#FFB86B",i:"🔢",w:30},{n:"English (Paper I)",c:"#FF8B94",i:"🔤",w:30},{n:"Statistics (Paper II)",c:"#6BFFC1",i:"📊",w:20},{n:"Finance & Economics",c:"#6EE7F7",i:"📈",w:20}], tips:["Quant + English are mandatory for all","Statistics only for JSO post","Finance/Economics for AAO post","Focus Paper I — highest weightage","Time management is critical"] } } },
-  "RBI Grade B": { icon:"🏦", color:"#818cf8", modes: { "Phase I": { date:"2026-10-15", subjects:[{n:"General Awareness",c:"#FFE66D",i:"🌍",w:40},{n:"Reasoning",c:"#818cf8",i:"🧠",w:30},{n:"Quantitative Aptitude",c:"#FFB86B",i:"🔢",w:15},{n:"English",c:"#FF8B94",i:"🔤",w:15}], tips:["GA carries highest marks — 80 Qs","Focus on RBI circulars & monetary policy","Reasoning: 60 Qs in 45 mins — speed","Last 6 months banking current affairs","Solve RBI Grade B PYQs religiously"] }, "Phase II": { date:"2026-11-20", subjects:[{n:"Economic & Social Issues",c:"#6EE7F7",i:"📊",w:50},{n:"Finance & Management",c:"#818cf8",i:"💰",w:50},{n:"English Writing",c:"#FF8B94",i:"✍️",w:0}], tips:["ESI: Indian economy + social schemes","FM: RBI functions + Basel norms","Write 3 descriptive answers daily","Read RBI Annual Report thoroughly","Economic Survey is must-read"] }, "Interview": { date:"2027-01-15", subjects:[{n:"Current Affairs",c:"#FFE66D",i:"📰",w:30},{n:"Banking Awareness",c:"#818cf8",i:"🏦",w:40},{n:"Subject Knowledge",c:"#6EE7F7",i:"📚",w:30}], tips:["Know RBI's role & functions deeply","Practice mock interviews","Stay updated on monetary policy","Confidence + clarity over speed","Know your graduation subject well"] } } },
-  "EPFO EO/AO": { icon:"🏢", color:"#FF8B94", modes: { "Exam": { date:"2026-11-01", subjects:[{n:"General English",c:"#FF8B94",i:"🔤",w:20},{n:"General Awareness",c:"#FFE66D",i:"🌍",w:25},{n:"Quantitative Aptitude",c:"#FFB86B",i:"🔢",w:20},{n:"Reasoning",c:"#6BFFC1",i:"🧩",w:20},{n:"Labour Laws & Social Security",c:"#818cf8",i:"⚖️",w:15}], tips:["Labour Laws: EPF Act, ESI Act, Gratuity Act","Industrial Relations is a key topic","Social Security schemes — memorise","GK: focus on Labour Ministry news","Quant: SSC CGL level difficulty"] } } },
-  "Custom":   { icon:"🎯", color:"#C16BFF", modes: { "Exam": { date:"", subjects:[{n:"Subject 1",c:"#FF6B6B",i:"📚",w:50},{n:"Subject 2",c:"#6EE7F7",i:"📚",w:50}], tips:["Add your study strategy","Customize subjects"] } } },
+  "UPSC CSE": { icon:"ðŸ›ï¸", color:"#FF6B6B", modes: { "Prelims": { date:"2026-05-24", subjects:[{n:"History",c:"#FF6B6B",i:"ðŸ“œ",w:15},{n:"Geography",c:"#6EE7F7",i:"ðŸ—ºï¸",w:15},{n:"Polity",c:"#B8FF6B",i:"âš–ï¸",w:20},{n:"Economy",c:"#FFB86B",i:"ðŸ“ˆ",w:15},{n:"Environment",c:"#6BFFC1",i:"ðŸŒ¿",w:10},{n:"Science & Tech",c:"#FF8B94",i:"ðŸ”¬",w:10},{n:"Cur. Affairs",c:"#FFE66D",i:"ðŸ“°",w:15},{n:"CSAT",c:"#C16BFF",i:"ðŸ§ ",w:0}], tips:["NCERTs first â€” build strong foundation","Solve 10 years PYQs daily","Read The Hindu + PIB every morning","CSAT is qualifying (33%) â€” don't ignore","Revise each topic minimum 3 times"] }, "Mains": { date:"2026-09-20", subjects:[{n:"Essay",c:"#FF6B6B",i:"âœï¸",w:15},{n:"GS I",c:"#FFB86B",i:"ðŸ•Œ",w:15},{n:"GS II",c:"#B8FF6B",i:"ðŸ›ï¸",w:15},{n:"GS III",c:"#6EE7F7",i:"ðŸ“ˆ",w:15},{n:"GS IV Ethics",c:"#818cf8",i:"ðŸ’Ž",w:15},{n:"Optional I",c:"#FFE66D",i:"ðŸ“š",w:12},{n:"Optional II",c:"#6BFFC1",i:"ðŸ“š",w:13}], tips:["Write 5 answers daily","Use diagrams in answers","Ethics: read ARC reports","Essay: 2 per week","Integrate current affairs"] } } },
+  "UPPCS":    { icon:"ðŸ”ï¸", color:"#6EE7F7", modes: { "Prelims": { date:"2026-12-15", subjects:[{n:"History",c:"#FF6B6B",i:"ðŸ“œ",w:15},{n:"UP History",c:"#FFB86B",i:"ðŸ•Œ",w:10},{n:"Geography",c:"#6EE7F7",i:"ðŸ—ºï¸",w:10},{n:"UP Geography",c:"#B8FF6B",i:"ðŸŒ„",w:10},{n:"Polity",c:"#C16BFF",i:"âš–ï¸",w:15},{n:"Economy",c:"#FFE66D",i:"ðŸ“ˆ",w:10},{n:"UP Economy",c:"#6BFFC1",i:"ðŸ­",w:10},{n:"Cur. Affairs",c:"#FF8B94",i:"ðŸ“°",w:20}], tips:["Focus on UP-specific topics","UP Budget & ODOP scheme","Solve UPPCS PYQs last 10 years","Include UP state news","GS Paper II qualifying â€” 33%"] }, "Mains": { date:"2027-03-01", subjects:[{n:"General Hindi",c:"#FF6B6B",i:"ðŸ“",w:20},{n:"Essay",c:"#FFB86B",i:"âœï¸",w:15},{n:"GS I",c:"#6EE7F7",i:"ðŸ“œ",w:15},{n:"GS II",c:"#B8FF6B",i:"âš–ï¸",w:15},{n:"GS III",c:"#FFE66D",i:"ðŸ“ˆ",w:15},{n:"GS IV Ethics",c:"#818cf8",i:"ðŸ’Ž",w:10},
+{n:"GS Paper 5",c:"#6BFFC1",i:"ðŸ“š",w:10},
+{n:"GS Paper 6",c:"#FF8B94",i:"ðŸ“˜",w:10}], tips:["Hindi paper is scoring","UP schemes: ODOP","Answer in Hindi for bonus","Read UP govt portal","Focus on UP Budget"] } } },
+  "CAPF":     { icon:"ðŸ›¡ï¸", color:"#B8FF6B", modes: { "Paper I": { date:"2026-08-10", subjects:[{n:"General Ability",c:"#B8FF6B",i:"ðŸ§ ",w:25},{n:"General Science",c:"#6EE7F7",i:"ðŸ”¬",w:20},{n:"Current Events",c:"#FFE66D",i:"ðŸ“°",w:20},{n:"Indian Polity",c:"#FF6B6B",i:"âš–ï¸",w:20},{n:"History & Culture",c:"#FFB86B",i:"ðŸ“œ",w:15}], tips:["Physical test + academics","General Science is key","Know security forces roles","Focus on defence news","Previous year papers"] }, "Paper II": { date:"2026-08-10", subjects:[{n:"Essay",c:"#B8FF6B",i:"âœï¸",w:40},{n:"Comprehension",c:"#6EE7F7",i:"ðŸ“–",w:30},{n:"PrÃ©cis Writing",c:"#FFB86B",i:"âœ‚ï¸",w:30}], tips:["Essay writing daily","PrÃ©cis: 1/3rd of original","Read passage twice"] } } },
+  "NDA/CDS":  { icon:"â­", color:"#FFB86B", modes: { "NDA": { date:"2026-09-14", subjects:[{n:"Mathematics",c:"#FFB86B",i:"ðŸ”¢",w:50},{n:"General Ability",c:"#6EE7F7",i:"ðŸ§ ",w:50}], tips:["Maths is scoring â€” master it","English in GAT important","NCERT Physics/Chemistry","Start SSB prep now","Physical fitness matters"] }, "CDS": { date:"2026-11-09", subjects:[{n:"English",c:"#FF8B94",i:"ðŸ”¤",w:33},{n:"General Knowledge",c:"#6EE7F7",i:"ðŸŒ",w:33},{n:"Elementary Maths",c:"#FFB86B",i:"ðŸ”¢",w:34}], tips:["English grammar is key","GK: defence + current affairs","Maths: Class 10 level","SSB mock interviews","Physical fitness"] } } },
+  "SSC CGL":    { icon:"ðŸ“‹", color:"#6BFFC1", modes: { "Tier I": { date:"2026-09-01", subjects:[{n:"General Intelligence",c:"#6BFFC1",i:"ðŸ§©",w:25},{n:"General Awareness",c:"#FFE66D",i:"ðŸŒ",w:25},{n:"Quantitative Aptitude",c:"#FFB86B",i:"ðŸ”¢",w:25},{n:"English Comprehension",c:"#FF8B94",i:"ðŸ”¤",w:25}], tips:["Tier I is qualifying â€” target 160+","Quant: practice 30 questions daily","English: vocab + reading comprehension","GK: static + current affairs mix","Solve last 5 years PYQs"] }, "Tier II": { date:"2026-12-10", subjects:[{n:"Quant (Paper I)",c:"#FFB86B",i:"ðŸ”¢",w:30},{n:"English (Paper I)",c:"#FF8B94",i:"ðŸ”¤",w:30},{n:"Statistics (Paper II)",c:"#6BFFC1",i:"ðŸ“Š",w:20},{n:"Finance & Economics",c:"#6EE7F7",i:"ðŸ“ˆ",w:20}], tips:["Quant + English are mandatory for all","Statistics only for JSO post","Finance/Economics for AAO post","Focus Paper I â€” highest weightage","Time management is critical"] } } },
+  "RBI Grade B": { icon:"ðŸ¦", color:"#818cf8", modes: { "Phase I": { date:"2026-10-15", subjects:[{n:"General Awareness",c:"#FFE66D",i:"ðŸŒ",w:40},{n:"Reasoning",c:"#818cf8",i:"ðŸ§ ",w:30},{n:"Quantitative Aptitude",c:"#FFB86B",i:"ðŸ”¢",w:15},{n:"English",c:"#FF8B94",i:"ðŸ”¤",w:15}], tips:["GA carries highest marks â€” 80 Qs","Focus on RBI circulars & monetary policy","Reasoning: 60 Qs in 45 mins â€” speed","Last 6 months banking current affairs","Solve RBI Grade B PYQs religiously"] }, "Phase II": { date:"2026-11-20", subjects:[{n:"Economic & Social Issues",c:"#6EE7F7",i:"ðŸ“Š",w:50},{n:"Finance & Management",c:"#818cf8",i:"ðŸ’°",w:50},{n:"English Writing",c:"#FF8B94",i:"âœï¸",w:0}], tips:["ESI: Indian economy + social schemes","FM: RBI functions + Basel norms","Write 3 descriptive answers daily","Read RBI Annual Report thoroughly","Economic Survey is must-read"] }, "Interview": { date:"2027-01-15", subjects:[{n:"Current Affairs",c:"#FFE66D",i:"ðŸ“°",w:30},{n:"Banking Awareness",c:"#818cf8",i:"ðŸ¦",w:40},{n:"Subject Knowledge",c:"#6EE7F7",i:"ðŸ“š",w:30}], tips:["Know RBI's role & functions deeply","Practice mock interviews","Stay updated on monetary policy","Confidence + clarity over speed","Know your graduation subject well"] } } },
+  "EPFO EO/AO": { icon:"ðŸ¢", color:"#FF8B94", modes: { "Exam": { date:"2026-11-01", subjects:[{n:"General English",c:"#FF8B94",i:"ðŸ”¤",w:20},{n:"General Awareness",c:"#FFE66D",i:"ðŸŒ",w:25},{n:"Quantitative Aptitude",c:"#FFB86B",i:"ðŸ”¢",w:20},{n:"Reasoning",c:"#6BFFC1",i:"ðŸ§©",w:20},{n:"Labour Laws & Social Security",c:"#818cf8",i:"âš–ï¸",w:15}], tips:["Labour Laws: EPF Act, ESI Act, Gratuity Act","Industrial Relations is a key topic","Social Security schemes â€” memorise","GK: focus on Labour Ministry news","Quant: SSC CGL level difficulty"] } } },
+  "Custom":   { icon:"ðŸŽ¯", color:"#C16BFF", modes: { "Exam": { date:"", subjects:[{n:"Subject 1",c:"#FF6B6B",i:"ðŸ“š",w:50},{n:"Subject 2",c:"#6EE7F7",i:"ðŸ“š",w:50}], tips:["Add your study strategy","Customize subjects"] } } },
 };
 
-// ── STREAK BADGES ─────────────────────────────────────────────
+// â”€â”€ STREAK BADGES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const BADGES = [
-  {min:1,   max:6,   title:"Beginner",          icon:"🌱", msg:"Every expert was once a beginner. Keep going!",     color:"#6EE7F7"},
-  {min:7,   max:13,  title:"Consistent Learner", icon:"📖", msg:"7 days strong! Consistency is your superpower.",    color:"#B8FF6B"},
-  {min:14,  max:20,  title:"Achiever",           icon:"⚡", msg:"14 days — you're building a habit that lasts!",     color:"#FFB86B"},
-  {min:21,  max:29,  title:"Challenger",         icon:"🏆", msg:"21 days! Science says habits are formed. Legend!",  color:"#FF6B6B"},
-  {min:30,  max:59,  title:"Conqueror",          icon:"🔥", msg:"30 days — you've conquered consistency. Elite!",    color:"#818cf8"},
-  {min:60,  max:999, title:"Legend",             icon:"👑", msg:"60+ days — you are truly in a league of your own.", color:"#FFE66D"},
+  {min:1,   max:6,   title:"Beginner",          icon:"ðŸŒ±", msg:"Every expert was once a beginner. Keep going!",     color:"#6EE7F7"},
+  {min:7,   max:13,  title:"Consistent Learner", icon:"ðŸ“–", msg:"7 days strong! Consistency is your superpower.",    color:"#B8FF6B"},
+  {min:14,  max:20,  title:"Achiever",           icon:"âš¡", msg:"14 days â€” you're building a habit that lasts!",     color:"#FFB86B"},
+  {min:21,  max:29,  title:"Challenger",         icon:"ðŸ†", msg:"21 days! Science says habits are formed. Legend!",  color:"#FF6B6B"},
+  {min:30,  max:59,  title:"Conqueror",          icon:"ðŸ”¥", msg:"30 days â€” you've conquered consistency. Elite!",    color:"#818cf8"},
+  {min:60,  max:999, title:"Legend",             icon:"ðŸ‘‘", msg:"60+ days â€” you are truly in a league of your own.", color:"#FFE66D"},
 ];
 function getBadge(streak){ return BADGES.find(b=>streak>=b.min&&streak<=b.max)||BADGES[0]; }
 
@@ -42,10 +42,10 @@ const SUBJECT_DATA=[
   {subj:"Cur. Affairs",c:"#FFE66D",hours:[1,1,1,1,1,1,1.5],   total:7.5},
 ];
 const DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-// CHAIN removed — streak calendar now built dynamically from real session data
+// CHAIN removed â€” streak calendar now built dynamically from real session data
 const COLS=["#FF6B6B","#6EE7F7","#B8FF6B","#FFB86B","#C16BFF","#FFE66D","#6BFFC1","#FF8B94","#818cf8","#34d399"];
 
-// ── HELPERS ───────────────────────────────────────────────────
+// â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function pad(n){return String(n).padStart(2,"0");}
 function dl(date){
   if(!date)return null;
@@ -71,7 +71,7 @@ function buildExamState(key=DEFAULT_EXAM_KEY,mode=DEFAULT_EXAM_MODE,examDates={}
   const isCustom=customExamIds.includes(key);
   if(isCustom){
     const cx=customExamList.find(c=>c.id===key)||{name:key,id:key};
-    return{key,mode:"Exam",name:cx.name,date:getExamDate(examDates,key,"Exam"),color:"#C16BFF",icon:"🎯",subjects:[],tips:[]};
+    return{key,mode:"Exam",name:cx.name,date:getExamDate(examDates,key,"Exam"),color:"#C16BFF",icon:"ðŸŽ¯",subjects:[],tips:[]};
   }
   const exam=EXAMS[key]?key:DEFAULT_EXAM_KEY;
   const md=EXAMS[exam]?.modes?.[mode]?mode:(Object.keys(EXAMS[exam]?.modes||{})[0]||DEFAULT_EXAM_MODE);
@@ -131,7 +131,7 @@ async function saveExamTipsToDb(uid,key,mode,tips){
 async function saveExamSelectionToDb(uid,key,mode){
   if(!uid)return;
   const mod=await import("./firebase");
-  // Store key as-is — custom exam IDs (cx_xxx) must not be validated against EXAMS
+  // Store key as-is â€” custom exam IDs (cx_xxx) must not be validated against EXAMS
   await mod.set(mod.ref(mod.db,`users/${uid}/examSelection`),{key:key||DEFAULT_EXAM_KEY,mode:mode||DEFAULT_EXAM_MODE});
 }
 async function saveCustomSubjectsToDb(uid,subjects){
@@ -165,7 +165,7 @@ async function callAI(prompt,system="You are a helpful UPSC study assistant."){
   }catch{return "AI is currently unavailable. Please check your API configuration.";}
 }
 
-// ── LOGO ──────────────────────────────────────────────────────
+// â”€â”€ LOGO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Logo({sz=32}){
   return(
     <svg width={sz} height={sz} viewBox="0 0 40 40" fill="none">
@@ -176,50 +176,50 @@ function Logo({sz=32}){
   );
 }
 
-// ── TOASTS ────────────────────────────────────────────────────
+// â”€â”€ TOASTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Toasts({notifs,dismiss,t}){
   return(<div style={{position:"fixed",top:64,right:10,zIndex:9999,display:"flex",flexDirection:"column",gap:6,maxWidth:290,pointerEvents:"none"}}>
-    {notifs.map(n=><div key={n.id} style={{background:t.nb,border:`1px solid ${n.col||t.a1}44`,borderLeft:`3px solid ${n.col||t.a1}`,borderRadius:11,padding:"9px 10px",boxShadow:"0 8px 26px rgba(0,0,0,0.4)",display:"flex",gap:7,alignItems:"flex-start",pointerEvents:"all",animation:"slideIn .3s ease"}}><div style={{fontSize:16,flexShrink:0}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{n.title}</div><div style={{color:t.sub,fontSize:10,marginTop:1,lineHeight:1.4}}>{n.body}</div></div><button onClick={()=>dismiss(n.id)} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:13,padding:"0 1px",flexShrink:0}}>×</button></div>)}
+    {notifs.map(n=><div key={n.id} style={{background:t.nb,border:`1px solid ${n.col||t.a1}44`,borderLeft:`3px solid ${n.col||t.a1}`,borderRadius:11,padding:"9px 10px",boxShadow:"0 8px 26px rgba(0,0,0,0.4)",display:"flex",gap:7,alignItems:"flex-start",pointerEvents:"all",animation:"slideIn .3s ease"}}><div style={{fontSize:16,flexShrink:0}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{n.title}</div><div style={{color:t.sub,fontSize:10,marginTop:1,lineHeight:1.4}}>{n.body}</div></div><button onClick={()=>dismiss(n.id)} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:13,padding:"0 1px",flexShrink:0}}>Ã—</button></div>)}
   </div>);
 }
 
-// ── GATE ──────────────────────────────────────────────────────
+// â”€â”€ GATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Gate({t,name,icon,onPro}){
   return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:280,gap:14,textAlign:"center",padding:"0 18px"}}>
-    <div style={{position:"relative",width:"100%",maxWidth:280}}><div style={{filter:"blur(4px)",opacity:.22,pointerEvents:"none",display:"flex",flexDirection:"column",gap:5}}>{[1,2,3].map(i=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"11px",height:44}}/>)}</div><div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:38}}>{icon}</div><div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.9),rgba(52,211,153,0.9))",borderRadius:10,padding:"4px 12px"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Premium Feature</span></div></div></div>
-    <div><div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:3}}>{name}</div><div style={{color:t.sub,fontSize:11,lineHeight:1.6,maxWidth:240}}>Start with <span style={{color:"#34d399",fontWeight:700}}>7-day free trial</span> or <span style={{color:"#818cf8",fontWeight:700}}>₹25/month</span></div></div>
-    <button onClick={onPro} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"10px 26px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 18px rgba(129,140,248,0.35)"}}>⚡ Try Free for 7 Days</button>
+    <div style={{position:"relative",width:"100%",maxWidth:280}}><div style={{filter:"blur(4px)",opacity:.22,pointerEvents:"none",display:"flex",flexDirection:"column",gap:5}}>{[1,2,3].map(i=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"11px",height:44}}/>)}</div><div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:38}}>{icon}</div><div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.9),rgba(52,211,153,0.9))",borderRadius:10,padding:"4px 12px"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>âš¡ Premium Feature</span></div></div></div>
+    <div><div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:3}}>{name}</div><div style={{color:t.sub,fontSize:11,lineHeight:1.6,maxWidth:240}}>Start with <span style={{color:"#34d399",fontWeight:700}}>7-day free trial</span> or <span style={{color:"#818cf8",fontWeight:700}}>â‚¹25/month</span></div></div>
+    <button onClick={onPro} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"10px 26px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 18px rgba(129,140,248,0.35)"}}>âš¡ Try Free for 7 Days</button>
   </div>);
 }
 
-// ── PRICING MODAL ─────────────────────────────────────────────
+// â”€â”€ PRICING MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
   const [sel,setSel]=useState("monthly");
   const [ld,setLd]=useState(false);const [ok,setOk]=useState(false);
-  const plans={trial:{l:"7-Day Trial",p:0,per:"then ₹25/mo",badge:"START FREE",c:"#34d399"},monthly:{l:"1 Month",p:25,orig:50,per:"month",badge:"50% OFF",c:"#818cf8"},quarter:{l:"3 Months",p:70,orig:150,per:"3 months",badge:"BEST VALUE",c:"#60a5fa"}};
-  const feats=[{i:"🤖",l:"AI Assistant"},{i:"📝",l:"Notes & Cards"},{i:"📋",l:"Syllabus"},{i:"👑",l:"Badges"},{i:"📊",l:"Analytics"},{i:"🚫",l:"No Ads"}];
+  const plans={trial:{l:"7-Day Trial",p:0,per:"then â‚¹25/mo",badge:"START FREE",c:"#34d399"},monthly:{l:"1 Month",p:25,orig:50,per:"month",badge:"50% OFF",c:"#818cf8"},quarter:{l:"3 Months",p:70,orig:150,per:"3 months",badge:"BEST VALUE",c:"#60a5fa"}};
+  const feats=[{i:"ðŸ¤–",l:"AI Assistant"},{i:"ðŸ“",l:"Notes & Cards"},{i:"ðŸ“‹",l:"Syllabus"},{i:"ðŸ‘‘",l:"Badges"},{i:"ðŸ“Š",l:"Analytics"},{i:"ðŸš«",l:"No Ads"}];
   const pay=async()=>{setLd(true);await new Promise(r=>setTimeout(r,1200));setLd(false);setOk(true);setTimeout(()=>{if(isRestore)onRestore();else onUpgrade();onClose();},1500);};
   return(
     <div style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(8px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"26px 26px 0 0",width:"100%",maxWidth:540,maxHeight:"92vh",overflowY:"auto",border:"1px solid rgba(129,140,248,0.18)",borderBottom:"none"}}>
         <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.08))",padding:"18px 18px 14px",borderRadius:"26px 26px 0 0",textAlign:"center"}}>
           <div style={{width:28,height:4,background:"rgba(255,255,255,0.16)",borderRadius:2,margin:"0 auto 12px"}}/>
-          <div style={{fontSize:18}}>⚡</div>
-          <div style={{fontSize:19,fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>{isRestore?"Restore Your Streak 🔥":"StudySync Premium"}</div>
-          <div style={{color:"rgba(255,255,255,0.4)",fontSize:11,marginTop:2}}>{isRestore?"Don't lose your progress":"7-day free trial · Cancel anytime"}</div>
+          <div style={{fontSize:18}}>âš¡</div>
+          <div style={{fontSize:19,fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>{isRestore?"Restore Your Streak ðŸ”¥":"StudySync Premium"}</div>
+          <div style={{color:"rgba(255,255,255,0.4)",fontSize:11,marginTop:2}}>{isRestore?"Don't lose your progress":"7-day free trial Â· Cancel anytime"}</div>
         </div>
         <div style={{padding:"14px 15px 0"}}>
           {isRestore?(
             <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:12}}>
-              <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:13,padding:"13px",textAlign:"center"}}><div style={{fontSize:30}}>🔥</div><div style={{color:t.a1,fontWeight:900,fontSize:20,marginTop:3}}>Streak Broken!</div><div style={{color:t.sub,fontSize:10,marginTop:3}}>Restore for ₹10 or study 2× today</div></div>
+              <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:13,padding:"13px",textAlign:"center"}}><div style={{fontSize:30}}>ðŸ”¥</div><div style={{color:t.a1,fontWeight:900,fontSize:20,marginTop:3}}>Streak Broken!</div><div style={{color:t.sub,fontSize:10,marginTop:3}}>Restore for â‚¹10 or study 2Ã— today</div></div>
               <div style={{background:t.card,border:"1.5px solid rgba(129,140,248,0.3)",borderRadius:12,padding:"11px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>💳 Pay to Restore</span><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:t.sub,fontSize:11,textDecoration:"line-through"}}>₹20</span><span style={{background:"#818cf8",color:"#fff",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>₹10</span></div></div>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>ðŸ’³ Pay to Restore</span><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:t.sub,fontSize:11,textDecoration:"line-through"}}>â‚¹20</span><span style={{background:"#818cf8",color:"#fff",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>â‚¹10</span></div></div>
                 <div style={{color:t.sub,fontSize:10,marginBottom:8}}>One-time first-restore offer</div>
-                <button onClick={pay} disabled={ld} style={{width:"100%",background:ld?"rgba(129,140,248,0.3)":"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{ld?<><div style={{width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Restoring…</>:"Pay ₹10 — Restore Now"}</button>
+                <button onClick={pay} disabled={ld} style={{width:"100%",background:ld?"rgba(129,140,248,0.3)":"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{ld?<><div style={{width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Restoringâ€¦</>:"Pay â‚¹10 â€” Restore Now"}</button>
               </div>
               <div style={{background:t.card,border:"1px solid rgba(52,211,153,0.25)",borderRadius:12,padding:"11px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>📖 Study to Restore</span><span style={{background:"rgba(52,211,153,0.2)",color:"#34d399",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>FREE</span></div>
-                <div style={{color:t.sub,fontSize:10,marginBottom:7}}>Study 4+ hours today (2× normal)</div>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>ðŸ“– Study to Restore</span><span style={{background:"rgba(52,211,153,0.2)",color:"#34d399",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>FREE</span></div>
+                <div style={{color:t.sub,fontSize:10,marginBottom:7}}>Study 4+ hours today (2Ã— normal)</div>
                 <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:"37%",background:"linear-gradient(90deg,#34d399,#60a5fa)",borderRadius:2}}/></div>
                 <div style={{color:t.sub,fontSize:9,marginTop:4,textAlign:"center"}}>1.5h / 4h studied today</div>
               </div>
@@ -231,18 +231,18 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
                   <button key={k} onClick={()=>setSel(k)} style={{background:sel===k?`${p.c}15`:t.card,border:`2px solid ${sel===k?p.c:t.border}`,borderRadius:13,padding:"10px 5px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",position:"relative",transition:"all .25s"}}>
                     {p.badge&&<div style={{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",background:sel===k?p.c:"rgba(129,140,248,0.7)",color:"#fff",fontSize:7,fontWeight:900,padding:"2px 5px",borderRadius:14,whiteSpace:"nowrap"}}>{p.badge}</div>}
                     <div style={{color:t.sub,fontSize:9,fontWeight:600,marginBottom:2}}>{p.l}</div>
-                    {p.p===0?<div style={{color:p.c,fontWeight:900,fontSize:15}}>FREE</div>:<><div style={{color:t.text,fontWeight:900,fontSize:18}}><span style={{fontSize:10}}>₹</span>{p.p}</div>{p.orig&&<div style={{color:t.muted,fontSize:8,textDecoration:"line-through"}}>₹{p.orig}</div>}</>}
+                    {p.p===0?<div style={{color:p.c,fontWeight:900,fontSize:15}}>FREE</div>:<><div style={{color:t.text,fontWeight:900,fontSize:18}}><span style={{fontSize:10}}>â‚¹</span>{p.p}</div>{p.orig&&<div style={{color:t.muted,fontSize:8,textDecoration:"line-through"}}>â‚¹{p.orig}</div>}</>}
                     <div style={{color:p.c,fontSize:8,fontWeight:700,marginTop:1}}>{p.per}</div>
                   </button>
                 ))}
               </div>
               {!ok?<button onClick={pay} disabled={ld} style={{width:"100%",padding:"12px",borderRadius:13,border:"none",cursor:"pointer",background:ld?"rgba(129,140,248,0.3)":sel==="trial"?"linear-gradient(135deg,#34d399,#10b981)":"linear-gradient(135deg,#818cf8,#60a5fa)",color:"#fff",fontWeight:900,fontSize:13,fontFamily:"inherit",transition:"all .3s",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:7}}>
-                {ld?<><div style={{width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Processing…</>:sel==="trial"?"🎉 Start 7-Day Free Trial":`💳 Pay ₹${plans[sel].p} · Razorpay`}
-              </button>:<div style={{padding:"12px",borderRadius:13,background:"linear-gradient(135deg,#34d399,#10b981)",color:"#fff",fontWeight:900,fontSize:13,textAlign:"center",marginBottom:7}}>✓ Welcome to Premium! 🎉</div>}
+                {ld?<><div style={{width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Processingâ€¦</>:sel==="trial"?"ðŸŽ‰ Start 7-Day Free Trial":`ðŸ’³ Pay â‚¹${plans[sel].p} Â· Razorpay`}
+              </button>:<div style={{padding:"12px",borderRadius:13,background:"linear-gradient(135deg,#34d399,#10b981)",color:"#fff",fontWeight:900,fontSize:13,textAlign:"center",marginBottom:7}}>âœ“ Welcome to Premium! ðŸŽ‰</div>}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5,marginBottom:10}}>
                 {feats.map(f=><div key={f.l} style={{background:t.card,border:"1px solid rgba(129,140,248,0.08)",borderRadius:9,padding:"7px 5px",textAlign:"center"}}><div style={{fontSize:15,marginBottom:2}}>{f.i}</div><div style={{color:t.text,fontWeight:700,fontSize:8,lineHeight:1.2}}>{f.l}</div></div>)}
               </div>
-              <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:4}}>{["🔒 Secure","💳 UPI/Cards","↩️ Cancel anytime"].map(b=><div key={b} style={{color:t.sub,fontSize:9}}>{b}</div>)}</div>
+              <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:4}}>{["ðŸ”’ Secure","ðŸ’³ UPI/Cards","â†©ï¸ Cancel anytime"].map(b=><div key={b} style={{color:t.sub,fontSize:9}}>{b}</div>)}</div>
             </>
           )}
         </div>
@@ -251,7 +251,7 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
   );
 }
 
-// ── EXAM + CUSTOM SUBJECTS ────────────────────────────────────
+// â”€â”€ EXAM + CUSTOM SUBJECTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,setCustomExams,examDates,setExamDates,examTips,setExamTips,user}){
   const [ex,setEx]=useState(es.key||DEFAULT_EXAM_KEY);
   const [md,setMd]=useState(es.mode||DEFAULT_EXAM_MODE);
@@ -270,7 +270,7 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
 
   // Is currently selected exam a custom one?
   const isCustomExam=customExams.some(c=>c.id===ex);
-  const cfg=EXAMS[ex]||(isCustomExam?{icon:"🎯",color:"#C16BFF",modes:{Exam:{date:"",subjects:[],tips:[]}}}:null);
+  const cfg=EXAMS[ex]||(isCustomExam?{icon:"ðŸŽ¯",color:"#C16BFF",modes:{Exam:{date:"",subjects:[],tips:[]}}}:null);
   
   const effectiveMode = isCustomExam ? "Exam" : md;
   const currentCustomSubjs = examSubjects[ex]?.[effectiveMode] || [];
@@ -284,8 +284,8 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
   const apply=()=>{
     const chosenDate=dt||modeData?.date||"";
     const color=isCustomExam?"#C16BFF":(cfg?.color||"#818cf8");
-    const icon=isCustomExam?"🎯":(cfg?.icon||"🎯");
-    // es.subjects contains ONLY built-in subjects — custom subjects live in examSubjects state
+    const icon=isCustomExam?"ðŸŽ¯":(cfg?.icon||"ðŸŽ¯");
+    // es.subjects contains ONLY built-in subjects â€” custom subjects live in examSubjects state
     // This prevents leakage when switching exams
     const builtInOnly=isCustomExam?[]:(modeData?.subjects||[]);
     const customName=customExams.find(c=>c.id===ex)?.name||ex;
@@ -301,13 +301,13 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
     onClose();
   };
 
- // Custom subjects — isolated to current exam/mode, Firebase-persisted
+ // Custom subjects â€” isolated to current exam/mode, Firebase-persisted
   const addCustom=()=>{
     const name=ns.trim();
     if(!name)return;
     const isDupe=currentCustomSubjs.some(s=>s.n.toLowerCase()===name.toLowerCase());
     if(isDupe){setNs("");return;}
-    const updated=[...currentCustomSubjs,{n:name,c:nc,i:"📚",w:0,custom:true}];
+    const updated=[...currentCustomSubjs,{n:name,c:nc,i:"ðŸ“š",w:0,custom:true}];
     setExamSubjects(p=>({...p, [ex]: {...(p[ex]||{}), [effectiveMode]: updated}}));
     if(uid)saveExamSubjectsToDb(uid, ex, effectiveMode, updated);
     setNs("");
@@ -372,8 +372,8 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
     <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:540,maxHeight:"90vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 34px"}}>
         <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 11px"}}/>
-        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:1}}>🎯 Set Your Exam</div>
-        <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Choose exam & mode — subjects auto-load</div>
+        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:1}}>ðŸŽ¯ Set Your Exam</div>
+        <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Choose exam & mode â€” subjects auto-load</div>
 
         {/* Delete confirmation */}
         {deleteConfirmId&&(
@@ -407,16 +407,16 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
                 <input autoFocus value={editCustomName} onChange={e=>setEditCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEditCustom(c.id);if(e.key==="Escape")setEditCustomId(null);}} style={{flex:1,background:t.input,border:`1px solid #C16BFF`,borderRadius:7,padding:"5px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
               ):(
                 <button onClick={()=>{setEx(c.id);setMd("Exam");setDt(getExamDate(examDates,c.id,"Exam"));}} style={{flex:1,background:"none",border:"none",textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
-                  <span style={{fontSize:15}}>🎯</span> <span style={{color:t.text,fontWeight:700,fontSize:12,marginLeft:5}}>{c.name}</span>
+                  <span style={{fontSize:15}}>ðŸŽ¯</span> <span style={{color:t.text,fontWeight:700,fontSize:12,marginLeft:5}}>{c.name}</span>
                 </button>
               )}
               <div style={{display:"flex",gap:4,flexShrink:0}}>
                 {editCustomId===c.id?(
                   <button onClick={()=>saveEditCustom(c.id)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
                 ):(
-                  <button onClick={()=>startEditCustom(c.id,c.name)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                  <button onClick={()=>startEditCustom(c.id,c.name)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
                 )}
-                <button onClick={()=>confirmDeleteCustom(c.id)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                <button onClick={()=>confirmDeleteCustom(c.id)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
               </div>
               {ex===c.id&&editCustomId!==c.id&&<div style={{width:6,height:6,borderRadius:"50%",background:"#C16BFF",flexShrink:0}}/>}
             </div>
@@ -424,9 +424,9 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
           {/* New custom exam */}
           {showNewCustom?(
             <div style={{display:"flex",gap:5}}>
-              <input autoFocus value={newCustomName} onChange={e=>setNewCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")createCustomExam();if(e.key==="Escape")setShowNewCustom(false);}} placeholder="Exam name e.g. SSC JE, Mock Test…" style={{flex:1,background:t.input,border:"1px solid #C16BFF",borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              <input autoFocus value={newCustomName} onChange={e=>setNewCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")createCustomExam();if(e.key==="Escape")setShowNewCustom(false);}} placeholder="Exam name e.g. SSC JE, Mock Testâ€¦" style={{flex:1,background:t.input,border:"1px solid #C16BFF",borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={createCustomExam} style={{background:"#C16BFF",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:900,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>+</button>
-              <button onClick={()=>setShowNewCustom(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 9px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11}}>✕</button>
+              <button onClick={()=>setShowNewCustom(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 9px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11}}>âœ•</button>
             </div>
           ):(
             <button onClick={()=>setShowNewCustom(true)} style={{background:"rgba(193,107,255,0.1)",border:"1.5px dashed rgba(193,107,255,0.4)",borderRadius:11,padding:"8px",color:"#C16BFF",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>+ New Custom Exam</button>
@@ -454,7 +454,7 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
         {/* Custom subjects */}
         <div style={{background:t.card,border:`1px solid ${showCustom?"#818cf8":t.border}40`,borderRadius:12,padding:"11px",marginBottom:12,transition:"border .2s"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showCustom?10:0}}>
-            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam · {currentCustomSubjs.length} saved</div></div>
+            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>ðŸ“Œ Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam Â· {currentCustomSubjs.length} saved</div></div>
             <button onClick={()=>setShowCustom(v=>!v)} style={{background:showCustom?"#818cf8":t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:showCustom?"#fff":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{showCustom?"Done":"Manage"}</button>
           </div>
           {showCustom&&(<>
@@ -469,8 +469,8 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
                     <button onClick={()=>saveEdit(i)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 7px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
                   ):(
                     <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>startEdit(i,s.n)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                      <button onClick={()=>delCustom(i)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                      <button onClick={()=>startEdit(i,s.n)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
+                      <button onClick={()=>delCustom(i)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
                     </div>
                   )}
                 </div>
@@ -478,7 +478,7 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:7}}>{COLS.map(c=><div key={c} onClick={()=>setNc(c)} style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:nc===c?"2.5px solid white":"2px solid transparent",transition:"all .2s"}}/>)}</div>
             <div style={{display:"flex",gap:5}}>
-              <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject nameâ€¦" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={addCustom} style={{background:nc,border:"none",borderRadius:8,padding:"7px 11px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+</button>
             </div>
             {currentCustomSubjs.length===0&&<div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>No custom subjects yet. Add your first one!</div>}
@@ -486,14 +486,14 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
         </div>
 
         <button onClick={apply} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"11px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 16px rgba(129,140,248,0.28)"}}>
-          {isCustomExam?"🎯":cfg?.icon} Set {isCustomExam?customExams.find(c=>c.id===ex)?.name:ex} — {isCustomExam?"Exam":md} ✓
+          {isCustomExam?"ðŸŽ¯":cfg?.icon} Set {isCustomExam?customExams.find(c=>c.id===ex)?.name:ex} â€” {isCustomExam?"Exam":md} âœ“
         </button>
       </div>
     </div>
   );
 }
 
-// ── LOGIN ─────────────────────────────────────────────────────
+// â”€â”€ LOGIN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Login({t,onLogin}){
   const [loading,setLoading]=useState(false);
   return(
@@ -507,24 +507,24 @@ function Login({t,onLogin}){
       <div style={{width:"100%",maxWidth:320,background:t.card,border:`1px solid ${t.border}`,borderRadius:18,padding:18,boxShadow:t.sh}}>
         <div style={{textAlign:"center",marginBottom:13}}>
           <div style={{fontSize:13,fontWeight:800,color:t.text}}>Sign in to StudySync</div>
-          <div style={{fontSize:10,color:t.sub,marginTop:2}}>🇮🇳 Proudly built in India for aspirants who show up every day.</div>
+          <div style={{fontSize:10,color:t.sub,marginTop:2}}>ðŸ‡®ðŸ‡³ Proudly built in India for aspirants who show up every day.</div>
           <div style={{fontSize:9,color:t.muted,marginTop:3}}>Plan better. Study deeper. Stay consistent.</div>
         </div>
         <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"8px 10px",marginBottom:11,display:"flex",gap:7,alignItems:"center"}}>
-          <span style={{fontSize:16}}>🎁</span>
-          <div><div style={{color:"#34d399",fontWeight:800,fontSize:11}}>7-Day Free Trial</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Full premium access — no card needed</div></div>
+          <span style={{fontSize:16}}>ðŸŽ</span>
+          <div><div style={{color:"#34d399",fontWeight:800,fontSize:11}}>7-Day Free Trial</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Full premium access â€” no card needed</div></div>
         </div>
         <button onClick={async()=>{setLoading(true);const {user,error}=await signInGoogle();if(user)onLogin(user);else{setLoading(false);alert(error||"Login failed");}}} disabled={loading} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:loading?t.pill:"linear-gradient(135deg,rgba(129,140,248,0.11),rgba(96,165,250,0.11))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"inherit",transition:"all .25s"}}>
           <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.3 30.2 0 24 0 14.7 0 6.8 5.5 3 13.5l7.9 6.1C12.8 13.4 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.9 28.4A14.5 14.5 0 0 1 9.5 24c0-1.5.3-3 .8-4.4L2.4 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8.4-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2.1 1.4-4.7 2.3-7.7 2.3-6.1 0-11.2-4-13.1-9.5l-8 6.2C6.7 42.5 14.7 48 24 48z"/></svg>
-          <span style={{color:t.text,fontWeight:700,fontSize:12}}>{loading?"Signing in…":"Continue with Google"}</span>
+          <span style={{color:t.text,fontWeight:700,fontSize:12}}>{loading?"Signing inâ€¦":"Continue with Google"}</span>
         </button>
-        <div style={{color:t.muted,fontSize:9,textAlign:"center",marginTop:10,lineHeight:1.6}}>Free for students · No ads · Made for India ❤️</div>
+        <div style={{color:t.muted,fontSize:9,textAlign:"center",marginTop:10,lineHeight:1.6}}>Free for students Â· No ads Â· Made for India â¤ï¸</div>
       </div>
     </div>
   );
 }
 
-// ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
+// â”€â”€ POMODORO (Feature 2 â€” presets 25/45/60, free max 60, pro max 150) â”€
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs}){
   const allSubjects=[...subjects,...customSubjects];
@@ -547,7 +547,7 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   // Session saving handled at App level to avoid stale closure issues
 
   // Timer interval lives in App-level useEffect (never unmounts on tab switch)
-  // Pomo reads/controls state via props only — no interval here
+  // Pomo reads/controls state via props only â€” no interval here
 
   const sw=(m,cm)=>{setPomoMode(m);setPomoSec((cm??dur[m])*60);setPomoRun(false);};
   const applyDur=(v)=>{const val=Math.min(v,maxMin);setPomoCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
@@ -565,13 +565,13 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
     {/* Timer settings */}
     <div className="ss-pomo-settings" style={{background:t.card,border:`1px solid ${show?sc+"44":t.border}`,borderRadius:14,padding:"10px 14px",width:"100%",maxWidth:350,transition:"border .3s"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:show?10:0}}>
-        <span style={{color:t.sub,fontSize:11,fontWeight:600}}>⚙️ Timer — {fmtTime(pomoCf)}</span>
+        <span style={{color:t.sub,fontSize:11,fontWeight:600}}>âš™ï¸ Timer â€” {fmtTime(pomoCf)}</span>
         <button onClick={()=>setShow(v=>!v)} style={{background:t.pill,border:"none",borderRadius:14,padding:"3px 8px",color:t.text,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{show?"Done":"Customize"}</button>
       </div>
       {show&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
         <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Presets</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{PRESETS.map(v=><button key={v} onClick={()=>applyDur(v)} style={{padding:"6px 11px",borderRadius:9,border:`1.5px solid ${pomoCf===v?sc:t.border}`,background:pomoCf===v?`${sc}20`:t.pill,color:pomoCf===v?sc:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{fmtTime(v)}</button>)}</div>
-        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Custom — max {fmtTime(maxMin)}{!isPro&&<span style={{color:"#818cf8"}}> · Pro gets 2h30m</span>}</div>
+        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Custom â€” max {fmtTime(maxMin)}{!isPro&&<span style={{color:"#818cf8"}}> Â· Pro gets 2h30m</span>}</div>
         <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:t.sub,fontSize:11}}>Duration</span><span style={{color:sc,fontWeight:900,fontSize:17}}>{fmtTime(pf)}</span></div>
         <input type="range" min={5} max={maxMin} step={5} value={pf} onChange={e=>setPf(Number(e.target.value))} style={{width:"100%",accentColor:sc,cursor:"pointer"}}/>
         <button onClick={()=>applyDur(pf)} style={{background:sc,border:"none",borderRadius:9,padding:"8px",color:"#0a0a0f",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Apply {fmtTime(pf)} Timer</button>
@@ -580,13 +580,13 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
       <button onClick={()=>{setPomoSec(dur[pomoMode]*60);setPomoRun(false);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
-      <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
+      <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"â¸ Pause":"â–¶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
     <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoSess*pomoCf/60)}h${(pomoSess*pomoCf)%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
     {/* Subject pills */}
     <div className="ss-pomo-subjects" style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",maxWidth:390}}>
-      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"ðŸ“Œ"} {s.n}</button>)}
     </div>
   </div>);
 }
@@ -648,7 +648,7 @@ function Planner({t,subjects,customSubjects,user}){
     {delConfirm&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
         <div style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
+          <div style={{fontSize:24,marginBottom:8}}>ðŸ—‘ï¸</div>
           <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete Task?</div>
           <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This can't be undone.</div>
           <div style={{display:"flex",gap:8}}>
@@ -665,7 +665,7 @@ function Planner({t,subjects,customSubjects,user}){
     {/* Add task with start/end dates */}
     <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:10,display:"flex",flexDirection:"column",gap:7}}>
       <div style={{display:"flex",gap:5}}>
-        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a taskâ€¦" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
         <select value={ns2} onChange={e=>setNs2(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:9,maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
       </div>
       <div style={{display:"flex",gap:5,alignItems:"center"}}>
@@ -686,23 +686,23 @@ function Planner({t,subjects,customSubjects,user}){
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
                 <input value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(task.id);if(e.key==="Escape")setEditId(null);}} autoFocus style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
                 <button onClick={()=>saveEdit(task.id)} style={{background:"#34d399",border:"none",borderRadius:7,padding:"6px 10px",color:"#0a0a0f",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:7,padding:"6px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:7,padding:"6px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
               </div>
             ):(
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:9}}>
-                  <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:8,fontWeight:900}}>✓</span>}</div>
+                  <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:8,fontWeight:900}}>âœ“</span>}</div>
                   <div onClick={()=>tog(task.id)} style={{flex:1,color:task.done?t.sub:t.text,fontSize:11,textDecoration:task.done?"line-through":"none",cursor:"pointer"}}>{task.text}</div>
                   <div style={{background:`${s.c}18`,color:s.c,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12}}>{task.subj}</div>
                   {ds&&!task.done&&<div style={{background:`${ds.color}15`,color:ds.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12,whiteSpace:"nowrap"}}>{ds.label}</div>}
                   <div style={{display:"flex",gap:3}}>
-                    <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                    <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                    <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
+                    <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
                   </div>
                 </div>
                 {(task.startDate||task.endDate)&&<div style={{display:"flex",gap:8,marginTop:4,paddingLeft:25}}>
-                  {task.startDate&&<span style={{color:t.sub,fontSize:9,fontWeight:500}}>▶ {task.startDate}</span>}
-                  {task.endDate&&<span style={{color:task.done?t.sub:(deadlineStatus(task.endDate)?.color||t.sub),fontSize:9,fontWeight:600}}>⏹ {task.endDate}</span>}
+                  {task.startDate&&<span style={{color:t.sub,fontSize:9,fontWeight:500}}>â–¶ {task.startDate}</span>}
+                  {task.endDate&&<span style={{color:task.done?t.sub:(deadlineStatus(task.endDate)?.color||t.sub),fontSize:9,fontWeight:600}}>â¹ {task.endDate}</span>}
                 </div>}
               </div>
             )}
@@ -714,12 +714,12 @@ function Planner({t,subjects,customSubjects,user}){
   </div>);
 }
 
-// ── STREAK (Feature 6 — badges for Pro) ──────────────────────
+// â”€â”€ STREAK (Feature 6 â€” badges for Pro) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
   const badge=getBadge(streak);
   const nextBadge=BADGES.find(b=>b.min>streak);
   const [showBadge,setShowBadge]=useState(false);
-  // Calendar state — always initialise to current local month/year
+  // Calendar state â€” always initialise to current local month/year
   const now=new Date();
   const [calYear,setCalYear]=useState(now.getFullYear());
   const [calMonth,setCalMonth]=useState(now.getMonth()); // 0-indexed
@@ -785,10 +785,10 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
 
     {/* Streak hero */}
     <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:15,padding:15,textAlign:"center"}}>
-      <div style={{fontSize:40}}>🔥</div>
+      <div style={{fontSize:40}}>ðŸ”¥</div>
       <div style={{fontSize:46,fontWeight:900,color:t.a1,lineHeight:1}}>{streak}</div>
       <div style={{fontSize:10,color:t.sub,marginTop:2}}>Day Streak</div>
-      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:10,fontWeight:700,display:"inline-block"}}>🔔 Study today — don't break the chain!</div>
+      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:10,fontWeight:700,display:"inline-block"}}>ðŸ”” Study today â€” don't break the chain!</div>
     </div>
 
     {/* Badge card */}
@@ -797,9 +797,9 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
       <div style={{flex:1}}>
         <div style={{color:badge.color,fontWeight:900,fontSize:14}}>{badge.title}</div>
         <div style={{color:t.sub,fontSize:10,marginTop:2,lineHeight:1.4}}>{badge.msg}</div>
-        {nextBadge&&<div style={{color:t.muted,fontSize:9,marginTop:3}}>{nextBadge.min-streak} more days → {nextBadge.icon} {nextBadge.title}</div>}
+        {nextBadge&&<div style={{color:t.muted,fontSize:9,marginTop:3}}>{nextBadge.min-streak} more days â†’ {nextBadge.icon} {nextBadge.title}</div>}
       </div>
-      <div style={{color:t.muted,fontSize:11}}>›</div>
+      <div style={{color:t.muted,fontSize:11}}>â€º</div>
     </div>
 
     {/* All badges */}
@@ -816,19 +816,19 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
           );})}
         </div>
       </div>
-    ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:18}}>👑</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:11}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>See your streak journey and all milestones</div></div></div>}
+    ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:18}}>ðŸ‘‘</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:11}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>See your streak journey and all milestones</div></div></div>}
 
     <div style={{display:"grid",gridTemplateColumns:"1fr",gap:7}}>
-      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>💔 Restore Streak</button>
+      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ’” Restore Streak</button>
     </div>
 
-    {/* Dynamic study calendar — real session data, correct month/year */}
+    {/* Dynamic study calendar â€” real session data, correct month/year */}
     <div>
       {/* Month navigation header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
-        <button onClick={prevMonth} style={{background:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:t.sub,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>‹</button>
+        <button onClick={prevMonth} style={{background:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:t.sub,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>â€¹</button>
         <div style={{fontSize:10,color:t.text,fontWeight:800}}>{MONTH_NAMES[calMonth]} {calYear}</div>
-        <button onClick={nextMonth} disabled={isCurrentMonth} style={{background:isCurrentMonth?t.pill:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:isCurrentMonth?t.muted:t.sub,fontWeight:700,fontSize:13,cursor:isCurrentMonth?"default":"pointer",fontFamily:"inherit",opacity:isCurrentMonth?.35:1}}>›</button>
+        <button onClick={nextMonth} disabled={isCurrentMonth} style={{background:isCurrentMonth?t.pill:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:isCurrentMonth?t.muted:t.sub,fontWeight:700,fontSize:13,cursor:isCurrentMonth?"default":"pointer",fontFamily:"inherit",opacity:isCurrentMonth?.35:1}}>â€º</button>
       </div>
       {/* Day headers */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
@@ -851,7 +851,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
             color:isToday?"#fff":studied?t.a1:isFuture?t.border:t.muted,
             fontWeight:isToday?900:studied?700:400,
           }}>
-            {isToday?"●":studied?"✓":d}
+            {isToday?"â—":studied?"âœ“":d}
           </div>);
         })}
       </div>
@@ -860,7 +860,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
   </div>);
 }
 
-// ── EXAM DASHBOARD ────────────────────────────────────────────
+// â”€â”€ EXAM DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,examTips,setExamTips}){
   const days=dl(es.date);
   const allSubjs=useMemo(()=>{
@@ -870,7 +870,7 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
     return[...builtIn,...extras];
   },[es.subjects,customSubjects]);
 
-  // Real subject progress from Firebase session data — never hardcoded
+  // Real subject progress from Firebase session data â€” never hardcoded
   const [sessionMinutes,setSessionMinutes]=useState({}); // {subjectName: totalMinutes}
   useEffect(()=>{
     if(!user?.uid){setSessionMinutes({});return;}
@@ -895,7 +895,7 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
 
   // Calculate progress percentage per subject (capped at 100%)
   // Formula: (minutes studied / target minutes) * 100
-  // Target: 300 minutes (5 hours) = 100% — reasonable for one subject
+  // Target: 300 minutes (5 hours) = 100% â€” reasonable for one subject
   const FULL_MINUTES=300;
   const prog=useMemo(()=>{
     const result={};
@@ -972,19 +972,19 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
     <div style={{background:`${es.color||"#818cf8"}10`,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:14,padding:"12px 12px",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-8,right:-8,width:65,height:65,borderRadius:"50%",background:`radial-gradient(circle,${es.color||"#818cf8"}16,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div><div style={{fontSize:18}}>{es.icon||"🎯"}</div><div style={{color:t.text,fontWeight:900,fontSize:15,marginTop:2}}>{es.key||"UPSC CSE"}</div>
+        <div><div style={{fontSize:18}}>{es.icon||"ðŸŽ¯"}</div><div style={{color:t.text,fontWeight:900,fontSize:15,marginTop:2}}>{es.key||"UPSC CSE"}</div>
           <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
             <div style={{background:`${es.color||"#818cf8"}18`,color:es.color||"#818cf8",border:`1px solid ${es.color||"#818cf8"}40`,borderRadius:13,padding:"1px 7px",fontSize:8,fontWeight:800}}>{es.mode||"PRELIMS"}</div>
             {editDateMode?(
               <div style={{display:"flex",gap:4,alignItems:"center"}}>
                 <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"2px 5px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/>
                 <button onClick={saveDate} style={{background:es.color||"#818cf8",border:"none",borderRadius:6,padding:"2px 7px",color:"#fff",fontSize:9,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditDateMode(false)} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <button onClick={()=>setEditDateMode(false)} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
               </div>
             ):(
               <div style={{display:"flex",alignItems:"center",gap:3}}>
                 <div style={{color:t.sub,fontSize:8}}>{es.date||"No date set"}</div>
-                <button onClick={()=>{setDateVal(es.date||"");setEditDateMode(true);}} style={{background:"none",border:"none",color:t.muted,fontSize:9,cursor:"pointer",padding:"0 2px"}}>✎</button>
+                <button onClick={()=>{setDateVal(es.date||"");setEditDateMode(true);}} style={{background:"none",border:"none",color:t.muted,fontSize:9,cursor:"pointer",padding:"0 2px"}}>âœŽ</button>
               </div>
             )}
           </div>
@@ -994,10 +994,10 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
           <div style={{color:t.sub,fontSize:8,marginTop:1}}>{days!=null?"days left":"set date"}</div>
         </div>
       </div>
-      <button onClick={onOpen} style={{marginTop:8,background:"rgba(255,255,255,0.04)",border:`1px solid ${t.border}`,borderRadius:7,padding:"3px 9px",color:t.sub,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✎ Change Exam / Mode</button>
+      <button onClick={onOpen} style={{marginTop:8,background:"rgba(255,255,255,0.04)",border:`1px solid ${t.border}`,borderRadius:7,padding:"3px 9px",color:t.sub,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>âœŽ Change Exam / Mode</button>
     </div>
 
-    {/* Strategy — full CRUD */}
+    {/* Strategy â€” full CRUD */}
     <div>
       <div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Strategy Points</div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
@@ -1007,33 +1007,33 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
               <div style={{display:"flex",gap:5,alignItems:"center"}}>
                 <input autoFocus value={editTipVal} onChange={e=>setEditTipVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveTip();if(e.key==="Escape")setEditTipIdx(null);}} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
                 <button onClick={saveTip} style={{background:"#34d399",border:"none",borderRadius:6,padding:"4px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditTipIdx(null)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <button onClick={()=>setEditTipIdx(null)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
               </div>
             ):(
               <div style={{display:"flex",gap:5,alignItems:"center"}}>
                 <span style={{color:"#818cf8",fontSize:8,fontWeight:800,flexShrink:0}}>{i+1}.</span>
                 <span style={{color:t.text,fontSize:10,lineHeight:1.4,flex:1}}>{tip}</span>
                 <div style={{display:"flex",gap:2,flexShrink:0}}>
-                  <button onClick={()=>moveTip(i,-1)} disabled={i===0} style={{background:"none",border:"none",color:t.muted,cursor:i===0?"default":"pointer",fontSize:9,padding:"0 2px"}}>↑</button>
-                  <button onClick={()=>moveTip(i,1)} disabled={i===tips.length-1} style={{background:"none",border:"none",color:t.muted,cursor:i===tips.length-1?"default":"pointer",fontSize:9,padding:"0 2px"}}>↓</button>
-                  <button onClick={()=>startEditTip(i)} style={{background:t.pill,border:"none",borderRadius:5,padding:"2px 5px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                  <button onClick={()=>deleteTip(i)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:5,padding:"2px 5px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                  <button onClick={()=>moveTip(i,-1)} disabled={i===0} style={{background:"none",border:"none",color:t.muted,cursor:i===0?"default":"pointer",fontSize:9,padding:"0 2px"}}>â†‘</button>
+                  <button onClick={()=>moveTip(i,1)} disabled={i===tips.length-1} style={{background:"none",border:"none",color:t.muted,cursor:i===tips.length-1?"default":"pointer",fontSize:9,padding:"0 2px"}}>â†“</button>
+                  <button onClick={()=>startEditTip(i)} style={{background:t.pill,border:"none",borderRadius:5,padding:"2px 5px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
+                  <button onClick={()=>deleteTip(i)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:5,padding:"2px 5px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
                 </div>
               </div>
             )}
           </div>
         ))}
         <div style={{display:"flex",gap:5,marginTop:3}}>
-          <input value={newTip} onChange={e=>setNewTip(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTip()} placeholder="Add strategy point…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+          <input value={newTip} onChange={e=>setNewTip(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTip()} placeholder="Add strategy pointâ€¦" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
           <button onClick={addTip} style={{background:"#818cf8",border:"none",borderRadius:7,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+</button>
         </div>
       </div>
     </div>
 
-    <div><div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Subject Progress {customSubjects.length>0&&`· ${customSubjects.length} custom`}</div>
+    <div><div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Subject Progress {customSubjects.length>0&&`Â· ${customSubjects.length} custom`}</div>
       <div style={{display:"flex",flexDirection:"column",gap:5}}>
         {allSubjs.map(s=><div key={s.n} style={{background:t.card,border:`1px solid ${s.c}18`,borderRadius:10,padding:"8px 10px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12}}>{s.i||"📌"}</span><div><div style={{color:t.text,fontWeight:700,fontSize:11}}>{s.n}{s.custom&&<span style={{color:"#818cf8",fontSize:8}}> custom</span>}</div>{s.w>0&&<div style={{color:t.sub,fontSize:8}}>{s.w}% weightage</div>}</div></div><div style={{color:s.c,fontWeight:800,fontSize:11}}>{prog[s.n]||0}%</div></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12}}>{s.i||"ðŸ“Œ"}</span><div><div style={{color:t.text,fontWeight:700,fontSize:11}}>{s.n}{s.custom&&<span style={{color:"#818cf8",fontSize:8}}> custom</span>}</div>{s.w>0&&<div style={{color:t.sub,fontSize:8}}>{s.w}% weightage</div>}</div></div><div style={{color:s.c,fontWeight:800,fontSize:11}}>{prog[s.n]||0}%</div></div>
           <div style={{height:3,background:t.pill,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${prog[s.n]||0}%`,background:s.c,borderRadius:2,transition:"width .5s ease"}}/></div>
         </div>)}
       </div>
@@ -1041,7 +1041,7 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
   </div>);
 }
 
-// ── SYLLABUS (Feature 3) ──────────────────────────────────────
+// â”€â”€ SYLLABUS (Feature 3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Syllabus({t,subjects,customSubjects,user}){
   const allSubjects=[...subjects,...customSubjects];
   const DEFAULT_SYLLABI=[
@@ -1069,7 +1069,7 @@ function Syllabus({t,subjects,customSubjects,user}){
   const [editTopicVal,setEditTopicVal]=useState("");
   const [dbReady,setDbReady]=useState(false);
 
-  // ── RTDB sync ──
+  // â”€â”€ RTDB sync â”€â”€
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
@@ -1162,7 +1162,7 @@ function Syllabus({t,subjects,customSubjects,user}){
     {!selId?(
       <>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><div style={{fontSize:14,fontWeight:800,color:t.text}}>📋 Syllabus</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>Track topics across subjects</div></div>
+          <div><div style={{fontSize:14,fontWeight:800,color:t.text}}>ðŸ“‹ Syllabus</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>Track topics across subjects</div></div>
           <button onClick={()=>setShowNew(v=>!v)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"7px 13px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
         </div>
 
@@ -1178,7 +1178,7 @@ function Syllabus({t,subjects,customSubjects,user}){
         {syllabi.map(syl=>{const pct=getPct(syl);return(
           <div key={syl.id} onClick={()=>setSelId(syl.id)} style={{background:t.card,border:`1px solid ${syl.color}28`,borderRadius:13,padding:"13px",cursor:"pointer",transition:"all .2s"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9}}>
-              <div><div style={{color:t.text,fontWeight:800,fontSize:13}}>{syl.name}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{syl.subj} · {syl.topics.length} topics</div></div>
+              <div><div style={{color:t.text,fontWeight:800,fontSize:13}}>{syl.name}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{syl.subj} Â· {syl.topics.length} topics</div></div>
               <div style={{textAlign:"right"}}><div style={{color:syl.color,fontWeight:900,fontSize:20,lineHeight:1}}>{pct}%</div><div style={{color:t.muted,fontSize:8}}>complete</div></div>
             </div>
             <div style={{height:5,background:t.pill,borderRadius:3,overflow:"hidden",marginBottom:7}}>
@@ -1194,9 +1194,9 @@ function Syllabus({t,subjects,customSubjects,user}){
     ):(
       <>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
-          <button onClick={()=>setSelId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Back</button>
+          <button onClick={()=>setSelId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>â† Back</button>
           <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:14}}>{sel?.name}</div><div style={{color:t.sub,fontSize:10}}>{sel?.subj}</div></div>
-          <button onClick={()=>deleteSyllabus(sel.id)} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete</button>
+          <button onClick={()=>deleteSyllabus(sel.id)} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘ Delete</button>
         </div>
 
         {/* Overall progress */}
@@ -1215,7 +1215,7 @@ function Syllabus({t,subjects,customSubjects,user}){
           {sel?.topics.map(topic=>{const s=STATUS[topic.status];return(
             <div key={topic.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px 11px",transition:"all .2s"}}>
               <button onClick={()=>cycleStatus(sel.id,topic.id)} style={{width:22,height:22,borderRadius:6,flexShrink:0,border:`2px solid ${s.color}`,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:10,transition:"all .2s"}}>
-                {topic.status==="completed"?"✓":topic.status==="in-progress"?"…":""}
+                {topic.status==="completed"?"âœ“":topic.status==="in-progress"?"â€¦":""}
               </button>
               {editTopicId===topic.id?(
                 <input autoFocus value={editTopicVal} onChange={e=>setEditTopicVal(e.target.value)}
@@ -1226,8 +1226,8 @@ function Syllabus({t,subjects,customSubjects,user}){
                 <div style={{flex:1,color:t.text,fontSize:11,fontWeight:500,textDecoration:topic.status==="completed"?"line-through":"none",opacity: topic.status === "completed" ? 0.55 : 1}}>{topic.title}</div>
               )}
               <div style={{background:s.bg,color:s.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:10,whiteSpace:"nowrap"}}>{s.label}</div>
-              <button onClick={()=>startEditTopic(topic)} title="Edit" style={{background:"none",border:"none",color:t.sub,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✏️</button>
-              <button onClick={()=>deleteTopic(sel.id,topic.id)} title="Delete" style={{background:"none",border:"none",color:t.muted,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✕</button>
+              <button onClick={()=>startEditTopic(topic)} title="Edit" style={{background:"none",border:"none",color:t.sub,fontSize:11,cursor:"pointer",padding:"0 2px"}}>âœï¸</button>
+              <button onClick={()=>deleteTopic(sel.id,topic.id)} title="Delete" style={{background:"none",border:"none",color:t.muted,fontSize:11,cursor:"pointer",padding:"0 2px"}}>âœ•</button>
             </div>
           );})}
           {sel?.topics.length===0&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"18px 0"}}>No topics yet. Add your first topic!</div>}
@@ -1235,7 +1235,7 @@ function Syllabus({t,subjects,customSubjects,user}){
 
         {/* Add topic */}
         <div style={{display:"flex",gap:6}}>
-          <input value={newTopic} onChange={e=>setNewTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTopic(sel?.id)} placeholder="Add topic…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+          <input value={newTopic} onChange={e=>setNewTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTopic(sel?.id)} placeholder="Add topicâ€¦" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
           <button onClick={()=>addTopic(sel?.id)} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"8px 12px",color:"#fff",fontWeight:900,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+</button>
         </div>
 
@@ -1243,13 +1243,13 @@ function Syllabus({t,subjects,customSubjects,user}){
         <div style={{display:"flex",gap:7,justifyContent:"center",marginTop:2}}>
           {Object.entries(STATUS).map(([k,s])=><div key={k} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:s.bg,border:`1.5px solid ${s.color}`}}/><span style={{color:t.sub,fontSize:9}}>{s.label}</span></div>)}
         </div>
-        <div style={{color:t.muted,fontSize:9,textAlign:"center"}}>Tap the status icon to cycle: Not Started → In Progress → Done</div>
+        <div style={{color:t.muted,fontSize:9,textAlign:"center"}}>Tap the status icon to cycle: Not Started â†’ In Progress â†’ Done</div>
       </>
     )}
   </div>);
 }
 
-// ── CIRCLE ────────────────────────────────────────────────────
+// â”€â”€ CIRCLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // QR code generator (uses free API, no npm needed)
 function QRCode({value,size=140}){
   const url=`https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(value)}&bgcolor=ffffff&color=000000&margin=4`;
@@ -1284,7 +1284,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
   const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:0,s:streak},...publicUsers.map(p=>({name:p.name,av:p.av,h:p.h||0,s:p.streak||0}))].sort((a,b)=>(b.h||0)-(a.h||0)).map((f,i)=>({...f,r:i+1}));
 
-  // Friend code is stored in RTDB profile — deterministic from uid for backwards compat
+  // Friend code is stored in RTDB profile â€” deterministic from uid for backwards compat
   const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
   const myInviteLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
 
@@ -1310,7 +1310,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     return()=>{if(dbMod&&usersRef&&listener)dbMod.off(usersRef,listener);};
   },[user?.uid]);
 
-  // ── Register profile + friendCode index on login ──
+  // â”€â”€ Register profile + friendCode index on login â”€â”€
   useEffect(()=>{
     if(!user?.uid)return;
     (async()=>{
@@ -1326,7 +1326,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         };
         // Write to own profile
         await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),profileData);
-        // Write to global friendCodes index — key=friendCode, val=uid
+        // Write to global friendCodes index â€” key=friendCode, val=uid
         // This path must be readable by all auth users per Firebase rules
         await mod.set(mod.ref(mod.db,`friendCodes/${myFriendCode}`),{
           uid:user.uid,
@@ -1337,14 +1337,14 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     })();
   },[user?.uid]);
 
-  // ── Add friend: reads friendCodes index (public read), writes to both users ──
+  // â”€â”€ Add friend: reads friendCodes index (public read), writes to both users â”€â”€
   const addFriendByCode=async()=>{
     const code=friendCode.trim().toUpperCase();
     if(!code||!user?.uid){setAddStatus("error");setAddMsg("Enter a valid code.");return;}
     if(code===myFriendCode){setAddStatus("error");setAddMsg("That's your own code!");return;}
     const alreadyAdded=myFriends.some(f=>f.friendCode===code||f.uid===code);
     if(alreadyAdded){setAddStatus("error");setAddMsg("Already friends!");return;}
-    setAddStatus("loading");setAddMsg("Looking up user…");
+    setAddStatus("loading");setAddMsg("Looking up userâ€¦");
     try{
       const mod=await import("./firebase");
       // Look up via global friendCodes index (not scanning all users)
@@ -1362,9 +1362,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       const myEntry={uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,streak:0,online:false,addedAt:now};
       const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,online:true,addedAt:now};
 
-      // Write A→B under A's node (own write — always permitted)
+      // Write Aâ†’B under A's node (own write â€” always permitted)
       await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUid}`),myEntry);
-      // Write B→A under B's node (cross-user write — requires permissive rule on friends path)
+      // Write Bâ†’A under B's node (cross-user write â€” requires permissive rule on friends path)
       // If this fails due to rules, fall back to friendRequests queue
       try{
         await mod.set(mod.ref(mod.db,`users/${targetUid}/friends/${user.uid}`),theirEntry);
@@ -1372,7 +1372,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         // Fallback: write a friend request that target reads on next login
         await mod.set(mod.ref(mod.db,`friendRequests/${targetUid}/${user.uid}`),theirEntry);
       }
-      setFriendCode("");setAddStatus("done");setAddMsg(`✓ ${targetData.name||"Friend"} added!`);
+      setFriendCode("");setAddStatus("done");setAddMsg(`âœ“ ${targetData.name||"Friend"} added!`);
       setTimeout(()=>{setAddStatus("");setAddMsg("");setShowAddFriend(false);},1800);
     }catch(e){
       console.error("addFriend error",e);
@@ -1380,7 +1380,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }
   };
 
-  // ── Process incoming friend requests on load ──
+  // â”€â”€ Process incoming friend requests on load â”€â”€
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
@@ -1442,7 +1442,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
   },[user?.uid]);
 
-  // ── Add friend with full validation + mutual write ──
+  // â”€â”€ Add friend with full validation + mutual write â”€â”€
 
   const removeFriend=async(fId)=>{
     if(!user?.uid)return;
@@ -1455,7 +1455,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }catch(e){}
   };
 
-  // ── Groups ──
+  // â”€â”€ Groups â”€â”€
   const createGroup=async()=>{
     if(!grpName.trim())return;
     const gid=`grp_${Date.now()}`;
@@ -1475,7 +1475,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       };
       // Write to creator's user node
       await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}`),groupData);
-      // Write to global groupCodes index — key=code — readable by all auth users
+      // Write to global groupCodes index â€” key=code â€” readable by all auth users
       await mod.set(mod.ref(mod.db,`groupCodes/${code}`),{
         gid,ownerUid:user.uid,name:grpName,code,joinLink,active:true,createdAt:Date.now()
       });
@@ -1508,11 +1508,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
   };
 
-  // ── Join group by code: reads from global groupCodes index ──
+  // â”€â”€ Join group by code: reads from global groupCodes index â”€â”€
   const joinGroupByCode=async()=>{
     const code=joinCode.trim().toUpperCase();
     if(!code){setJoinStatus("error");setJoinMsg("Enter a group code.");return;}
-    setJoinStatus("loading");setJoinMsg("Looking up group…");
+    setJoinStatus("loading");setJoinMsg("Looking up groupâ€¦");
     try{
       const mod=await import("./firebase");
       // Check not already a member
@@ -1539,7 +1539,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         joinedAs:"member",ownerUid,createdAt:groupIndex.createdAt||Date.now(),
         members:{[memberKey]:myName}
       });
-      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Joined "${groupName}"!`);
+      setJoinCode("");setJoinStatus("done");setJoinMsg(`âœ“ Joined "${groupName}"!`);
       setTimeout(()=>{setJoinStatus("");setJoinMsg("");},2000);
     }catch(e){
       console.error("joinGroup error",e);
@@ -1562,7 +1562,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2}}>{g.code}</div>
           </div>
           <div style={{display:"flex",gap:5}}>
-            <button onClick={()=>navigator.clipboard?.writeText(g.joinLink||g.code).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Link</button>
+            <button onClick={()=>navigator.clipboard?.writeText(g.joinLink||g.code).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ“‹ Copy Link</button>
             <button onClick={()=>setGrpQrId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
           </div>
         </div>
@@ -1571,22 +1571,22 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
     {/* Tab bar */}
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
-      {[["public","🌍 Public"],["friends","👥 Friends"],["groups","🏫 Groups"],["live","👁 Live"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
+      {[["public","ðŸŒ Public"],["friends","ðŸ‘¥ Friends"],["groups","ðŸ« Groups"],["live","ðŸ‘ Live"],["board","ðŸ† Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
     </div>
 
     {/* PUBLIC */}
     {tab==="public"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{publicUsers.length} aspirants · Real-time streak board</div></div></div>
+      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>ðŸŒ</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{publicUsers.length} aspirants Â· Real-time streak board</div></div></div>
       <div style={{background:`${t.a4}10`,border:`1.5px solid ${t.a4}38`,borderRadius:10,padding:"9px 10px",display:"flex",alignItems:"center",gap:8}}>
         <Av c={(user?.name||"K")[0].toUpperCase()} sz={32}/>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
-        <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>ðŸ“– Studying</div></div>
+        <div style={{color:t.a1,fontWeight:900,fontSize:13}}>ðŸ”¥ {streak}</div>
       </div>
       {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:11,textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
         <div style={{fontSize:9,color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
         <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.studying?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{f.studying?`📖 ${f.subj}`:"Offline"} · {f.city}</div></div>
-        <div style={{color:t.a1,fontWeight:800,fontSize:11}}>🔥 {f.streak}</div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{f.studying?`ðŸ“– ${f.subj}`:"Offline"} Â· {f.city}</div></div>
+        <div style={{color:t.a1,fontWeight:800,fontSize:11}}>ðŸ”¥ {f.streak}</div>
       </div>)}
     </div>}
 
@@ -1597,8 +1597,8 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{color:t.sub,fontSize:9,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code</div>
         <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2,marginBottom:7}}>{myFriendCode}</div>
         <div style={{display:"flex",gap:5}}>
-          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Code</button>
-          <button onClick={()=>navigator.clipboard?.writeText(myInviteLink).catch(()=>{})} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🔗 Share Link</button>
+          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ“‹ Copy Code</button>
+          <button onClick={()=>navigator.clipboard?.writeText(myInviteLink).catch(()=>{})} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ”— Share Link</button>
         </div>
       </div>
 
@@ -1610,21 +1610,21 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         {addMsg&&<div style={{fontSize:10,color:addStatus==="error"?"#FF6B6B":"#34d399",marginBottom:7,fontWeight:600}}>{addMsg}</div>}
         <div style={{display:"flex",gap:5}}>
           <button onClick={addFriendByCode} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-            {addStatus==="loading"?"Searching…":addStatus==="done"?"✓ Added!":addStatus==="error"?"✗ Try Again":"Add Friend"}
+            {addStatus==="loading"?"Searchingâ€¦":addStatus==="done"?"âœ“ Added!":addStatus==="error"?"âœ— Try Again":"Add Friend"}
           </button>
           <button onClick={()=>{setShowAddFriend(false);setFriendCode("");setAddStatus("");setAddMsg("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
         </div>
         <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
       </div>}
 
-      {myFriends.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
+      {myFriends.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! ðŸ‘†</div>}
       {myFriends.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
           <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
-            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-            <span style={{color:f.online?t.a3:t.sub,fontSize:9}}>{f.online?"● Live":"○ Offline"}</span>
+            <span style={{color:t.a1,fontSize:10}}>ðŸ”¥ {f.streak||0}</span>
+            <span style={{color:f.online?t.a3:t.sub,fontSize:9}}>{f.online?"â— Live":"â—‹ Offline"}</span>
           </div>
         </div>
         <button onClick={()=>removeFriend(f.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
@@ -1636,7 +1636,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       <button onClick={()=>setShowCreate(v=>!v)} style={{background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:10,padding:"9px 12px",color:"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Create New Group</button>
       {showCreate&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
         <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>New Study Group</div>
-        <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group name…" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
+        <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group nameâ€¦" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
         <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
       </div>}
 
@@ -1646,7 +1646,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{display:"flex",gap:5}}>
           <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGroupByCode()} placeholder="GRP-XXX-0000" style={{flex:1,background:t.input,border:`1px solid ${joinStatus==="error"?"#FF6B6B":joinStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",letterSpacing:1}}/>
           <button onClick={joinGroupByCode} disabled={joinStatus==="loading"} style={{background:joinStatus==="done"?"#34d399":joinStatus==="error"?"rgba(255,107,107,0.15)":"#818cf8",border:joinStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px 11px",color:joinStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-            {joinStatus==="loading"?"…":joinStatus==="done"?"✓":"Join"}
+            {joinStatus==="loading"?"â€¦":joinStatus==="done"?"âœ“":"Join"}
           </button>
         </div>
         {joinMsg&&<div style={{fontSize:10,color:joinStatus==="error"?"#FF6B6B":"#34d399",marginTop:5,fontWeight:600}}>{joinMsg}</div>}
@@ -1658,23 +1658,23 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
           <div style={{display:"flex",gap:4}}>
             <button onClick={()=>setGrpQrId(g.id)} title="QR Code" style={{background:"rgba(129,140,248,0.1)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:8,padding:"4px 7px",color:"#818cf8",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>QR</button>
-            <button onClick={()=>deleteGroup(g.id,g.code)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+            <button onClick={()=>deleteGroup(g.id,g.code)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
           </div>
         </div>
         <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=><div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
-        {/* Add member — friends dropdown + free text */}
+        {/* Add member â€” friends dropdown + free text */}
         {addMemberGrpId===g.id?(
           <div style={{marginBottom:7}}>
             {myFriends.length>0&&<select value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontFamily:"inherit",fontSize:10,marginBottom:5,cursor:"pointer"}}>
-              <option value="">— Select a friend or type below —</option>
+              <option value="">â€” Select a friend or type below â€”</option>
               {myFriends.filter(f=>!g.members.includes(f.name)).map(f=><option key={f.id} value={f.name}>{f.name}</option>)}
             </select>}
             <div style={{display:"flex",gap:5}}>
-              <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
+              <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any nameâ€¦" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
               <button onClick={()=>addMemberToGroup(g.id)} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-                {addMemberStatus==="loading"?"…":addMemberStatus==="done"?"✓":addMemberStatus==="error"?"✗":addMemberStatus==="exists"?"Exists!":"Add"}
+                {addMemberStatus==="loading"?"â€¦":addMemberStatus==="done"?"âœ“":addMemberStatus==="error"?"âœ—":addMemberStatus==="exists"?"Exists!":"Add"}
               </button>
-              <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+              <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
             </div>
           </div>
         ):(
@@ -1683,23 +1683,23 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}>
           <div style={{color:t.muted,fontSize:9}}>Code:</div>
           <div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div>
-          <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:9,fontFamily:"inherit",fontWeight:700}}>QR 📱</button>
-          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button>
+          <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:9,fontFamily:"inherit",fontWeight:700}}>QR ðŸ“±</button>
+          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>ðŸ“‹</button>
         </div>
       </div>)}
     </div>}
 
     {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
+      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>ðŸ‘ Live â€” friends currently studying</div>
       {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriends].map(f=><div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
-          <div style={{color:t.sub,fontSize:9}}>{f.online?`📖 ${f.subj||"Studying"}`:"Offline"}</div>
+          <div style={{color:t.sub,fontSize:9}}>{f.online?`ðŸ“– ${f.subj||"Studying"}`:"Offline"}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:5}}>
-          <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+          <span style={{color:t.a1,fontSize:10}}>ðŸ”¥ {f.streak||0}</span>
           {f.online&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
         </div>
       </div>)}
@@ -1708,18 +1708,18 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
     {/* BOARD */}
     {tab==="board"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a4,fontWeight:700}}>🏆 Weekly leaderboard — hours studied this week</div>
+      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a4,fontWeight:700}}>ðŸ† Weekly leaderboard â€” hours studied this week</div>
       {LB.map(f=><div key={f.name} style={{display:"flex",alignItems:"center",gap:8,background:f.name===(user?.name||"You")?`${t.a4}07`:t.card,border:`1px solid ${f.name===(user?.name||"You")?t.a4+"28":t.border}`,borderRadius:10,padding:"9px 10px"}}>
-        <div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div>
+        <div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"ðŸ¥‡":f.r===2?"ðŸ¥ˆ":f.r===3?"ðŸ¥‰":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div>
         <Av c={f.av} sz={30}/>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>🔥 {f.s} day streak</div></div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>ðŸ”¥ {f.s} day streak</div></div>
         <div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:13}}>{f.h}h</div><div style={{color:t.muted,fontSize:8}}>this week</div></div>
       </div>)}
     </div>}
   </div>);
 }
 
-// ── REPORT ────────────────────────────────────────────────────
+// â”€â”€ REPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Report({t,es,user,streak}){
   const [rep,setRep]=useState("");const [ld,setLd]=useState(false);
   const [view,setView]=useState("stats");
@@ -1805,14 +1805,14 @@ function Report({t,es,user,streak}){
     {/* STATS VIEW */}
     {view==="stats"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-        {[{l:"Total Sessions",v:String(totalSessions),c:"#818cf8",i:"⏱"},{l:"Total Hours",v:`${totalHours}h ${totalMinutes%60}m`,c:"#34d399",i:"🕐"},{l:"Today",v:`${todayMinutes}m`,c:"#FFB86B",i:"📅"},{l:"This Week",v:`${Math.round(weekMinutes/60*10)/10}h`,c:"#6EE7F7",i:"📊"},{l:"This Month",v:`${Math.round(monthMinutes/60*10)/10}h`,c:"#C16BFF",i:"📆"},{l:"Current Streak",v:`${streak}🔥`,c:"#FF6B6B",i:"🔥"},{l:"Longest Streak",v:`${longest}d`,c:"#FFD700",i:"🏆"},{l:"Avg/Day",v:totalSessions>0?`${Math.round(totalMinutes/Math.max(new Set(sessions.map(s=>s.date)).size,1))}m`:"0m",c:"#34d399",i:"📈"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${s.c}22`,borderRadius:12,padding:"11px 10px"}}>
+        {[{l:"Total Sessions",v:String(totalSessions),c:"#818cf8",i:"â±"},{l:"Total Hours",v:`${totalHours}h ${totalMinutes%60}m`,c:"#34d399",i:"ðŸ•"},{l:"Today",v:`${todayMinutes}m`,c:"#FFB86B",i:"ðŸ“…"},{l:"This Week",v:`${Math.round(weekMinutes/60*10)/10}h`,c:"#6EE7F7",i:"ðŸ“Š"},{l:"This Month",v:`${Math.round(monthMinutes/60*10)/10}h`,c:"#C16BFF",i:"ðŸ“†"},{l:"Current Streak",v:`${streak}ðŸ”¥`,c:"#FF6B6B",i:"ðŸ”¥"},{l:"Longest Streak",v:`${longest}d`,c:"#FFD700",i:"ðŸ†"},{l:"Avg/Day",v:totalSessions>0?`${Math.round(totalMinutes/Math.max(new Set(sessions.map(s=>s.date)).size,1))}m`:"0m",c:"#34d399",i:"ðŸ“ˆ"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${s.c}22`,borderRadius:12,padding:"11px 10px"}}>
           <div style={{fontSize:18,marginBottom:4}}>{s.i}</div>
           <div style={{fontSize:20,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
           <div style={{fontSize:9,color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
         </div>)}
       </div>
       {totalSessions===0&&<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"14px",textAlign:"center"}}>
-        <div style={{fontSize:28,marginBottom:6}}>⏱</div>
+        <div style={{fontSize:28,marginBottom:6}}>â±</div>
         <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No sessions yet</div>
         <div style={{color:t.sub,fontSize:11}}>Complete a Pomodoro session to see your stats here!</div>
       </div>}
@@ -1821,7 +1821,7 @@ function Report({t,es,user,streak}){
     {/* CALENDAR VIEW */}
     {view==="calendar"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-        <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar — Last 5 Weeks · Tap a day</div>
+        <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar â€” Last 5 Weeks Â· Tap a day</div>
         <div style={{display:"flex",gap:5,marginBottom:7}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:7,color:t.muted}}>{d}</div>)}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
           {calDays.map((d,i)=><div key={i} onClick={()=>setSelDate(d.dateStr===selDate?null:d.dateStr)} title={`${d.dateStr}: ${d.hrs}h`} style={{aspectRatio:"1",borderRadius:4,background:selDate===d.dateStr?"#818cf8":heatColor(d.hrs),border:`1.5px solid ${selDate===d.dateStr?"#818cf8":t.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s"}}>
@@ -1836,7 +1836,7 @@ function Report({t,es,user,streak}){
       </div>
       {/* Selected date detail */}
       {selDate&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"12px"}}>
-        <div style={{color:"#818cf8",fontWeight:800,fontSize:12,marginBottom:8}}>📅 {selDate}</div>
+        <div style={{color:"#818cf8",fontWeight:800,fontSize:12,marginBottom:8}}>ðŸ“… {selDate}</div>
         {selSessions.length===0?<div style={{color:t.sub,fontSize:11}}>No study sessions on this day.</div>:
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <div style={{display:"flex",gap:10,marginBottom:4}}>
@@ -1844,7 +1844,7 @@ function Report({t,es,user,streak}){
             <div style={{textAlign:"center"}}><div style={{color:"#34d399",fontWeight:900,fontSize:16}}>{selMins}m</div><div style={{color:t.sub,fontSize:8}}>Focus Time</div></div>
           </div>
           {selSessions.map((s,i)=><div key={i} style={{background:t.pill,borderRadius:8,padding:"6px 9px",display:"flex",justifyContent:"space-between"}}>
-            <span style={{color:t.text,fontSize:10,fontWeight:600}}>📖 {s.subject||"General"}</span>
+            <span style={{color:t.text,fontSize:10,fontWeight:600}}>ðŸ“– {s.subject||"General"}</span>
             <span style={{color:t.sub,fontSize:9}}>{s.minutes}m</span>
           </div>)}
         </div>}
@@ -1865,7 +1865,7 @@ function Report({t,es,user,streak}){
             <div style={{color:c,fontWeight:900,fontSize:14}}>{hrs}h</div>
           </div>
           <div style={{height:4,background:t.pill,borderRadius:2,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${pct}%`,background:c,borderRadius:2,transition:"width .5s ease"}}/></div>
-          <div style={{color:t.muted,fontSize:8}}>{pct}% of total · {sessions.filter(s=>s.subject===subj).length} sessions</div>
+          <div style={{color:t.muted,fontSize:8}}>{pct}% of total Â· {sessions.filter(s=>s.subject===subj).length} sessions</div>
         </div>);
       })}
     </div>}
@@ -1873,18 +1873,18 @@ function Report({t,es,user,streak}){
     {/* AI Report */}
     <div style={{background:"rgba(129,140,248,0.07)",border:"1px solid rgba(129,140,248,0.18)",borderRadius:12,padding:13}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:rep?9:0}}>
-        <div style={{color:"#818cf8",fontWeight:700,fontSize:12}}>✨ AI Coaching Report</div>
-        <button onClick={gen} disabled={ld} style={{background:ld?t.pill:"#818cf8",border:"none",borderRadius:8,padding:"5px 11px",color:ld?"#818cf8":"#fff",fontWeight:700,fontSize:10,cursor:ld?"not-allowed":"pointer",fontFamily:"inherit"}}>{ld?"Generating…":"Generate"}</button>
+        <div style={{color:"#818cf8",fontWeight:700,fontSize:12}}>âœ¨ AI Coaching Report</div>
+        <button onClick={gen} disabled={ld} style={{background:ld?t.pill:"#818cf8",border:"none",borderRadius:8,padding:"5px 11px",color:ld?"#818cf8":"#fff",fontWeight:700,fontSize:10,cursor:ld?"not-allowed":"pointer",fontFamily:"inherit"}}>{ld?"Generatingâ€¦":"Generate"}</button>
       </div>
       {rep?<div style={{color:t.text,fontSize:11,lineHeight:1.85,marginTop:4}}>{rep}</div>:<div style={{color:t.sub,fontSize:10,fontStyle:"italic",marginTop:4}}>Hit Generate for your personalized AI coaching insight.</div>}
     </div>
   </div>);
 }
 
-// ── AI ASSISTANT ──────────────────────────────────────────────
+// â”€â”€ AI ASSISTANT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function AI({t,subjects,customSubjects}){
   const allSubjects=[...subjects,...customSubjects];
-  const [msgs,setMsgs]=useState([{r:"a",text:"Namaste! 🙏 I'm your AI study assistant. Ask me anything — concepts, PYQs, strategies, or motivation!"}]);
+  const [msgs,setMsgs]=useState([{r:"a",text:"Namaste! ðŸ™ I'm your AI study assistant. Ask me anything â€” concepts, PYQs, strategies, or motivation!"}]);
   const [inp,setInp]=useState("");const [ld,setLd]=useState(false);const [subj,setSubj]=useState("General");
   const endRef=useRef();
   useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[msgs]);
@@ -1898,16 +1898,16 @@ function AI({t,subjects,customSubjects}){
   return(<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 210px)",minHeight:285}}>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:7}}>{["General",...allSubjects.slice(0,5).map(s=>s.n)].map(s=><button key={s} onClick={()=>setSubj(s)} style={{padding:"2px 7px",borderRadius:12,border:`1.5px solid ${subj===s?"#818cf8":"transparent"}`,background:subj===s?"rgba(129,140,248,0.13)":t.pill,color:subj===s?"#818cf8":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>
     <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:7}}>
-      {msgs.map((m,i)=><div key={i} style={{display:"flex",flexDirection:m.r==="u"?"row-reverse":"row",gap:4,alignItems:"flex-end"}}>{m.r==="a"&&<div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,flexShrink:0}}>🤖</div>}<div style={{background:m.r==="u"?"linear-gradient(135deg,#818cf8,#60a5fa)":t.card,border:m.r==="a"?"1px solid rgba(129,140,248,0.14)":"none",color:m.r==="u"?"#fff":t.text,borderRadius:m.r==="u"?"13px 13px 4px 13px":"13px 13px 13px 4px",padding:"8px 10px",fontSize:11,maxWidth:"83%",lineHeight:1.6}}>{m.text}</div></div>)}
-      {ld&&<div style={{display:"flex",gap:4,alignItems:"flex-end"}}><div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>🤖</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:"13px 13px 13px 4px",padding:"8px 11px",display:"flex",gap:3}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:"#818cf8",opacity:.6,animation:`bounce .9s ${i*.15}s infinite`}}/>)}</div></div>}
+      {msgs.map((m,i)=><div key={i} style={{display:"flex",flexDirection:m.r==="u"?"row-reverse":"row",gap:4,alignItems:"flex-end"}}>{m.r==="a"&&<div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,flexShrink:0}}>ðŸ¤–</div>}<div style={{background:m.r==="u"?"linear-gradient(135deg,#818cf8,#60a5fa)":t.card,border:m.r==="a"?"1px solid rgba(129,140,248,0.14)":"none",color:m.r==="u"?"#fff":t.text,borderRadius:m.r==="u"?"13px 13px 4px 13px":"13px 13px 13px 4px",padding:"8px 10px",fontSize:11,maxWidth:"83%",lineHeight:1.6}}>{m.text}</div></div>)}
+      {ld&&<div style={{display:"flex",gap:4,alignItems:"flex-end"}}><div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>ðŸ¤–</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:"13px 13px 13px 4px",padding:"8px 11px",display:"flex",gap:3}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:"#818cf8",opacity:.6,animation:`bounce .9s ${i*.15}s infinite`}}/>)}</div></div>}
       <div ref={endRef}/>
     </div>
     <div style={{display:"flex",gap:3,flexWrap:"wrap",margin:"5px 0 4px"}}>{qp.map(q=><button key={q} onClick={()=>send(q)} style={{padding:"2px 7px",borderRadius:12,border:"1px solid rgba(129,140,248,0.18)",background:"rgba(129,140,248,0.05)",color:"#818cf8",fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>)}</div>
-    <div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask anything…" style={{flex:1,background:t.input,border:"1px solid rgba(129,140,248,0.18)",borderRadius:17,padding:"8px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/><button onClick={()=>send()} disabled={ld||!inp.trim()} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:17,padding:"8px 13px",color:"#fff",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:12,opacity: ld || !inp.trim() ? 0.5 : 1}}>↑</button></div>
+    <div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask anythingâ€¦" style={{flex:1,background:t.input,border:"1px solid rgba(129,140,248,0.18)",borderRadius:17,padding:"8px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/><button onClick={()=>send()} disabled={ld||!inp.trim()} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:17,padding:"8px 13px",color:"#fff",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:12,opacity: ld || !inp.trim() ? 0.5 : 1}}>â†‘</button></div>
   </div>);
 }
 
-// ── NOTES ─────────────────────────────────────────────────────
+// â”€â”€ NOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Notes({t,subjects,customSubjects,es,user}){
   const allSubjects=[...subjects,...customSubjects];
   const [selSubj,setSelSubj]=useState(allSubjects[0]?.n||"");
@@ -1925,7 +1925,7 @@ function Notes({t,subjects,customSubjects,es,user}){
   const [editA,setEditA]=useState("");
   // Delete confirm
   const [delId,setDelId]=useState(null);
-  // Reveal state — set of card ids that are revealed
+  // Reveal state â€” set of card ids that are revealed
   const [revealed,setRevealed]=useState(new Set());
   // Review mode
   const [reviewMode,setReviewMode]=useState(false);
@@ -2003,7 +2003,7 @@ function Notes({t,subjects,customSubjects,es,user}){
     setRevealed(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   };
 
-  const sc=allSubjects.find(s=>s.n===selSubj)||{c:"#818cf8",i:"📌"};
+  const sc=allSubjects.find(s=>s.n===selSubj)||{c:"#818cf8",i:"ðŸ“Œ"};
   const filtered=cards.filter(c=>!search||c.question.toLowerCase().includes(search.toLowerCase())||c.answer.toLowerCase().includes(search.toLowerCase()));
   const reviewCards=filtered.length>0?filtered:cards;
   const reviewCard=reviewCards[reviewIdx]||null;
@@ -2012,7 +2012,7 @@ function Notes({t,subjects,customSubjects,es,user}){
     {/* Delete confirmation */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
+        <div style={{fontSize:24,marginBottom:8}}>ðŸ—‘ï¸</div>
         <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this card?</div>
         <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
@@ -2025,33 +2025,33 @@ function Notes({t,subjects,customSubjects,es,user}){
     {/* Header row */}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
       <div>
-        <div style={{color:t.text,fontWeight:900,fontSize:14}}>🃏 Active Recall</div>
-        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {cards.length} card{cards.length!==1?"s":""}</div>
+        <div style={{color:t.text,fontWeight:900,fontSize:14}}>ðŸƒ Active Recall</div>
+        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} Â· {examMode} Â· {cards.length} card{cards.length!==1?"s":""}</div>
       </div>
       <div style={{display:"flex",gap:5}}>
-        {cards.length>0&&<button onClick={()=>{setReviewMode(true);setReviewIdx(0);setReviewRevealed(false);}} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>▶ Review</button>}
+        {cards.length>0&&<button onClick={()=>{setReviewMode(true);setReviewIdx(0);setReviewRevealed(false);}} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>â–¶ Review</button>}
         <button onClick={()=>{setAdding(v=>!v);setEditId(null);}} style={{background:adding?"#818cf8":t.pill,border:"none",borderRadius:9,padding:"6px 11px",color:adding?"#fff":t.sub,fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Card</button>
       </div>
     </div>
 
     {/* Subject pills */}
     <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-      {allSubjects.map(s=><button key={s.n} onClick={()=>{setSelSubj(s.n);setReviewMode(false);setSearch("");setAdding(false);setEditId(null);}} style={{padding:"3px 8px",borderRadius:13,border:`1.5px solid ${selSubj===s.n?s.c:"transparent"}`,background:selSubj===s.n?`${s.c}18`:t.pill,color:selSubj===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+      {allSubjects.map(s=><button key={s.n} onClick={()=>{setSelSubj(s.n);setReviewMode(false);setSearch("");setAdding(false);setEditId(null);}} style={{padding:"3px 8px",borderRadius:13,border:`1.5px solid ${selSubj===s.n?s.c:"transparent"}`,background:selSubj===s.n?`${s.c}18`:t.pill,color:selSubj===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"ðŸ“Œ"} {s.n}</button>)}
     </div>
 
     {/* Review mode */}
     {reviewMode&&reviewCard&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{color:t.sub,fontSize:10}}>{reviewIdx+1} / {reviewCards.length}</div>
-        <button onClick={()=>setReviewMode(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Exit Review</button>
+        <button onClick={()=>setReviewMode(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>âœ• Exit Review</button>
       </div>
       <div style={{display:"flex",gap:2,marginBottom:2}}>
         {reviewCards.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<reviewIdx?"#34d399":i===reviewIdx?(sc.c||"#818cf8"):t.pill,transition:"background .3s"}}/>)}
       </div>
       <div onClick={()=>setReviewRevealed(v=>!v)} style={{background:t.card,border:`2px solid ${reviewRevealed?(sc.c||"#818cf8")+"55":t.border}`,borderRadius:16,padding:"22px 16px",minHeight:160,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:10,transition:"all .3s",userSelect:"none"}}>
-        <div style={{fontSize:8,color:t.muted,textTransform:"uppercase",letterSpacing:1.5}}>{reviewRevealed?"ANSWER":"QUESTION — tap to reveal"}</div>
+        <div style={{fontSize:8,color:t.muted,textTransform:"uppercase",letterSpacing:1.5}}>{reviewRevealed?"ANSWER":"QUESTION â€” tap to reveal"}</div>
         <div style={{color:t.text,fontSize:14,fontWeight:700,lineHeight:1.6}}>{reviewRevealed?reviewCard.answer:reviewCard.question}</div>
-        {!reviewRevealed&&<div style={{fontSize:20,opacity:.25}}>👆</div>}
+        {!reviewRevealed&&<div style={{fontSize:20,opacity:.25}}>ðŸ‘†</div>}
       </div>
       {reviewRevealed&&<div style={{display:"flex",gap:6,justifyContent:"center"}}>
         {[["Again","#FF6B6B"],["Hard","#FFB86B"],["Good","#34d399"]].map(([l,c])=>(
@@ -2062,14 +2062,14 @@ function Notes({t,subjects,customSubjects,es,user}){
         ))}
       </div>}
       {!reviewRevealed&&<div style={{display:"flex",gap:6}}>
-        <button onClick={()=>{setReviewIdx(i=>(i-1+reviewCards.length)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Prev</button>
-        <button onClick={()=>{setReviewIdx(i=>(i+1)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Next →</button>
+        <button onClick={()=>{setReviewIdx(i=>(i-1+reviewCards.length)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>â† Prev</button>
+        <button onClick={()=>{setReviewIdx(i=>(i+1)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Next â†’</button>
       </div>}
     </div>}
 
     {/* Add card form */}
     {!reviewMode&&adding&&<div style={{background:t.card,border:`1px solid ${sc.c}44`,borderRadius:13,padding:"12px"}}>
-      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:9}}>New Card · {selSubj}</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:9}}>New Card Â· {selSubj}</div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         <div>
           <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Question</div>
@@ -2080,21 +2080,21 @@ function Notes({t,subjects,customSubjects,es,user}){
           <textarea value={newA} onChange={e=>setNewA(e.target.value)} placeholder="e.g. Right to Constitutional Remedies" rows={2} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={saveCard} disabled={saving||!newQ.trim()||!newA.trim()} style={{flex:1,background:saving||!newQ.trim()||!newA.trim()?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!newQ.trim()||!newA.trim()?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving||!newQ.trim()||!newA.trim()?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Card"}</button>
+          <button onClick={saveCard} disabled={saving||!newQ.trim()||!newA.trim()} style={{flex:1,background:saving||!newQ.trim()||!newA.trim()?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!newQ.trim()||!newA.trim()?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving||!newQ.trim()||!newA.trim()?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Savingâ€¦":"Save Card"}</button>
           <button onClick={()=>{setAdding(false);setNewQ("");setNewA("");}} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
         </div>
       </div>
     </div>}
 
     {/* Search */}
-    {!reviewMode&&cards.length>2&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search cards…" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>}
+    {!reviewMode&&cards.length>2&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search cardsâ€¦" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>}
 
     {/* Card list */}
     {!reviewMode&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading cards…</div>}
+      {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading cardsâ€¦</div>}
       {!loading&&filtered.length===0&&!adding&&(
         <div style={{background:`${sc.c}08`,border:`1px dashed ${sc.c}30`,borderRadius:13,padding:"22px",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>🃏</div>
+          <div style={{fontSize:28,marginBottom:8}}>ðŸƒ</div>
           <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>{search?"No matching cards":"No cards yet"}</div>
           <div style={{color:t.sub,fontSize:11,marginBottom:12}}>{search?"Try a different search term":`Add your first card for ${selSubj}`}</div>
           {!search&&<button onClick={()=>setAdding(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Create First Card</button>}
@@ -2124,8 +2124,8 @@ function Notes({t,subjects,customSubjects,es,user}){
                     <div style={{color:t.text,fontSize:12,fontWeight:600,lineHeight:1.5}}>{card.question}</div>
                   </div>
                   <div style={{display:"flex",gap:4,flexShrink:0,marginTop:2}}>
-                    <button onClick={()=>startEdit(card)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                    <button onClick={()=>setDelId(card.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                    <button onClick={()=>startEdit(card)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
+                    <button onClick={()=>setDelId(card.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
                   </div>
                 </div>
                 {/* Answer reveal */}
@@ -2148,7 +2148,7 @@ function Notes({t,subjects,customSubjects,es,user}){
   </div>);
 }
 
-// ── MOCK TEST TRACKER ────────────────────────────────────────
+// â”€â”€ MOCK TEST TRACKER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function MockTest({t,es,user}){
   const [mocks,setMocks]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -2248,7 +2248,7 @@ function MockTest({t,es,user}){
     {/* Delete confirm */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
+        <div style={{fontSize:24,marginBottom:8}}>ðŸ—‘ï¸</div>
         <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this mock test?</div>
         <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
@@ -2261,11 +2261,11 @@ function MockTest({t,es,user}){
     {/* Header */}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
-        <div style={{color:t.text,fontWeight:900,fontSize:14}}>📈 Mock Test Tracker</div>
-        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {total} test{total!==1?"s":""}</div>
+        <div style={{color:t.text,fontWeight:900,fontSize:14}}>ðŸ“ˆ Mock Test Tracker</div>
+        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} Â· {examMode} Â· {total} test{total!==1?"s":""}</div>
       </div>
       <button onClick={()=>{setShowAdd(v=>!v);setEditId(null);}} style={{background:showAdd?"#818cf8":"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.1))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:10,padding:"7px 13px",color:showAdd?"#fff":"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
-        {showAdd?"✕ Cancel":"+ Add Mock"}
+        {showAdd?"âœ• Cancel":"+ Add Mock"}
       </button>
     </div>
 
@@ -2282,14 +2282,14 @@ function MockTest({t,es,user}){
           <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>TOTAL MARKS</div><input type="number" min="1" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
           {form.score&&form.total&&Number(form.total)>0&&<div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:1}}><div style={{background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.22)",borderRadius:8,padding:"7px 9px",color:"#818cf8",fontWeight:900,fontSize:13,textAlign:"center",whiteSpace:"nowrap"}}>{pct(Number(form.score),Number(form.total))}%</div></div>}
         </div>
-        <button onClick={saveMock} disabled={saving} style={{background:saving?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Mock Test"}</button>
+        <button onClick={saveMock} disabled={saving} style={{background:saving?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Savingâ€¦":"Save Mock Test"}</button>
       </div>
     </div>}
 
     {/* Analytics cards */}
     {total>0&&<>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
-        {[{l:"Mocks Taken",v:String(total),c:"#818cf8",i:"📝"},{l:"Average Score",v:String(avg),c:"#34d399",i:"📊"},{l:"Best Score",v:String(best),c:"#FFB86B",i:"🏆"},{l:"Worst Score",v:String(worst),c:"#FF6B6B",i:"📉"},{l:"Avg Percentage",v:avgPct+"%",c:"#6EE7F7",i:"📈"},{l:"Latest",v:mocks[0]?mocks[0].score+"/"+mocks[0].totalMarks:"—",c:"#C16BFF",i:"✅"}].map(s=>(
+        {[{l:"Mocks Taken",v:String(total),c:"#818cf8",i:"ðŸ“"},{l:"Average Score",v:String(avg),c:"#34d399",i:"ðŸ“Š"},{l:"Best Score",v:String(best),c:"#FFB86B",i:"ðŸ†"},{l:"Worst Score",v:String(worst),c:"#FF6B6B",i:"ðŸ“‰"},{l:"Avg Percentage",v:avgPct+"%",c:"#6EE7F7",i:"ðŸ“ˆ"},{l:"Latest",v:mocks[0]?mocks[0].score+"/"+mocks[0].totalMarks:"â€”",c:"#C16BFF",i:"âœ…"}].map(s=>(
           <div key={s.l} style={{background:t.card,border:`1px solid ${s.c}20`,borderRadius:11,padding:"10px 11px"}}>
             <div style={{fontSize:15,marginBottom:3}}>{s.i}</div>
             <div style={{fontSize:18,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
@@ -2300,18 +2300,18 @@ function MockTest({t,es,user}){
 
       {/* Trend indicator */}
       {trend!==null&&<div style={{background:trend>=0?"rgba(52,211,153,0.07)":"rgba(255,107,107,0.07)",border:`1px solid ${trend>=0?"rgba(52,211,153,0.22)":"rgba(255,107,107,0.22)"}`,borderRadius:11,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
-        <div style={{fontSize:18}}>{trend>=0?"📈":"📉"}</div>
+        <div style={{fontSize:18}}>{trend>=0?"ðŸ“ˆ":"ðŸ“‰"}</div>
         <div>
           <div style={{color:trend>=0?"#34d399":"#FF6B6B",fontWeight:800,fontSize:12}}>
-            {trend>=0?"↑":"↓"} {Math.abs(Math.round(trend*10)/10)} marks {trend>=0?"improvement":"decline"}
+            {trend>=0?"â†‘":"â†“"} {Math.abs(Math.round(trend*10)/10)} marks {trend>=0?"improvement":"decline"}
           </div>
-          <div style={{color:t.sub,fontSize:9,marginTop:1}}>Last 5 avg: {l5avg} · Prev 5 avg: {p5avg}</div>
+          <div style={{color:t.sub,fontSize:9,marginTop:1}}>Last 5 avg: {l5avg} Â· Prev 5 avg: {p5avg}</div>
         </div>
       </div>}
 
       {/* Mini trend graph */}
       {graphMocks.length>1&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-        <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Score Trend — Last {graphMocks.length} Mocks</div>
+        <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Score Trend â€” Last {graphMocks.length} Mocks</div>
         <div style={{overflowX:"auto"}}>
           <svg width={Math.max(graphMocks.length*W_CELL+20,200)} height={H+30} style={{display:"block"}}>
             {/* Grid lines */}
@@ -2356,15 +2356,15 @@ function MockTest({t,es,user}){
     </>}
 
     {/* Mock history */}
-    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading tests…</div>}
+    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading testsâ€¦</div>}
     {!loading&&total===0&&!showAdd&&<div style={{background:"rgba(129,140,248,0.05)",border:"1px dashed rgba(129,140,248,0.25)",borderRadius:13,padding:"24px",textAlign:"center"}}>
-      <div style={{fontSize:32,marginBottom:8}}>📈</div>
+      <div style={{fontSize:32,marginBottom:8}}>ðŸ“ˆ</div>
       <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No mock tests yet</div>
       <div style={{color:t.sub,fontSize:11,marginBottom:14}}>Track your {examKey} {examMode} performance</div>
       <button onClick={()=>setShowAdd(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
     </div>}
     {!loading&&mocks.length>0&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5}}>History — {total} test{total!==1?"s":""}</div>
+      <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5}}>History â€” {total} test{total!==1?"s":""}</div>
       {mocks.map((m,idx)=>{
         const p=m.percentage;
         const pc=p>=60?"#34d399":p>=40?"#FFB86B":"#FF6B6B";
@@ -2399,8 +2399,8 @@ function MockTest({t,es,user}){
                 <div style={{color:pc,fontWeight:900,fontSize:10}}>{p}%</div>
               </div>
               <div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>startEdit(m)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                <button onClick={()=>setDelId(m.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 7px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                <button onClick={()=>startEdit(m)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>âœŽ</button>
+                <button onClick={()=>setDelId(m.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 7px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>ðŸ—‘</button>
               </div>
             </div>
           )}
@@ -2410,7 +2410,7 @@ function MockTest({t,es,user}){
   </div>);
 }
 
-// ── PROFILE ───────────────────────────────────────────────────
+// â”€â”€ PROFILE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const days=dl(es.date);
   const badge=getBadge(streak);
@@ -2464,7 +2464,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     {deleteStep===1&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
         <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
+          <div style={{fontSize:28,marginBottom:8}}>âš ï¸</div>
           <div style={{color:t.text,fontWeight:800,fontSize:15,marginBottom:6}}>Delete Account?</div>
           <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Are you sure you want to delete your account? Your productivity data will be preserved.</div>
           <div style={{display:"flex",gap:8}}>
@@ -2477,7 +2477,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     {deleteStep===2&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
         <div style={{background:t.bg,border:"2px solid rgba(255,107,107,0.4)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>🗑️</div>
+          <div style={{fontSize:28,marginBottom:8}}>ðŸ—‘ï¸</div>
           <div style={{color:"#FF6B6B",fontWeight:900,fontSize:15,marginBottom:6}}>This cannot be undone</div>
           <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Your account will be permanently deleted. Study logs and session history are retained separately.</div>
           <div style={{display:"flex",gap:8}}>
@@ -2489,7 +2489,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     )}
     {deleteStep===3&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(5px)"}}>
-        <div style={{color:t.text,fontSize:13,fontWeight:700}}>Deleting account…</div>
+        <div style={{color:t.text,fontSize:13,fontWeight:700}}>Deleting accountâ€¦</div>
       </div>
     )}
 
@@ -2501,38 +2501,38 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
       {editingName?(
         <div style={{display:"flex",gap:5,alignItems:"center",justifyContent:"center",marginBottom:4}}>
           <input autoFocus value={nameVal} onChange={e=>setNameVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditingName(false);}} style={{background:t.input,border:"1px solid #818cf8",borderRadius:8,padding:"5px 9px",color:t.text,fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",maxWidth:180}}/>
-          <button onClick={saveName} disabled={nameSaving} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"5px 9px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{nameSaving?"…":"Save"}</button>
-          <button onClick={()=>setEditingName(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+          <button onClick={saveName} disabled={nameSaving} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"5px 9px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{nameSaving?"â€¦":"Save"}</button>
+          <button onClick={()=>setEditingName(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>âœ•</button>
         </div>
       ):(
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginBottom:2}}>
-          <div style={{fontSize:17,fontWeight:900,color:nameSaved?"#34d399":t.text,transition:"color .3s"}}>{user?.name||"User"}{nameSaved&&" ✓"}</div>
-          <button onClick={()=>{setNameVal(user?.name||"");setEditingName(true);}} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎ Edit</button>
+          <div style={{fontSize:17,fontWeight:900,color:nameSaved?"#34d399":t.text,transition:"color .3s"}}>{user?.name||"User"}{nameSaved&&" âœ“"}</div>
+          <button onClick={()=>{setNameVal(user?.name||"");setEditingName(true);}} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>âœŽ Edit</button>
         </div>
       )}
       <div style={{color:t.sub,fontSize:11,marginTop:2}}>{user?.email||user?.phone||"Competitive Exam Aspirant"}</div>
       <div style={{display:"inline-flex",alignItems:"center",gap:5,background:`${badge.color}12`,border:`1px solid ${badge.color}28`,borderRadius:20,padding:"4px 12px",marginTop:7}}>
         <span style={{fontSize:14}}>{badge.icon}</span>
         <span style={{color:badge.color,fontWeight:800,fontSize:11}}>{badge.title}</span>
-        <span style={{color:t.muted,fontSize:9}}>· {streak}d streak</span>
+        <span style={{color:t.muted,fontSize:9}}>Â· {streak}d streak</span>
       </div>
-      {isPro?<div style={{display:"flex",justifyContent:"center",marginTop:6}}><div style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,rgba(129,140,248,0.13),rgba(52,211,153,0.13))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:13,padding:"3px 10px"}}><span style={{color:"#818cf8",fontWeight:800,fontSize:10}}>⚡ Premium Member</span></div></div>
-      :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Try Free 7 Days</span></button>}
+      {isPro?<div style={{display:"flex",justifyContent:"center",marginTop:6}}><div style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,rgba(129,140,248,0.13),rgba(52,211,153,0.13))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:13,padding:"3px 10px"}}><span style={{color:"#818cf8",fontWeight:800,fontSize:10}}>âš¡ Premium Member</span></div></div>
+      :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>âš¡ Try Free 7 Days</span></button>}
     </div>
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}ðŸ”¥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#â€”"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
 
     {/* Exam countdown */}
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
-      <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{es.icon||"🎯"}</div>
+      <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{es.icon||"ðŸŽ¯"}</div>
       <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{es.name||"UPSC CSE Prelims"}</div><div style={{color:es.color||"#818cf8",fontSize:10,fontWeight:700,marginTop:1}}>{days} days remaining</div></div>
       <div style={{color:es.color||"#818cf8",fontSize:22,fontWeight:900}}>{days}</div>
     </div>
 
     {/* Logout */}
     <button onClick={onLogout} style={{background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:12,padding:"11px",color:"#FF6B6B",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
-      🚪 Log Out
+      ðŸšª Log Out
     </button>
 
     {/* Delete account */}
@@ -2542,13 +2542,13 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   </div>);
 }
 
-// ── NOTIF CENTER ──────────────────────────────────────────────
+// â”€â”€ NOTIF CENTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function NCenter({t,onClose,history,settings,setSettings}){
-  const list=[{k:"streakBreak",i:"🔥",l:"Streak Break Warning",d:"Alert if not studied by 9 PM"},{k:"studyReminder",i:"📖",l:"Daily Study Reminder",d:"Morning study nudge"},{k:"pomoDone",i:"⏱",l:"Pomodoro Complete",d:"Notify when session ends"},{k:"friendActivity",i:"👥",l:"Friend Activity",d:"When friends start studying"},{k:"leaderboard",i:"🏆",l:"Leaderboard Updates",d:"Weekly rank changes"},{k:"sound",i:"🔊",l:"Timer Sounds",d:"Play sound on session/break completion"}];
+  const list=[{k:"streakBreak",i:"ðŸ”¥",l:"Streak Break Warning",d:"Alert if not studied by 9 PM"},{k:"studyReminder",i:"ðŸ“–",l:"Daily Study Reminder",d:"Morning study nudge"},{k:"pomoDone",i:"â±",l:"Pomodoro Complete",d:"Notify when session ends"},{k:"friendActivity",i:"ðŸ‘¥",l:"Friend Activity",d:"When friends start studying"},{k:"leaderboard",i:"ðŸ†",l:"Leaderboard Updates",d:"Weekly rank changes"},{k:"sound",i:"ðŸ”Š",l:"Timer Sounds",d:"Play sound on session/break completion"}];
   return(<div style={{position:"fixed",inset:0,zIndex:8000,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,maxHeight:"80vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 32px"}}>
       <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:800,color:t.text}}>🔔 Notifications</div></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:800,color:t.text}}>ðŸ”” Notifications</div></div>
       <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
         {list.map(s=><div key={s.k} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:16}}>{s.i}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:12}}>{s.l}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{s.d}</div></div><div onClick={()=>setSettings(p=>({...p,[s.k]:!p[s.k]}))} style={{width:38,height:21,borderRadius:10,cursor:"pointer",background:settings[s.k]?t.a3:t.pill,position:"relative",transition:"all .3s",flexShrink:0}}><div style={{position:"absolute",top:2,left:settings[s.k]?17:2,width:17,height:17,borderRadius:"50%",background:settings[s.k]?"#0a0a0f":"#888",transition:"all .3s"}}/></div></div>)}
       </div>
@@ -2561,7 +2561,7 @@ function NCenter({t,onClose,history,settings,setSettings}){
   </div>);
 }
 
-// ── QR MODAL ──────────────────────────────────────────────────
+// â”€â”€ QR MODAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function QRModal({t,user,onClose,setFriends}){
   const [tab,setTab]=useState("myqr");const [inp,setInp]=useState("");const [done,setDone]=useState(false);const [cp,setCp]=useState(false);
   const n=(user?.name||"K").toUpperCase().replace(/\s/g,"-");
@@ -2571,16 +2571,16 @@ function QRModal({t,user,onClose,setFriends}){
   const add=()=>{if(!inp.trim())return;setDone(true);setTimeout(()=>{setFriends(f=>[...f,{id:Date.now(),name:"New Friend",av:"N",streak:0,on:false,subj:null,brk:false}]);setInp("");setDone(false);},1200);};
   return(<div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:12,backdropFilter:"blur(6px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:18,width:"100%",maxWidth:330,padding:15,boxShadow:t.sh}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}><div style={{fontSize:12,fontWeight:800,color:t.text}}>👥 Add to Circle</div><button onClick={onClose} style={{background:t.pill,border:"none",borderRadius:7,width:25,height:25,cursor:"pointer",color:t.sub,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}><div style={{fontSize:12,fontWeight:800,color:t.text}}>ðŸ‘¥ Add to Circle</div><button onClick={onClose} style={{background:t.pill,border:"none",borderRadius:7,width:25,height:25,cursor:"pointer",color:t.sub,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>Ã—</button></div>
       <div style={{display:"flex",gap:3,background:t.pill,borderRadius:10,padding:3,marginBottom:12}}>{[["scan","Scan"],["code","Code"],["link","Share"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 3px",borderRadius:7,border:"none",cursor:"pointer",background:tab===tb?t.card:t.pill,color:tab===tb?t.text:t.sub,fontWeight:700,fontSize:9,fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}</div>
-      {tab==="scan"&&<div style={{display:"flex",flexDirection:"column",gap:9}}><div style={{height:130,background:t.pill,borderRadius:12,border:`2px dashed ${t.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:28}}>📷</div><div style={{color:t.sub,fontSize:10}}>Camera scan (needs Firebase)</div></div><div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} placeholder="SYNC-XXXX-0000" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:10,fontFamily:"monospace",outline:"none"}}/><button onClick={add} style={{background:done?"#818cf8":"#60a5fa",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:10,transition:"all .3s"}}>{done?"✓":"Add"}</button></div></div>}
+      {tab==="scan"&&<div style={{display:"flex",flexDirection:"column",gap:9}}><div style={{height:130,background:t.pill,borderRadius:12,border:`2px dashed ${t.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:28}}>ðŸ“·</div><div style={{color:t.sub,fontSize:10}}>Camera scan (needs Firebase)</div></div><div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} placeholder="SYNC-XXXX-0000" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:10,fontFamily:"monospace",outline:"none"}}/><button onClick={add} style={{background:done?"#818cf8":"#60a5fa",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:10,transition:"all .3s"}}>{done?"âœ“":"Add"}</button></div></div>}
       {tab==="code"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:9}}><div style={{fontSize:11,color:t.sub,textAlign:"center"}}>Share this code with friends</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.3)",borderRadius:12,padding:"14px 20px",textAlign:"center"}}><div style={{color:"#818cf8",fontSize:20,fontFamily:"monospace",fontWeight:900,letterSpacing:3}}>{code}</div></div><div style={{color:t.muted,fontSize:9,textAlign:"center"}}>Friend enters this code to join your circle</div></div>}
-      {tab==="link"&&<div style={{display:"flex",flexDirection:"column",gap:8}}><div style={{background:t.pill,borderRadius:8,padding:"8px 9px",fontSize:9,color:t.sub,fontFamily:"monospace",wordBreak:"break-all",lineHeight:1.5}}>{link}</div><button onClick={copy} style={{background:cp?"#818cf8":t.card,border:`1px solid ${cp?"#818cf8":t.border}`,borderRadius:10,padding:"9px",color:cp?"#fff":t.text,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>{cp?"✓ Copied!":"📋 Copy Invite Link"}</button><div style={{display:"flex",gap:5}}>{[["📲 WhatsApp","#25D366"],["✈️ Telegram","#229ED9"]].map(([l,c])=><button key={l} style={{flex:1,background:`${c}13`,border:`1px solid ${c}30`,borderRadius:8,padding:"6px 4px",color:c,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div></div>}
+      {tab==="link"&&<div style={{display:"flex",flexDirection:"column",gap:8}}><div style={{background:t.pill,borderRadius:8,padding:"8px 9px",fontSize:9,color:t.sub,fontFamily:"monospace",wordBreak:"break-all",lineHeight:1.5}}>{link}</div><button onClick={copy} style={{background:cp?"#818cf8":t.card,border:`1px solid ${cp?"#818cf8":t.border}`,borderRadius:10,padding:"9px",color:cp?"#fff":t.text,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>{cp?"âœ“ Copied!":"ðŸ“‹ Copy Invite Link"}</button><div style={{display:"flex",gap:5}}>{[["ðŸ“² WhatsApp","#25D366"],["âœˆï¸ Telegram","#229ED9"]].map(([l,c])=><button key={l} style={{flex:1,background:`${c}13`,border:`1px solid ${c}30`,borderRadius:8,padding:"6px 4px",color:c,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div></div>}
     </div>
   </div>);
 }
 
-// ── ROOT ──────────────────────────────────────────────────────
+// â”€â”€ ROOT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function App(){
   const [dark,setDark]=useState(()=>{
     const saved=localStorage.getItem("ss_theme");
@@ -2635,7 +2635,7 @@ useEffect(()=>{
       setUser(null);
       setLoggedIn(false);
     }
-    setCheckingAuth(false); // 👈 IMPORTANT
+    setCheckingAuth(false); // ðŸ‘ˆ IMPORTANT
   });
 return () => {active=false;unsub();};
 }, [buildUserProfile]);
@@ -2652,13 +2652,13 @@ return () => {active=false;unsub();};
   const [toasts,setToasts]=useState([]);
   const [nHist,setNHist]=useState([]);
   const [ns,setNs]=useState({streakBreak:true,studyReminder:true,pomoDone:true,friendActivity:false,leaderboard:false,sound:true});
-  // ── LIFTED POMO STATE — persists across all tab switches ──
+  // â”€â”€ LIFTED POMO STATE â€” persists across all tab switches â”€â”€
   const POMO_LS_KEY="ss_pomo_state";
   const [pomoMode,setPomoMode]=useState(()=>{
     try{const s=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");return s.mode||"focus";}catch{return"focus";}
   });
   const [pomoCf,setPomoCf]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25"));
-  const [pomoRun,setPomoRun]=useState(false); // never restore as running — calculate elapsed instead
+  const [pomoRun,setPomoRun]=useState(false); // never restore as running â€” calculate elapsed instead
   const [pomoSess,setPomoSess]=useState(0);
   const [pomoCs,setPomoCs]=useState("");
   // Restore remaining seconds accounting for elapsed time while page was closed
@@ -2668,7 +2668,7 @@ return () => {active=false;unsub();};
       if(s.running&&s.endTime){
         const remaining=Math.round((s.endTime-Date.now())/1000);
         if(remaining>0&&remaining<=s.totalSec){
-          // Page was refreshed mid-session — resume with correct time
+          // Page was refreshed mid-session â€” resume with correct time
           return remaining;
         }
       }
@@ -2732,7 +2732,7 @@ return () => {active=false;unsub();};
   const [examTips,setExamTips]=useState({});
   const [es,setEs]=useState(()=>buildExamState());
   // Derived: custom subjects scoped to current exam + mode (always after es)
-  // Deduplicated case-insensitively at derivation — never leaks between exams
+  // Deduplicated case-insensitively at derivation â€” never leaks between exams
   const customSubjects=useMemo(()=>{
     const raw=examSubjects[es.key]?.[es.mode]||[];
     const seen=new Set();
@@ -2756,7 +2756,7 @@ return () => {active=false;unsub();};
           readOnce(`users/${user.uid}/customExams`),
         ]);
 
-        // Custom exams — load first so buildExamState can validate custom keys
+        // Custom exams â€” load first so buildExamState can validate custom keys
         let loadedCustomExams=[];
         if(customExamsSnap.exists()){
           const raw=customExamsSnap.val();
@@ -2765,13 +2765,13 @@ return () => {active=false;unsub();};
         }
         const customExamIds=loadedCustomExams.map(c=>c.id);
 
-        // Resolve selection — allow custom exam IDs through
+        // Resolve selection â€” allow custom exam IDs through
         const selectionRaw=selectionSnap.exists()?selectionSnap.val():legacySnap.exists()?legacySnap.val():null;
         const rawKey=selectionRaw?.key||"";
         const key=EXAMS[rawKey]?rawKey:(customExamIds.includes(rawKey)?rawKey:DEFAULT_EXAM_KEY);
         const mode=EXAMS[key]?.modes?.[selectionRaw?.mode]?selectionRaw.mode:(customExamIds.includes(key)?"Exam":defaultModeFor(key,customExamIds));
 
-        // Per-exam custom subjects — decode keys, deduplicate each scope
+        // Per-exam custom subjects â€” decode keys, deduplicate each scope
         const dedup=(arr)=>{const seen=new Set();return(Array.isArray(arr)?arr:Object.values(arr||{})).filter(s=>{const k=(s.n||"").toLowerCase().trim();if(!k||seen.has(k))return false;seen.add(k);return true;});};
         if(examSubjectsSnap.exists()){
           const rawObj=examSubjectsSnap.val();
@@ -2844,14 +2844,14 @@ return () => {active=false;unsub();};
         totalMinutes:(prev.totalMinutes||0)+(pomoCfRef.current||25),
         lastStudyDate:today,
       });
-      // Streak: only update once per day — guard against same-day double sessions
+      // Streak: only update once per day â€” guard against same-day double sessions
       if(prev.lastStudyDate!==today){
         if(prev.lastStudyDate===yesterday){
           currentStreak=currentStreak+1; // consecutive day
         } else if(!prev.lastStudyDate){
           currentStreak=1; // very first session ever
         } else {
-          currentStreak=1; // missed one or more days — reset to 1
+          currentStreak=1; // missed one or more days â€” reset to 1
         }
         await mod.set(streakRef,currentStreak);
         setStreak(currentStreak);
@@ -2860,14 +2860,14 @@ return () => {active=false;unsub();};
     }catch(e){console.error("onSessionComplete error",e);}
   },[user?.uid]);
 
-  // ── APP-LEVEL TIMER — timestamp-based, never stale, survives all navigation ──
+  // â”€â”€ APP-LEVEL TIMER â€” timestamp-based, never stale, survives all navigation â”€â”€
   // pomoEndTimeRef is the source of truth. Remaining seconds are derived from it every tick.
   const pomoEndTimeRef=useRef(null);
 
   // Sync endTime ref when pomoRun starts; reset completion guard ONLY if starting a fresh session (sec > 0)
   useEffect(()=>{
     if(pomoRun){
-      // Only reset completion guard if there are seconds remaining — never reset at sec=0
+      // Only reset completion guard if there are seconds remaining â€” never reset at sec=0
       if(pomoSecRef.current>0){
         completionFiredRef.current=false;
       }
@@ -2928,7 +2928,7 @@ return () => {active=false;unsub();};
     return()=>clearInterval(pomoIntervalRef.current);
   },[pomoRun,pomoMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handle session completion side-effects (sound, notification, Firebase) — separate to avoid stale closures
+  // Handle session completion side-effects (sound, notification, Firebase) â€” separate to avoid stale closures
   const pomoRunRef=useRef(pomoRun);
   const pomoModeRef=useRef(pomoMode);
   const pomoSecRef=useRef(pomoSec);
@@ -2940,11 +2940,11 @@ return () => {active=false;unsub();};
 
   useEffect(()=>{pomoRunRef.current=pomoRun;},[pomoRun]);
   useEffect(()=>{pomoModeRef.current=pomoMode;},[pomoMode]);
-  // Tracks whether sec rose above 0 during this session — prevents false completion at session start or after reset
+  // Tracks whether sec rose above 0 during this session â€” prevents false completion at session start or after reset
   const secEverPositiveRef=useRef(false);
   useEffect(()=>{
     if(pomoRun&&pomoSec>0)secEverPositiveRef.current=true;
-    if(!pomoRun&&pomoSec>0)secEverPositiveRef.current=false; // paused before zero — not a completion
+    if(!pomoRun&&pomoSec>0)secEverPositiveRef.current=false; // paused before zero â€” not a completion
   },[pomoRun,pomoSec]);
 
   useEffect(()=>{pomoSecRef.current=pomoSec;
@@ -2952,9 +2952,9 @@ return () => {active=false;unsub();};
     if(pomoSec===0&&!pomoRun&&secEverPositiveRef.current){
       if(completionFiredRef.current)return;
       completionFiredRef.current=true;
-      secEverPositiveRef.current=false; // consumed — require new session to build up again
+      secEverPositiveRef.current=false; // consumed â€” require new session to build up again
       if(pomoModeRef.current==="focus"){
-        setPomoSess(n=>n+1); // single authoritative increment — guarded by completionFiredRef above
+        setPomoSess(n=>n+1); // single authoritative increment â€” guarded by completionFiredRef above
         try{
           const ctx=new(window.AudioContext||window.webkitAudioContext)();
           const gain=ctx.createGain();gain.connect(ctx.destination);
@@ -2966,7 +2966,7 @@ return () => {active=false;unsub();};
             o.start(ctx.currentTime+delay);o.stop(ctx.currentTime+delay+0.6);
           });
         }catch(e){}
-        if(ns?.pomoDone)push({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
+        if(ns?.pomoDone)push({icon:"â±",title:"Session complete! ðŸŽ‰",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
         if(user?.uid){
           const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
           import("./firebase").then(mod=>{
@@ -2985,7 +2985,7 @@ return () => {active=false;unsub();};
           gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.8);
           o.start(ctx.currentTime);o.stop(ctx.currentTime+0.9);
         }catch(e){}
-        if(ns?.pomoDone)push({icon:"☕",title:"Break over!",body:"Time to focus again 💪",col:"#34d399"});
+        if(ns?.pomoDone)push({icon:"â˜•",title:"Break over!",body:"Time to focus again ðŸ’ª",col:"#34d399"});
       }
     }
   },[pomoSec,pomoRun]);
@@ -3011,28 +3011,28 @@ return () => {active=false;unsub();};
 
   useEffect(()=>{
     if(!loggedIn)return;
-    const t1=setTimeout(()=>{if(ns.studyReminder)push({icon:"📖",title:`Hello, ${user?.name?.split(" ")[0]||"Aspirant"}!`,body:`${es.name} — ${days} days to go. Start your Pomodoro! 🌅`,col:"#6EE7F7"});},2500);
-    const t2=setTimeout(()=>{if(ns.streakBreak)push({icon:"🔥",title:"Streak at risk!",body:`${streak}-day streak on the line! Study now 😬`,col:"#FF6B6B"});},8000);
+    const t1=setTimeout(()=>{if(ns.studyReminder)push({icon:"ðŸ“–",title:`Hello, ${user?.name?.split(" ")[0]||"Aspirant"}!`,body:`${es.name} â€” ${days} days to go. Start your Pomodoro! ðŸŒ…`,col:"#6EE7F7"});},2500);
+    const t2=setTimeout(()=>{if(ns.streakBreak)push({icon:"ðŸ”¥",title:"Streak at risk!",body:`${streak}-day streak on the line! Study now ðŸ˜¬`,col:"#FF6B6B"});},8000);
     return()=>{clearTimeout(t1);clearTimeout(t2);};
   },[loggedIn,ns]);
 
-  // Nav config — free tabs + pro tabs (no revise)
-  const FREE=[{id:"timer",icon:"⏱",l:"Timer",c:"#FF6B6B"},{id:"planner",icon:"📅",l:"Planner",c:"#FFB86B"},{id:"streak",icon:"🔥",l:"Streak",c:"#FF6B6B"},{id:"exam",icon:"🎯",l:"Exam",c:es.color||"#818cf8"},{id:"circle",icon:"👥",l:"Circle",c:"#C16BFF"},{id:"report",icon:"📊",l:"Report",c:"#6EE7F7"}];
-  const PRO=[{id:"ai",icon:"🤖",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"📋",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"🃏",l:"Recall",c:"#6EE7F7"},{id:"mock",icon:"📈",l:"Mocks",c:"#FFB86B"}];
+  // Nav config â€” free tabs + pro tabs (no revise)
+  const FREE=[{id:"timer",icon:"â±",l:"Timer",c:"#FF6B6B"},{id:"planner",icon:"ðŸ“…",l:"Planner",c:"#FFB86B"},{id:"streak",icon:"ðŸ”¥",l:"Streak",c:"#FF6B6B"},{id:"exam",icon:"ðŸŽ¯",l:"Exam",c:es.color||"#818cf8"},{id:"circle",icon:"ðŸ‘¥",l:"Circle",c:"#C16BFF"},{id:"report",icon:"ðŸ“Š",l:"Report",c:"#6EE7F7"}];
+  const PRO=[{id:"ai",icon:"ðŸ¤–",l:"AI",c:"#818cf8"},{id:"syllabus",icon:"ðŸ“‹",l:"Syllabus",c:"#34d399"},{id:"notes",icon:"ðŸƒ",l:"Recall",c:"#6EE7F7"},{id:"mock",icon:"ðŸ“ˆ",l:"Mocks",c:"#FFB86B"}];
   const proIds=new Set(PRO.map(x=>x.id));
   const go=(id)=>{if(proIds.has(id)&&!isPro){setProOpen(true);return;}setTab(id);};
 
-  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
+  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"ðŸŽ",title:"7-Day Free Trial Started!",body:"Full premium access â€” enjoy StudySync! ðŸŽ‰",col:"#34d399"});}}/></div>);
 
   return(<div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s"}}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(132px + env(safe-area-inset-bottom));}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(138px + env(safe-area-inset-bottom))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-controls{order:3}.ss-pomo-stats{order:4}.ss-pomo-subjects{order:5}.ss-pomo-settings{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px 96px;}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:102px!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-controls{order:3}.ss-pomo-stats{order:4}.ss-pomo-subjects{order:5}.ss-pomo-settings{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
     {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
-    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
-    {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
+    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"âš¡",title:"Welcome to Premium! ðŸŽ‰",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
+    {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"ðŸ”¥",title:"Streak Restored! ðŸŽ‰",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
     {/* Header */}
     <div style={{position:"sticky",top:0,zIndex:100,background:t.nav,backdropFilter:"blur(18px)",borderBottom:`1px solid ${t.border}`,paddingTop:"calc(7px + env(safe-area-inset-top, 0px))",paddingLeft:11,paddingRight:11,paddingBottom:7}}>
@@ -3047,15 +3047,15 @@ return () => {active=false;unsub();};
             </div>
             <button onClick={()=>setExOpen(true)} style={{display:"flex",alignItems:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:0,marginTop:1}}>
               <div style={{width:4,height:4,borderRadius:"50%",background:es.color,boxShadow:`0 0 3px ${es.color}`,flexShrink:0}}/>
-              <span style={{fontSize:8,color:t.sub,fontWeight:600}}>{es.name}{days!==null&&<span style={{color:es.color,fontWeight:700}}> · {days}d</span>}</span>
-              <span style={{fontSize:7,color:t.muted}}>✎</span>
+              <span style={{fontSize:8,color:t.sub,fontWeight:600}}>{es.name}{days!==null&&<span style={{color:es.color,fontWeight:700}}> Â· {days}d</span>}</span>
+              <span style={{fontSize:7,color:t.muted}}>âœŽ</span>
             </button>
           </div>
         </div>
         <div style={{display:"flex",gap:4,alignItems:"center"}}>
-          <button onClick={()=>setDark(v=>!v)} style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontFamily:"inherit",fontSize:11,color:t.text}}>{dark?"☀️":"🌙"}</button>
-          <button onClick={()=>setNOpen(true)} style={{position:"relative",background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center"}}>🔔{nHist.length>0&&<div style={{position:"absolute",top:-3,right:-3,background:t.a1,color:"#fff",borderRadius:"50%",width:11,height:11,fontSize:6,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${t.bg}`}}>{Math.min(nHist.length,9)}</div>}</button>
-          {!isPro&&<button onClick={()=>setProOpen(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:8,color:"#fff",fontWeight:800,boxShadow:"0 0 7px rgba(129,140,248,0.25)"}}>⚡ Pro</button>}
+          <button onClick={()=>setDark(v=>!v)} style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontFamily:"inherit",fontSize:11,color:t.text}}>{dark?"â˜€ï¸":"ðŸŒ™"}</button>
+          <button onClick={()=>setNOpen(true)} style={{position:"relative",background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center"}}>ðŸ””{nHist.length>0&&<div style={{position:"absolute",top:-3,right:-3,background:t.a1,color:"#fff",borderRadius:"50%",width:11,height:11,fontSize:6,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${t.bg}`}}>{Math.min(nHist.length,9)}</div>}</button>
+          {!isPro&&<button onClick={()=>setProOpen(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:8,color:"#fff",fontWeight:800,boxShadow:"0 0 7px rgba(129,140,248,0.25)"}}>âš¡ Pro</button>}
           {pomoRun&&tab!=="timer"&&<button onClick={()=>setTab("timer")} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:11,padding:"3px 7px",display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontFamily:"inherit"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#FF6B6B",animation:"pulse 1s infinite"}}/><span style={{color:"#FF6B6B",fontSize:8,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></button>}
           <div onClick={()=>go("profile")} style={{width:27,height:27,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:10,color:"#fff",cursor:"pointer",border:"1.5px solid rgba(129,140,248,0.25)"}}>{(user?.name||"K")[0].toUpperCase()}</div>
         </div>
@@ -3071,25 +3071,25 @@ return () => {active=false;unsub();};
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
       {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
-      {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
-      {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
-      {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects} es={es} user={user}/>:<Gate t={t} name="Active Recall Cards"  icon="🃏" onPro={()=>setProOpen(true)}/>)}
-      {tab==="mock"    &&(isPro?<MockTest t={t} es={es} user={user}/>:<Gate t={t} name="Mock Test Tracker" icon="📈" onPro={()=>setProOpen(true)}/>)}
+      {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="ðŸ¤–" onPro={()=>setProOpen(true)}/>)}
+      {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="ðŸ“‹" onPro={()=>setProOpen(true)}/>)}
+      {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects} es={es} user={user}/>:<Gate t={t} name="Active Recall Cards"  icon="ðŸƒ" onPro={()=>setProOpen(true)}/>)}
+      {tab==="mock"    &&(isPro?<MockTest t={t} es={es} user={user}/>:<Gate t={t} name="Mock Test Tracker" icon="ðŸ“ˆ" onPro={()=>setProOpen(true)}/>)}
     </div>
 
     {/* Nav */}
-    <div className="ss-bottom-nav" style={{position:"fixed",bottom:0,left:0,right:0,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${t.border}`,zIndex:100,paddingTop:2,paddingBottom:"calc(3px + env(safe-area-inset-bottom))"}}>
+    <div className="ss-bottom-nav" style={{position:"fixed",bottom:"max(6px, calc(env(safe-area-inset-bottom, 0px) - 26px))",left:8,right:8,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,boxShadow:t.sh,zIndex:100,paddingTop:2,paddingBottom:6,overflow:"hidden"}}>
       {/* Pro row */}
       <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:1,borderBottom:`1px solid ${t.border}`,marginBottom:0}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
           <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:3,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"3px 8px",minHeight:22,borderRadius:11,position:"relative"}}>
             <div style={{fontSize:10,lineHeight:1,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
             <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.2,lineHeight:1}}>{tb.l}</div>
-            {!isPro&&<div style={{position:"absolute",top:-2,right:2,fontSize:6,color:"#818cf8",fontWeight:900}}>⚡</div>}
+            {!isPro&&<div style={{position:"absolute",top:-2,right:2,fontSize:6,color:"#818cf8",fontWeight:900}}>âš¡</div>}
           </button>
         );})}
         {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:11,padding:"3px 8px",minHeight:22,cursor:"pointer",fontFamily:"inherit",marginLeft:2}}>
-          <span style={{fontSize:8,color:"#818cf8",fontWeight:800,lineHeight:1}}>⚡ Try Free</span>
+          <span style={{fontSize:8,color:"#818cf8",fontWeight:800,lineHeight:1}}>âš¡ Try Free</span>
         </button>}
       </div>
       {/* Free row */}
@@ -3105,3 +3105,4 @@ return () => {active=false;unsub();};
     </div>
   </div>);
 }
+
