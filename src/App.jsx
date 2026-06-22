@@ -1,9 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 //added changes
 import { signInGoogle } from "./firebase";
-import { getAuth, onAuthStateChanged } from "firebase/auth";import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-//added changes
-import { signInGoogle } from "./firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
