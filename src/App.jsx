@@ -497,7 +497,7 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
 function Login({t,onLogin}){
   const [loading,setLoading]=useState(false);
   return(
-    <div style={{minHeight:"100vh",background:t.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+    <div style={{minHeight:"100dvh",background:t.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
       <div style={{position:"fixed",top:"-15%",left:"50%",transform:"translateX(-50%)",width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.07),transparent 70%)",pointerEvents:"none"}}/>
       <div style={{textAlign:"center",marginBottom:26}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:10}}><div style={{padding:12,borderRadius:18,background:"rgba(129,140,248,0.08)",border:"1px solid rgba(129,140,248,0.16)",boxShadow:"0 0 26px rgba(129,140,248,0.09)"}}><Logo sz={46}/></div></div>
@@ -1266,6 +1266,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const [grpName,setGrpName]=useState("");
   const [myFriends,setMyFriends]=useState([]);
   const [publicUsers,setPublicUsers]=useState([]);
+  // Live presence map keyed by uid — built from the SAME users/ payload that
+  // already populates publicUsers (zero new listeners). This is the one
+  // source of truth Friends/Live tabs read from below, instead of trusting
+  // the frozen 'online' value that used to be baked into friendship records.
+  const [presenceByUid,setPresenceByUid]=useState({});
   const [showAddFriend,setShowAddFriend]=useState(false);
   const [friendCode,setFriendCode]=useState("");
   const [addStatus,setAddStatus]=useState("");
@@ -1298,19 +1303,36 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         usersRef=mod.ref(mod.db,"users");
         listener=mod.onValue(usersRef,(snap)=>{
           const data=snap.exists()?snap.val():{};
+          const presenceMap={};
           const list=Object.entries(data).map(([uid,row])=>{
             const profile=row?.profile||{};
             const name=profile.name||profile.displayName||profile.email||"Aspirant";
-            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:profile.online===true,subj:profile.currentSubject||profile.subj||"Studying"};
+            const presence=row?.presence||{};
+            presenceMap[uid]={online:presence.state==="online",lastSeen:presence.lastSeen||null};
+            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:presence.state==="online",lastSeen:presence.lastSeen||null,subj:profile.currentSubject||profile.subj||"Studying"};
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
           setPublicUsers(list);
+          setPresenceByUid(presenceMap);
         });
-      }catch(e){setPublicUsers([]);}
+      }catch(e){setPublicUsers([]);setPresenceByUid({});}
     })();
     return()=>{if(dbMod&&usersRef&&listener)dbMod.off(usersRef,listener);};
   },[user?.uid]);
 
+  // Friends joined with LIVE presence from presenceByUid — this replaces any
+  // trust in a frozen 'online' field that may still exist on old friendship
+  // records written before this fix. uid is the join key.
+  const myFriendsLive=useMemo(()=>{
+    return myFriends.map(f=>{
+      const live=presenceByUid[f.uid]||{online:false,lastSeen:null};
+      return {...f,online:live.online,lastSeen:live.lastSeen};
+    });
+  },[myFriends,presenceByUid]);
+
   // ── Register profile + friendCode index on login ──
+  // NOTE: 'online'/'lastSeen' were REMOVED from this static profile write.
+  // Presence is no longer a one-time login flag — see the dedicated presence
+  // effect below, which is the actual fix for Issue #2 (stale online status).
   useEffect(()=>{
     if(!user?.uid)return;
     (async()=>{
@@ -1321,8 +1343,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           email:user.email||"",
           friendCode:myFriendCode,
           uid:user.uid,
-          online:true,
-          lastSeen:Date.now(),
         };
         // Write to own profile
         await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),profileData);
@@ -1335,6 +1355,75 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         });
       }catch(e){console.error("Profile register error",e);}
     })();
+  },[user?.uid]);
+
+  // ── REAL PRESENCE — RTDB .info/connected + onDisconnect() ──
+  // Root cause being fixed: presence was previously written ONLY at login
+  // (one-time 'online:true', never reverted) with no disconnect detection,
+  // no heartbeat, and no logout write. That made every offline user appear
+  // permanently online. This effect:
+  //   1. Watches the client's actual live socket state via '.info/connected'
+  //      (an RTDB-managed path — not something we write to).
+  //   2. On every (re)connect, arms onDisconnect() FIRST so the server has
+  //      a queued "mark me offline" write ready before we claim online —
+  //      closing the race window where a drop between steps would leave
+  //      stale 'online:true' data.
+  //   3. Only then writes 'online:true' for this session.
+  // This means network loss, tab kill, browser crash, or phone death all
+  // result in the server itself flipping the user offline — no reliance on
+  // client-side JS getting a chance to run, which beforeunload/visibility
+  // listeners can never guarantee.
+  //
+  // TODO — KNOWN LIMITATION, NOT YET FIXED (multi-device presence):
+  //   This implementation writes a single value to users/{uid}/presence and
+  //   arms a single onDisconnect() on that same path per connection. It
+  //   ASSUMES ONE ACTIVE CONNECTION PER ACCOUNT.
+  //   If the same account is open on two devices/tabs simultaneously, each
+  //   one independently arms its own onDisconnect() on the SAME path. When
+  //   EITHER device disconnects — even if the other device is still fully
+  //   connected and the user is genuinely still online — that device's
+  //   armed onDisconnect() fires and overwrites presence to {state:"offline"},
+  //   incorrectly marking the user offline while they're still active
+  //   elsewhere.
+  //   This is a known, accepted gap for now — NOT implemented here on purpose.
+  //   Future upgrade path (do not build until explicitly scoped):
+  //     - Write to users/{uid}/connections/{pushId} per device/session
+  //       (one child node per connection, via push() for a unique key).
+  //     - Arm onDisconnect() to .remove() ONLY that specific connection's
+  //       child node, not the whole presence value.
+  //     - Derive online state as "connections node has any children" rather
+  //       than trusting a single flat boolean/state field — e.g. read via
+  //       a client-side listener checking snapshot.exists()/hasChildren(),
+  //       or move the derivation server-side via a Cloud Function if a
+  //       single authoritative read is needed.
+  //     - This removes the single-active-connection assumption entirely.
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,connectedRef,connectedListener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        const presenceRef=mod.ref(mod.db,`users/${user.uid}/presence`);
+        connectedRef=mod.ref(mod.db,".info/connected");
+        connectedListener=mod.onValue(connectedRef,(snap)=>{
+          if(snap.val()===false)return; // this client's own connection is currently down; nothing to arm
+          // Arm the server-side offline write BEFORE claiming online, every time we (re)connect.
+          mod.onDisconnect(presenceRef).set({state:"offline",lastSeen:mod.serverTimestamp()})
+            .then(()=>{
+              mod.set(presenceRef,{state:"online",lastSeen:mod.serverTimestamp()});
+            })
+            .catch(()=>{});
+        });
+      }catch(e){console.error("Presence setup error",e);}
+    })();
+    return()=>{
+      // Unmounting (e.g. logout) — stop watching connection state.
+      // The explicit offline write on logout is handled by writePresenceOffline(),
+      // called from the Profile component's onLogout. We do NOT write offline here
+      // unconditionally, since this cleanup also runs on ordinary re-renders.
+      if(dbMod&&connectedRef&&connectedListener)dbMod.off(connectedRef,connectedListener);
+    };
   },[user?.uid]);
 
   // ── Add friend: reads friendCodes index (public read), writes to both users ──
@@ -1359,8 +1448,12 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       if(!targetUid){setAddStatus("error");setAddMsg("Invalid code data.");return;}
 
       const now=Date.now();
-      const myEntry={uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,streak:0,online:false,addedAt:now};
-      const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,online:true,addedAt:now};
+      // NOTE: 'online' intentionally removed from these records. Presence must
+      // never be duplicated into a friendship entry — it goes stale immediately.
+      // Friends/Live tabs now derive live presence from the same users/ payload
+      // the Public tab already subscribes to (see myFriendsWithPresence below).
+      const myEntry={uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,streak:0,addedAt:now};
+      const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,addedAt:now};
 
       // Write A→B under A's node (own write — always permitted)
       await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUid}`),myEntry);
@@ -1617,8 +1710,8 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
       </div>}
 
-      {myFriends.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
-      {myFriends.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
+      {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
+      {myFriendsLive.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
@@ -1692,7 +1785,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
       <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
-      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriends].map(f=><div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriendsLive].map(f=><div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
@@ -1703,7 +1796,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           {f.online&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
         </div>
       </div>)}
-      {myFriends.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
+      {myFriendsLive.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
     </div>}
 
     {/* BOARD */}
@@ -3022,10 +3115,20 @@ return () => {active=false;unsub();};
   const proIds=new Set(PRO.map(x=>x.id));
   const go=(id)=>{if(proIds.has(id)&&!isPro){setProOpen(true);return;}setTab(id);};
 
-  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100vh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
+  // ── SINGLE SOURCE OF TRUTH for bottom-nav height ──
+  // Nav stack: paddingTop(2) + Pro row[minHeight(22)+rowPaddingBottom(1)] + border(1) + Free row[minHeight(34)] + nav paddingBottom(6)
+  // = 2 + 23 + 1 + 34 + 6 = 66px. Nav floats NAV_FLOAT_OFFSET off the safe-area edge, so reserve 66+6=72px,
+  // plus NAV_CONTENT_CLEARANCE breathing room so content never touches the dock. If any row's minHeight/padding
+  // changes, update NAV_DOCK_HEIGHT here — content padding follows automatically via the --ss-nav-reserve CSS var.
+  const NAV_DOCK_HEIGHT=66; // px — sum of nav's own paddingTop/paddingBottom + both row heights + divider border
+  const NAV_FLOAT_OFFSET=6; // px — gap between dock and safe-area edge (must match bottom: calc(env(...) + Npx) below)
+  const NAV_CONTENT_CLEARANCE=6; // px — extra breathing room so content never touches the dock visually
+  const navReserve=NAV_DOCK_HEIGHT+NAV_FLOAT_OFFSET+NAV_CONTENT_CLEARANCE; // 78px total, derived not guessed
 
-  return(<div style={{minHeight:"100vh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s"}}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px 96px;}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:102px!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-controls{order:3}.ss-pomo-stats{order:4}.ss-pomo-subjects{order:5}.ss-pomo-settings{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
+  if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100dvh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
+
+  return(<div style={{minHeight:"100dvh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s","--ss-nav-reserve":`${navReserve}px`}}>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px));}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-controls{order:3}.ss-pomo-stats{order:4}.ss-pomo-subjects{order:5}.ss-pomo-settings{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
@@ -3070,7 +3173,24 @@ return () => {active=false;unsub();};
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
-      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={()=>{setLoggedIn(false);setUser(null);}}/>}
+      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={async()=>{
+        // Explicit offline write on clean logout — previously onLogout did NOT
+        // touch Firebase at all, so a deliberate sign-out looked identical to
+        // a crash: presence stayed 'online' until something else changed it.
+        // onDisconnect() would eventually cover this on socket-close, but a
+        // clean logout shouldn't have to wait on that — write it immediately.
+        if(user?.uid){
+          try{
+            const mod=await import("./firebase");
+            const presenceRef=mod.ref(mod.db,`users/${user.uid}/presence`);
+            await mod.set(presenceRef,{state:"offline",lastSeen:mod.serverTimestamp()});
+            // Cancel the queued onDisconnect write — we already wrote offline
+            // ourselves, so there's nothing left for the server to do on drop.
+            mod.onDisconnect(presenceRef).cancel().catch(()=>{});
+          }catch(e){console.error("Logout presence write error",e);}
+        }
+        setLoggedIn(false);setUser(null);
+      }}/>}
       {tab==="ai"      &&(isPro?<AI       t={t} subjects={es.subjects} customSubjects={customSubjects}/>:<Gate t={t} name="AI Study Assistant" icon="🤖" onPro={()=>setProOpen(true)}/>)}
       {tab==="syllabus"&&(isPro?<Syllabus t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>:<Gate t={t} name="Syllabus Manager"    icon="📋" onPro={()=>setProOpen(true)}/>)}
       {tab==="notes"   &&(isPro?<Notes    t={t} subjects={es.subjects} customSubjects={customSubjects} es={es} user={user}/>:<Gate t={t} name="Active Recall Cards"  icon="🃏" onPro={()=>setProOpen(true)}/>)}
@@ -3078,7 +3198,7 @@ return () => {active=false;unsub();};
     </div>
 
     {/* Nav */}
-    <div className="ss-bottom-nav" style={{position:"fixed",bottom:"max(6px, calc(env(safe-area-inset-bottom, 0px) - 28px))",left:8,right:8,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,boxShadow:t.sh,zIndex:100,paddingTop:2,paddingBottom:6,overflow:"hidden"}}>
+    <div className="ss-bottom-nav" style={{position:"fixed",bottom:`calc(env(safe-area-inset-bottom, 0px) + ${NAV_FLOAT_OFFSET}px)`,left:8,right:8,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,boxShadow:t.sh,zIndex:100,paddingTop:2,paddingBottom:6,overflow:"hidden"}}>
       {/* Pro row */}
       <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:1,borderBottom:`1px solid ${t.border}`,marginBottom:0}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
