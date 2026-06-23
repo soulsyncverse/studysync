@@ -1265,6 +1265,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const [showCreate,setShowCreate]=useState(false);
   const [grpName,setGrpName]=useState("");
   const [myFriends,setMyFriends]=useState([]);
+  const [incomingRequests,setIncomingRequests]=useState([]); // friendRequests/{myUid} — read own slot only
+  const [outgoingRequests,setOutgoingRequests]=useState([]); // users/{myUid}/friendRequests/outgoing — own mirror
+  const [reqStatus,setReqStatus]=useState({}); // per-uid loading flag for request action buttons
   const [publicUsers,setPublicUsers]=useState([]);
   // Live presence map keyed by uid — built from the SAME users/ payload that
   // already populates publicUsers (zero new listeners). This is the one
@@ -1426,18 +1429,27 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     };
   },[user?.uid]);
 
-  // ── Add friend: reads friendCodes index (public read), writes to both users ──
-  const addFriendByCode=async()=>{
+  // ── Friend Requests v1 ──
+  // Verified against the deployed rules.json:
+  //   friendRequests/$targetUid  → ".read": "$targetUid === auth.uid", ".write": "auth != null"
+  //   users/$uid/friends/$fid    → ".write": "auth != null" (override)
+  //   users/$uid (top level)     → ".write": "$uid === auth.uid"
+  // So: any authed user may WRITE friendRequests/{toUid}/{fromUid}, but only the
+  // target may READ it. The sender therefore keeps an own-uid mirror under
+  // users/{uid}/friendRequests/outgoing for their own UI, and can never read the
+  // recipient's copy back — so live "declined" notifications aren't possible in
+  // v1 (accepted per product decision). Cancel remains a manual, always-available action.
+
+  const sendFriendRequest=async()=>{
     const code=friendCode.trim().toUpperCase();
     if(!code||!user?.uid){setAddStatus("error");setAddMsg("Enter a valid code.");return;}
     if(code===myFriendCode){setAddStatus("error");setAddMsg("That's your own code!");return;}
-    const alreadyAdded=myFriends.some(f=>f.friendCode===code||f.uid===code);
-    if(alreadyAdded){setAddStatus("error");setAddMsg("Already friends!");return;}
+    if(myFriends.some(f=>f.friendCode===code||f.uid===code)){setAddStatus("error");setAddMsg("Already friends!");return;}
+    if(outgoingRequests.some(r=>r.friendCode===code||r.uid===code)){setAddStatus("error");setAddMsg("Request already sent.");return;}
     setAddStatus("loading");setAddMsg("Looking up user…");
     try{
       const mod=await import("./firebase");
-      // Look up via global friendCodes index (not scanning all users)
-      const codeSnap=await new Promise((res,rej)=>{
+      const codeSnap=await new Promise(res=>{
         mod.onValue(mod.ref(mod.db,`friendCodes/${code}`),(s)=>{res(s);},{onlyOnce:true});
       });
       if(!codeSnap.exists()){
@@ -1446,34 +1458,71 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       const targetData=codeSnap.val();
       const targetUid=targetData.uid;
       if(!targetUid){setAddStatus("error");setAddMsg("Invalid code data.");return;}
+      if(incomingRequests.some(r=>r.uid===targetUid)){setAddStatus("error");setAddMsg("They already sent you a request — check Requests below.");return;}
 
       const now=Date.now();
-      // NOTE: 'online' intentionally removed from these records. Presence must
-      // never be duplicated into a friendship entry — it goes stale immediately.
-      // Friends/Live tabs now derive live presence from the same users/ payload
-      // the Public tab already subscribes to (see myFriendsWithPresence below).
-      const myEntry={uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,streak:0,addedAt:now};
-      const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,addedAt:now};
-
-      // Write A→B under A's node (own write — always permitted)
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${targetUid}`),myEntry);
-      // Write B→A under B's node (cross-user write — requires permissive rule on friends path)
-      // If this fails due to rules, fall back to friendRequests queue
+      // Own-uid mirror — always permitted, this is the sender's source of truth for their own UI.
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/friendRequests/outgoing/${targetUid}`),
+        {uid:targetUid,name:targetData.name||"Friend",email:targetData.email||"",friendCode:code,sentAt:now,status:"pending"});
+      // Deliver to recipient — allowed for any authed user per friendRequests/$targetUid write rule.
       try{
-        await mod.set(mod.ref(mod.db,`users/${targetUid}/friends/${user.uid}`),theirEntry);
-      }catch(crossWriteErr){
-        // Fallback: write a friend request that target reads on next login
-        await mod.set(mod.ref(mod.db,`friendRequests/${targetUid}/${user.uid}`),theirEntry);
+        await mod.set(mod.ref(mod.db,`friendRequests/${targetUid}/${user.uid}`),
+          {uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,sentAt:now,status:"pending"});
+      }catch(deliverErr){
+        console.error("Could not deliver request to recipient",deliverErr);
+        // Roll back the own-uid mirror so we don't show a phantom "pending" the recipient never saw
+        try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/friendRequests/outgoing/${targetUid}`));}catch{}
+        setAddStatus("error");setAddMsg("Couldn't reach them. Try again.");return;
       }
-      setFriendCode("");setAddStatus("done");setAddMsg(`✓ ${targetData.name||"Friend"} added!`);
+      setFriendCode("");setAddStatus("done");setAddMsg(`✓ Request sent to ${targetData.name||"Friend"}`);
       setTimeout(()=>{setAddStatus("");setAddMsg("");setShowAddFriend(false);},1800);
     }catch(e){
-      console.error("addFriend error",e);
+      console.error("sendFriendRequest error",e);
       setAddStatus("error");setAddMsg("Something went wrong. Try again.");
     }
   };
 
-  // ── Process incoming friend requests on load ──
+  const cancelRequest=async(toUid)=>{
+    if(!user?.uid||!toUid)return;
+    setReqStatus(s=>({...s,[toUid]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/friendRequests/outgoing/${toUid}`));
+      try{await mod.remove(mod.ref(mod.db,`friendRequests/${toUid}/${user.uid}`));}catch{}
+    }catch(e){console.error("cancelRequest error",e);}
+    setReqStatus(s=>({...s,[toUid]:""}));
+  };
+
+  const acceptRequest=async(fromUid)=>{
+    if(!user?.uid||!fromUid)return;
+    const req=incomingRequests.find(r=>r.uid===fromUid);
+    if(!req)return;
+    setReqStatus(s=>({...s,[fromUid]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      const now=Date.now();
+      const myEntry={uid:fromUid,name:req.name||"Friend",email:req.email||"",friendCode:req.friendCode||"",streak:0,addedAt:now};
+      const theirEntry={uid:user.uid,name:user.name||"",email:user.email||"",friendCode:myFriendCode,streak:0,addedAt:now};
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${fromUid}`),myEntry);
+      try{await mod.set(mod.ref(mod.db,`users/${fromUid}/friends/${user.uid}`),theirEntry);}catch(crossWriteErr){
+        console.error("Mutual friend write failed — recipient side will need to reconcile",crossWriteErr);
+      }
+      await mod.remove(mod.ref(mod.db,`friendRequests/${user.uid}/${fromUid}`));
+    }catch(e){console.error("acceptRequest error",e);}
+    setReqStatus(s=>({...s,[fromUid]:""}));
+  };
+
+  const declineRequest=async(fromUid)=>{
+    if(!user?.uid||!fromUid)return;
+    setReqStatus(s=>({...s,[fromUid]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`friendRequests/${user.uid}/${fromUid}`));
+    }catch(e){console.error("declineRequest error",e);}
+    setReqStatus(s=>({...s,[fromUid]:""}));
+  };
+
+  // Incoming requests — own-uid read, allowed per rules ($targetUid === auth.uid)
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
@@ -1482,20 +1531,55 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         const mod=await import("./firebase");
         dbRef=mod.ref(mod.db,`friendRequests/${user.uid}`);
         dbMod=mod;
-        listener=mod.onValue(dbRef,async(snap)=>{
-          if(!snap.exists())return;
-          const requests=snap.val();
-          for(const [fromUid,data] of Object.entries(requests)){
-            // Add to my friends list
-            await mod.set(mod.ref(mod.db,`users/${user.uid}/friends/${fromUid}`),data);
-            // Delete the request
-            await mod.remove(mod.ref(mod.db,`friendRequests/${user.uid}/${fromUid}`));
-          }
+        listener=mod.onValue(dbRef,(snap)=>{
+          setIncomingRequests(snap.exists()?Object.entries(snap.val()).map(([id,r])=>({...r,id})):[]);
+        },(err)=>console.error("incoming requests read error",err));
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // Outgoing requests — own mirror, own write/read, always permitted
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/friendRequests/outgoing`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          setOutgoingRequests(snap.exists()?Object.entries(snap.val()).map(([id,r])=>({...r,id})):[]);
         });
       }catch(e){}
     })();
     return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
   },[user?.uid]);
+
+  // Auto-clear an outgoing entry once acceptance is detected (own-uid read of own friends node —
+  // populated by the recipient's acceptRequest cross-write). No decline detection in v1 (see note above).
+  const outgoingUidsKey=outgoingRequests.map(r=>r.uid).join(",");
+  useEffect(()=>{
+    if(!user?.uid||outgoingRequests.length===0)return;
+    let dbMod;
+    const cleanups=[];
+    (async()=>{
+      const mod=await import("./firebase");
+      dbMod=mod;
+      outgoingRequests.forEach(req=>{
+        const toUid=req.uid;
+        const friendRef=mod.ref(mod.db,`users/${user.uid}/friends/${toUid}`);
+        const friendListener=mod.onValue(friendRef,async(snap)=>{
+          if(snap.exists()){
+            try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/friendRequests/outgoing/${toUid}`));}catch{}
+          }
+        });
+        cleanups.push(()=>mod.off(friendRef,friendListener));
+      });
+    })();
+    return()=>{if(dbMod)cleanups.forEach(fn=>fn());};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[user?.uid,outgoingUidsKey]);
 
   // RTDB: groups
   useEffect(()=>{
@@ -1695,19 +1779,35 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         </div>
       </div>
 
-      {/* Add friend */}
-      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Add Friend</button>
+      {/* Send friend request */}
+      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Send Friend Request</button>
       {showAddFriend&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"11px"}}>
-        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Add by Friend Code</div>
-        <input value={friendCode} onChange={e=>setFriendCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&addFriendByCode()} placeholder="SYNC-XXXXXXXX" style={{width:"100%",background:t.input,border:`1px solid ${addStatus==="error"?"#FF6B6B":addStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:addMsg?4:7,letterSpacing:1}}/>
+        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Send Request by Friend Code</div>
+        <input value={friendCode} onChange={e=>setFriendCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()} placeholder="SYNC-XXXXXXXX" style={{width:"100%",background:t.input,border:`1px solid ${addStatus==="error"?"#FF6B6B":addStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:addMsg?4:7,letterSpacing:1}}/>
         {addMsg&&<div style={{fontSize:10,color:addStatus==="error"?"#FF6B6B":"#34d399",marginBottom:7,fontWeight:600}}>{addMsg}</div>}
         <div style={{display:"flex",gap:5}}>
-          <button onClick={addFriendByCode} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-            {addStatus==="loading"?"Searching…":addStatus==="done"?"✓ Added!":addStatus==="error"?"✗ Try Again":"Add Friend"}
+          <button onClick={sendFriendRequest} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+            {addStatus==="loading"?"Searching…":addStatus==="done"?"✓ Sent!":addStatus==="error"?"✗ Try Again":"Send Request"}
           </button>
           <button onClick={()=>{setShowAddFriend(false);setFriendCode("");setAddStatus("");setAddMsg("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
         </div>
         <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
+      </div>}
+
+      {/* Requests */}
+      {(incomingRequests.length>0||outgoingRequests.length>0)&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+        <div style={{fontSize:9,color:t.sub,textTransform:"uppercase",letterSpacing:1.5}}>Requests</div>
+        {incomingRequests.map(r=><div key={r.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:"1px solid rgba(52,211,153,0.25)",borderRadius:10,padding:"9px 11px"}}>
+          <Av c={(r.name||"?")[0]} sz={30}/>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:9}}>wants to be friends</div></div>
+          <button onClick={()=>acceptRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Accept"}</button>
+          <button onClick={()=>declineRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
+        </div>)}
+        {outgoingRequests.map(r=><div key={r.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}>
+          <Av c={(r.name||"?")[0]} sz={30}/>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:9}}>Request pending…</div></div>
+          <button onClick={()=>cancelRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Cancel"}</button>
+        </div>)}
       </div>}
 
       {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
@@ -3225,6 +3325,3 @@ return () => {active=false;unsub();};
     </div>
   </div>);
 }
-
-
-
