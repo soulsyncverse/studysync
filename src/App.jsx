@@ -1265,6 +1265,14 @@ function QRCode({value,size=140}){
 }
 
 function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro,user,streak}){
+  // Shared V1 status → {icon,label} mapping. Single place so Public/Friends/Live
+  // never drift from each other on what 📚/☕/🟢/⚫ mean. No countdown timers in V1.
+  const statusDisplay=(status,subj)=>{
+    if(status==="studying")return{icon:"📚",label:subj?`Studying ${subj}`:"Studying"};
+    if(status==="break")return{icon:"☕",label:"On Break"};
+    if(status==="online")return{icon:"🟢",label:"Online"};
+    return{icon:"⚫",label:"Offline"};
+  };
   const [tab,setTab]=useState(()=>{
     const pending=sessionStorage.getItem("ss_pendingGroupCode");
     return pending?"groups":"public";
@@ -1319,8 +1327,17 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             const profile=row?.profile||{};
             const name=profile.name||profile.displayName||profile.email||"Aspirant";
             const presence=row?.presence||{};
-            presenceMap[uid]={online:presence.state==="online",lastSeen:presence.lastSeen||null};
-            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:presence.state==="online",lastSeen:presence.lastSeen||null,subj:profile.currentSubject||profile.subj||"Studying"};
+            // status derivation (Issue #5): offline always wins regardless of a
+            // stale activity value; otherwise activity (written by the Pomodoro
+            // transition effect) decides studying/break, falling back to idle/online.
+            // 'studying'/'subj' below replace the old buggy alias that equated
+            // ANY online state with "studying" — that conflated Online and
+            // Studying for every connected-but-idle user.
+            const online=presence.state==="online";
+            const activity=online?(presence.activity||"idle"):"idle";
+            const status=!online?"offline":(activity==="studying"?"studying":activity==="break"?"break":"online");
+            presenceMap[uid]={online,lastSeen:presence.lastSeen||null,status,subject:presence.subject||null};
+            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:status==="studying",status,subj:presence.subject||profile.currentSubject||profile.subj||"Studying",lastSeen:presence.lastSeen||null};
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
           setPublicUsers(list);
           setPresenceByUid(presenceMap);
@@ -1333,10 +1350,12 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // Friends joined with LIVE presence from presenceByUid — this replaces any
   // trust in a frozen 'online' field that may still exist on old friendship
   // records written before this fix. uid is the join key.
+  // 'status' is the single field Friends-tab rendering should switch on:
+  // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
     return myFriends.map(f=>{
-      const live=presenceByUid[f.uid]||{online:false,lastSeen:null};
-      return {...f,online:live.online,lastSeen:live.lastSeen};
+      const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null};
+      return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject};
     });
   },[myFriends,presenceByUid]);
 
@@ -1408,6 +1427,14 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   //       or move the derivation server-side via a Cloud Function if a
   //       single authoritative read is needed.
   //     - This removes the single-active-connection assumption entirely.
+  // SCOPE LOCK (Issue #5 decision): this effect owns ONLY 'state' and 'lastSeen'.
+  // Study activity ('activity'/'subject') is intentionally NOT derived here —
+  // it's written exclusively by the Pomodoro transition effect below, keyed off
+  // pomoRun/pomoMode/pomoCs. Reconnects (tab refocus, network blips, app reopen)
+  // fire this listener repeatedly during a session and must NOT touch activity/
+  // subject, or a brief network hiccup would flicker "Studying" back to "Online".
+  // If you need activity to survive here, you're solving the wrong problem —
+  // fix the Pomodoro-side write instead.
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,connectedRef,connectedListener;
@@ -1420,8 +1447,16 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         connectedListener=mod.onValue(connectedRef,(snap)=>{
           if(snap.val()===false)return; // this client's own connection is currently down; nothing to arm
           // Arm the server-side offline write BEFORE claiming online, every time we (re)connect.
+          // This set() intentionally REPLACES the whole node on disconnect — activity/subject
+          // are meant to be cleared when the connection drops, not preserved (see Pomodoro
+          // transition effect for the reasoning: a stale "studying" subject must not outlive
+          // the connection that produced it).
           mod.onDisconnect(presenceRef).set({state:"offline",lastSeen:mod.serverTimestamp()})
             .then(()=>{
+              // This set() also intentionally REPLACES the whole node. It does NOT carry
+              // forward activity/subject from before the (re)connect — those are re-asserted
+              // by the Pomodoro transition effect if a session is actually still running,
+              // not assumed to persist across a reconnect event.
               mod.set(presenceRef,{state:"online",lastSeen:mod.serverTimestamp()});
             })
             .catch(()=>{});
@@ -1767,12 +1802,14 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
         <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
       </div>
-      {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:11,textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=><div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+      {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:11,textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=>{
+        const sd=statusDisplay(f.status,f.subj);
+        return<div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
         <div style={{fontSize:9,color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
-        <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.studying?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{f.studying?`📖 ${f.subj}`:"Offline"} · {f.city}</div></div>
+        <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label} · {f.city}</div></div>
         <div style={{color:t.a1,fontWeight:800,fontSize:11}}>🔥 {f.streak}</div>
-      </div>)}
+      </div>;})}
     </div>}
 
     {/* FRIENDS */}
@@ -1819,17 +1856,19 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       </div>}
 
       {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
-      {myFriendsLive.map(f=><div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
+      {myFriendsLive.map(f=>{
+        const sd=statusDisplay(f.status,f.subject);
+        return<div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
           <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
             <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-            <span style={{color:f.online?t.a3:t.sub,fontSize:9}}>{f.online?"● Live":"○ Offline"}</span>
+            <span style={{color:f.status==="offline"?t.sub:t.a3,fontSize:9}}>{sd.icon} {sd.label}</span>
           </div>
         </div>
         <button onClick={()=>removeFriend(f.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
-      </div>)}
+      </div>;})}
     </div>}
 
     {/* GROUPS */}
@@ -1893,17 +1932,19 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
       <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
-      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,subj:"Polity",streak},...myFriendsLive].map(f=><div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
-        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
+      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak},...myFriendsLive].map(f=>{
+        const sd=statusDisplay(f.status,f.subject);
+        return<div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
-          <div style={{color:t.sub,fontSize:9}}>{f.online?`📖 ${f.subj||"Studying"}`:"Offline"}</div>
+          <div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:5}}>
           <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-          {f.online&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
+          {f.status==="studying"&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
         </div>
-      </div>)}
+      </div>;})}
       {myFriendsLive.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
     </div>}
 
@@ -3352,6 +3393,49 @@ return () => {active=false;unsub();};
   useEffect(()=>{pomoCsRef.current=pomoCs;},[pomoCs]);
   useEffect(()=>{pomoCfRef.current=pomoCf;},[pomoCf]);
 
+  // ── STUDY ACTIVITY → presence (Issue #5) ──
+  // Free-tier, independent of isPro — this is deliberately NOT part of the Pro
+  // cross-device pomoSession sync below. It writes only 'activity'/'subject'
+  // onto the EXISTING users/{uid}/presence node via update() (merge), never
+  // set() (replace) — so it can never clobber 'state'/'lastSeen', which remain
+  // owned exclusively by the connection-presence effect above.
+  //
+  // Derivation, not a new state machine: activity is computed directly from
+  // the same pomoRun/pomoMode that already drive the local timer UI and the
+  // Pro pomoSession sync. No separate "status" concept is introduced.
+  //   pomoRun===false                → "idle"      (covers: paused, reset, completed,
+  //                                                   never started — all collapse to
+  //                                                   the same "not actively running" state)
+  //   pomoRun===true && mode==="focus" → "studying" (carries subject:pomoCs)
+  //   pomoRun===true && mode!=="focus" → "break"    (short or long break running)
+  //
+  // This single derived value covers Start/Pause/Resume/Reset/Completion/Break-
+  // transitions without six separate write call-sites: every one of those user
+  // actions already mutates pomoRun and/or pomoMode, which is the only thing
+  // this effect depends on.
+  //
+  // Explicitly NOT keyed on .info/connected or any reconnect signal — see the
+  // scope-lock comment on the connection effect above for why.
+  useEffect(()=>{
+    if(!user?.uid)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const presenceRef=mod.ref(mod.db,`users/${user.uid}/presence`);
+        const activity=!pomoRun?"idle":(pomoMode==="focus"?"studying":"break");
+        const patch=activity==="studying"
+          ?{activity,subject:pomoCs||""}
+          :{activity,subject:null};
+        // update() merges these two keys only — 'state'/'lastSeen' on this same
+        // node are left exactly as the connection-presence effect last set them.
+        await mod.update(presenceRef,patch);
+      }catch(e){console.error("Presence activity write error",e);}
+    })();
+    // pomoSec intentionally excluded — this must fire only on discrete
+    // run/mode transitions, never on the per-second countdown tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[user?.uid,pomoRun,pomoMode,pomoCs]);
+
   // ── PRO CROSS-DEVICE POMODORO SYNC ──
   // Entirely gated on isPro. Free-tier users never run any of this — the effects
   // below simply return early, so the localStorage-only path above is untouched.
@@ -3562,6 +3646,8 @@ return () => {active=false;unsub();};
           try{
             const mod=await import("./firebase");
             const presenceRef=mod.ref(mod.db,`users/${user.uid}/presence`);
+            // set() replaces the whole node — activity/subject are dropped here on purpose.
+            // A signed-out user must not show "Studying [Subject]" anywhere in Circle.
             await mod.set(presenceRef,{state:"offline",lastSeen:mod.serverTimestamp()});
             // Cancel the queued onDisconnect write — we already wrote offline
             // ourselves, so there's nothing left for the server to do on drop.
