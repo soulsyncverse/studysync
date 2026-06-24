@@ -526,7 +526,8 @@ function Login({t,onLogin}){
 
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
-  pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs}){
+  pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs,
+  onPomoReset=()=>{}}){
   const allSubjects=[...subjects,...customSubjects];
   const [pf,setPf]=useState(pomoCf);
   const [show,setShow]=useState(false);
@@ -579,7 +580,7 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
     </div>
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{setPomoSec(dur[pomoMode]*60);setPomoRun(false);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
+      <button onClick={()=>{setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
       <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
@@ -2854,6 +2855,17 @@ return () => {active=false;unsub();};
   const [pomoRun,setPomoRun]=useState(false); // never restore as running — calculate elapsed instead
   const [pomoSess,setPomoSess]=useState(0);
   const [pomoCs,setPomoCs]=useState("");
+  // ── Pro cross-device sync identity — inert for free users, only read/written when isPro ──
+  const [pomoSessionId,setPomoSessionId]=useState(()=>`p_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+  const deviceIdRef=useRef(null);
+  if(deviceIdRef.current===null){
+    try{
+      let id=localStorage.getItem("ss_device_id");
+      if(!id){id=`d_${Date.now()}_${Math.random().toString(36).slice(2,10)}`;localStorage.setItem("ss_device_id",id);}
+      deviceIdRef.current=id;
+    }catch{deviceIdRef.current=`d_${Math.random().toString(36).slice(2,10)}`;}
+  }
+  const applyingRemoteRef=useRef(false); // true while adopting a remote snapshot — suppresses the write-back echo
   // Restore remaining seconds accounting for elapsed time while page was closed
   const [pomoSec,setPomoSec]=useState(()=>{
     try{
@@ -3185,6 +3197,109 @@ return () => {active=false;unsub();};
   useEffect(()=>{pomoCsRef.current=pomoCs;},[pomoCs]);
   useEffect(()=>{pomoCfRef.current=pomoCf;},[pomoCf]);
 
+  // ── PRO CROSS-DEVICE POMODORO SYNC ──
+  // Entirely gated on isPro. Free-tier users never run any of this — the effects
+  // below simply return early, so the localStorage-only path above is untouched.
+  // Schema: users/{uid}/pomoSession = { sessionId, mode, cf, cs, state, remainingSec,
+  //   totalSec, sessionCount, updatedAt: serverTimestamp(), updatedBy: deviceId }
+  // Conflict rule (per product decision): latest write wins. updatedBy lets each
+  // device ignore its own echo; sessionId lets a remote Reset be told apart from
+  // a remote pause/resume of the same run. No version counters.
+
+  // Adopt remote state whenever another device changes it.
+  useEffect(()=>{
+    if(!isPro||!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        dbRef=mod.ref(mod.db,`users/${user.uid}/pomoSession`);
+        listener=mod.onValue(dbRef,(snap)=>{
+          if(!snap.exists())return;
+          const remote=snap.val();
+          if(remote.updatedBy===deviceIdRef.current)return; // our own write echoing back — nothing to adopt
+          applyingRemoteRef.current=true;
+          // Never trust the other device's clock for "now" — re-anchor remaining
+          // time using OUR local clock at the moment this snapshot arrived.
+          const elapsedSec=typeof remote.updatedAt==="number"?Math.max(0,(Date.now()-remote.updatedAt)/1000):0;
+          const remainingSec=Math.max(0,Math.round(remote.remainingSec||0));
+          const adoptedRemaining=remote.state==="running"?Math.max(0,Math.round(remainingSec-elapsedSec)):remainingSec;
+          setPomoSessionId(remote.sessionId||pomoSessionId);
+          setPomoMode(remote.mode||"focus");
+          setPomoCf(remote.cf||25);
+          setPomoCs(remote.cs||"");
+          if(typeof remote.sessionCount==="number")setPomoSess(remote.sessionCount);
+          setPomoSec(adoptedRemaining);
+          const shouldRun=remote.state==="running"&&adoptedRemaining>0;
+          setPomoRun(shouldRun);
+          pomoEndTimeRef.current=shouldRun?Date.now()+adoptedRemaining*1000:null;
+          push({icon:"🔄",title:"Pomodoro updated",body:"Pomodoro updated from another device.",col:"#818cf8"});
+          // Release the echo-guard after this render settles so the write-effect
+          // below sees the adopted values without re-broadcasting them.
+          setTimeout(()=>{applyingRemoteRef.current=false;},0);
+        },(err)=>console.error("pomoSession read error",err));
+      }catch(e){console.error("pomoSession listener setup error",e);}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[isPro,user?.uid]);
+
+  // Push local state to Firebase on discrete transitions only (start/pause/resume/
+  // mode-switch/duration-change/completion). Never on the per-second tick — pomoSec
+  // is deliberately NOT a dependency here, so this cannot fire 1×/second.
+  useEffect(()=>{
+    if(!isPro||!user?.uid)return;
+    if(applyingRemoteRef.current)return; // this change came FROM the listener above — don't echo it back
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const dur={focus:pomoCf,short:5,long:15};
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/pomoSession`),{
+          sessionId:pomoSessionId,
+          mode:pomoMode,
+          cf:pomoCf,
+          cs:pomoCs,
+          state:pomoRun?"running":"paused",
+          remainingSec:pomoSec,
+          totalSec:dur[pomoMode]*60,
+          sessionCount:pomoSess,
+          updatedAt:mod.serverTimestamp(),
+          updatedBy:deviceIdRef.current,
+        });
+      }catch(e){console.error("pomoSession write error",e);}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[isPro,user?.uid,pomoRun,pomoMode,pomoCf,pomoCs,pomoSessionId]);
+
+  // Explicit completion sync — the transition effect above already fires when pomoRun
+  // flips to false at completion, but completion also needs the freshly-incremented
+  // pomoSess to be the value actually written (the transition effect's deps don't
+  // include pomoSess, since ticking session-count-unrelated noise must not cause writes).
+  useEffect(()=>{
+    if(!isPro||!user?.uid||applyingRemoteRef.current)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const dur={focus:pomoCf,short:5,long:15};
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/pomoSession`),{
+          sessionId:pomoSessionId,mode:pomoMode,cf:pomoCf,cs:pomoCs,
+          state:pomoRun?"running":"paused",remainingSec:pomoSec,totalSec:dur[pomoMode]*60,
+          sessionCount:pomoSess,updatedAt:mod.serverTimestamp(),updatedBy:deviceIdRef.current,
+        });
+      }catch(e){console.error("pomoSession sessionCount sync error",e);}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[isPro,user?.uid,pomoSess]);
+
+  // Reset, called from the Pomo component's Reset button — starts a fresh sessionId
+  // so other devices recognize this as a new run rather than a continuation.
+  const handlePomoReset=useCallback(()=>{
+    if(!isPro||!user?.uid)return;
+    const newId=`p_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+    setPomoSessionId(newId);
+  },[isPro,user?.uid]);
+
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
   // Expose user globally for components that can't receive it via props
@@ -3267,7 +3382,7 @@ return () => {active=false;unsub();};
 
     {/* Content */}
     <div className="ss-content">
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro} user={user}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
