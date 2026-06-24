@@ -197,7 +197,7 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
   const [sel,setSel]=useState("monthly");
   const [ld,setLd]=useState(false);const [ok,setOk]=useState(false);
   const plans={trial:{l:"7-Day Trial",p:0,per:"then ₹25/mo",badge:"START FREE",c:"#34d399"},monthly:{l:"1 Month",p:25,orig:50,per:"month",badge:"50% OFF",c:"#818cf8"},quarter:{l:"3 Months",p:70,orig:150,per:"3 months",badge:"BEST VALUE",c:"#60a5fa"}};
-  const feats=[{i:"🤖",l:"AI Assistant"},{i:"📝",l:"Notes & Cards"},{i:"📋",l:"Syllabus"},{i:"👑",l:"Badges"},{i:"📊",l:"Analytics"},{i:"🚫",l:"No Ads"}];
+  const feats=[{i:"🤖",l:"AI Assistant"},{i:"📋",l:"Syllabus Tracker"},{i:"🃏",l:"Active Recall"},{i:"📈",l:"Mock Tests"},{i:"🔄",l:"Cross-Device Sync"},{i:"👑",l:"All Badges"}];
   const pay=async()=>{setLd(true);await new Promise(r=>setTimeout(r,1200));setLd(false);setOk(true);setTimeout(()=>{if(isRestore)onRestore();else onUpgrade();onClose();},1500);};
   return(
     <div style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(8px)"}} onClick={onClose}>
@@ -2931,6 +2931,28 @@ return () => {active=false;unsub();};
       }
     };
   },[user?.uid]);
+
+  // ── Entitlement (Pro status) — Firebase is the only source of truth ──
+  // isPro itself stays a React state var (everything below already reads it that
+  // way), but it is now strictly a *cache* of users/{uid}/entitlement, populated
+  // here and nowhere else except the upgrade/restore writes below. No localStorage
+  // involvement — this fixes the "logout/login can revert to Free" bug, since the
+  // old code never persisted isPro anywhere at all.
+  useEffect(()=>{
+    if(!user?.uid){setIsPro(false);return;} // no account in this tab — never show stale Pro
+    let dbMod,entRef,entListener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        entRef=mod.ref(mod.db,`users/${user.uid}/entitlement`);
+        entListener=mod.onValue(entRef,(snap)=>{
+          setIsPro(snap.exists()?!!snap.val()?.isPro:false);
+        },(err)=>{console.error("entitlement read error",err);setIsPro(false);});
+      }catch(e){console.error("entitlement load error",e);setIsPro(false);}
+    })();
+    return()=>{if(dbMod&&entRef&&entListener)dbMod.off(entRef,entListener);};
+  },[user?.uid]);
   const [examSubjects,setExamSubjects]=useState({});
   const [customExams,setCustomExams]=useState([]);
   const [examDates,setExamDates]=useState({});
@@ -3349,7 +3371,16 @@ return () => {active=false;unsub();};
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
     {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
-    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={()=>{setIsPro(true);push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});}} onRestore={()=>{}}/>}
+    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={async()=>{
+      setIsPro(true); // optimistic local update — instant UI, no wait on the round-trip
+      push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});
+      if(user?.uid){
+        try{
+          const mod=await import("./firebase");
+          await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp()});
+        }catch(e){console.error("entitlement persist error",e);}
+      }
+    }} onRestore={()=>{}}/>}
     {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
     {/* Header */}
