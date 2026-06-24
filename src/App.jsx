@@ -47,6 +47,13 @@ const COLS=["#FF6B6B","#6EE7F7","#B8FF6B","#FFB86B","#C16BFF","#FFE66D","#6BFFC1
 
 // ── HELPERS ───────────────────────────────────────────────────
 function pad(n){return String(n).padStart(2,"0");}
+// Counts leaf records in a fixed-depth nested object tree (e.g. mockTests is
+// examKey/mode/{record}, depth=2; activeRecallCards is examKey/mode/subject/{record}, depth=3).
+function countLeavesAtDepth(obj,depth){
+  if(!obj||typeof obj!=="object")return 0;
+  if(depth===0)return Object.keys(obj).length;
+  return Object.values(obj).reduce((sum,v)=>sum+countLeavesAtDepth(v,depth-1),0);
+}
 function dl(date){
   if(!date)return null;
   // Use IST date for accurate countdown
@@ -2604,6 +2611,60 @@ function MockTest({t,es,user}){
   </div>);
 }
 
+// ── PREMIUM BENEFITS MODAL ────────────────────────────────────
+function PremiumBenefitsModal({t,onClose,isPro,mockCount,recallCount,totalSessions,streak}){
+  const STATUS_STYLE={
+    Active:{color:"#34d399",bg:"rgba(52,211,153,0.12)"},
+    Available:{color:"#818cf8",bg:"rgba(129,140,248,0.12)"},
+    Locked:{color:t.sub,bg:t.pill},
+  };
+  const statusFor=(usedCondition)=>!isPro?"Locked":(usedCondition?"Active":"Available");
+  const features=[
+    {icon:"🤖",label:"AI Assistant",status:statusFor(false)}, // usage not tracked yet — never overclaim "Active"
+    {icon:"📋",label:"Syllabus Tracker",status:statusFor(false)},
+    {icon:"🃏",label:"Active Recall",status:statusFor(recallCount>0)},
+    {icon:"📈",label:"Mock Tests",status:statusFor(mockCount>0)},
+    {icon:"🔄",label:"Cross-Device Pomodoro Sync",status:statusFor(totalSessions>0)},
+    {icon:"👑",label:"All Badges",status:statusFor(streak>0)},
+  ];
+  const usage=[
+    {l:"AI Queries",v:"Not tracked yet",muted:true},
+    {l:"Synced Pomodoro Sessions",v:String(totalSessions)},
+    {l:"Mock Tests Taken",v:String(mockCount)},
+    {l:"Recall Cards Created",v:String(recallCount)},
+  ];
+  return(<div style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(6px)"}} onClick={onClose}>
+    <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:520,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 16px 30px"}}>
+      <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
+      <div style={{textAlign:"center",marginBottom:14}}>
+        <div style={{fontSize:20}}>⚡</div>
+        <div style={{fontSize:16,fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>Premium Benefits</div>
+      </div>
+
+      <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Features</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
+        {features.map(f=>{const s=STATUS_STYLE[f.status];return(
+          <div key={f.label} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"10px 12px"}}>
+            <span style={{fontSize:16}}>{f.icon}</span>
+            <span style={{flex:1,color:t.text,fontWeight:700,fontSize:12}}>{f.label}</span>
+            <span style={{background:s.bg,color:s.color,fontWeight:800,fontSize:9,padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap"}}>{f.status}</span>
+          </div>
+        );})}
+      </div>
+
+      <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Your Premium Usage</div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:4}}>
+        {usage.map(u=><div key={u.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"10px"}}>
+          <div style={{color:u.muted?t.muted:"#818cf8",fontWeight:u.muted?700:900,fontSize:u.muted?10:17}}>{u.v}</div>
+          <div style={{color:t.sub,fontSize:8,marginTop:3,textTransform:"uppercase",letterSpacing:.6}}>{u.l}</div>
+        </div>)}
+      </div>
+
+      <button onClick={onClose} style={{width:"100%",marginTop:12,background:t.pill,border:"none",borderRadius:11,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+    </div>
+  </div>);
+}
+
 // ── PROFILE ───────────────────────────────────────────────────
 function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const days=dl(es.date);
@@ -2616,6 +2677,51 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const [nameSaved,setNameSaved]=useState(false);
   const [deleteStep,setDeleteStep]=useState(0); // 0=none,1=first confirm,2=second confirm,3=deleting
   const [codeCopied,setCodeCopied]=useState(false);
+  // ── Premium Membership section state ──
+  const [entInfo,setEntInfo]=useState({plan:"",memberSince:null});
+  const [mockCount,setMockCount]=useState(0);
+  const [recallCount,setRecallCount]=useState(0);
+  const [benefitsOpen,setBenefitsOpen]=useState(false);
+
+  // Plan name + Member Since — sourced from the same users/{uid}/entitlement node the app already uses as the source of truth for isPro
+  useEffect(()=>{
+    if(!isPro||!user?.uid){setEntInfo({plan:"",memberSince:null});return;}
+    let dbMod,entRef,entListener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        entRef=mod.ref(mod.db,`users/${user.uid}/entitlement`);
+        entListener=mod.onValue(entRef,(snap)=>{
+          const v=snap.exists()?snap.val():null;
+          setEntInfo({plan:v?.plan||"premium",memberSince:typeof v?.updatedAt==="number"?v.updatedAt:null});
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&entRef&&entListener)dbMod.off(entRef,entListener);};
+  },[isPro,user?.uid]);
+
+  // Usage — Mock Tests taken + Recall Cards created, derived from existing nested Firebase trees (no new paths)
+  useEffect(()=>{
+    if(!isPro||!user?.uid){setMockCount(0);setRecallCount(0);return;}
+    let dbMod,mockRef,mockListener,recallRef,recallListener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbMod=mod;
+        mockRef=mod.ref(mod.db,`users/${user.uid}/mockTests`);
+        mockListener=mod.onValue(mockRef,(snap)=>{setMockCount(snap.exists()?countLeavesAtDepth(snap.val(),2):0);});
+        recallRef=mod.ref(mod.db,`users/${user.uid}/activeRecallCards`);
+        recallListener=mod.onValue(recallRef,(snap)=>{setRecallCount(snap.exists()?countLeavesAtDepth(snap.val(),3):0);});
+      }catch(e){}
+    })();
+    return()=>{
+      if(dbMod){
+        if(mockRef&&mockListener)dbMod.off(mockRef,mockListener);
+        if(recallRef&&recallListener)dbMod.off(recallRef,recallListener);
+      }
+    };
+  },[isPro,user?.uid]);
 
   const saveName=async()=>{
     if(!nameVal.trim()||!user?.uid){setEditingName(false);return;}
@@ -2686,6 +2792,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
         <div style={{color:t.text,fontSize:13,fontWeight:700}}>Deleting account…</div>
       </div>
     )}
+    {benefitsOpen&&<PremiumBenefitsModal t={t} onClose={()=>setBenefitsOpen(false)} isPro={isPro} mockCount={mockCount} recallCount={recallCount} totalSessions={stats?.totalSessions||0} streak={streak}/>}
 
     {/* Avatar + name */}
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
@@ -2716,6 +2823,32 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
 
     {/* Stats */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
+
+    {/* Premium Membership */}
+    {isPro?(
+      <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.10),rgba(52,211,153,0.06))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:14,padding:"13px 14px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
+          <span style={{fontSize:16}}>⚡</span>
+          <span style={{color:t.text,fontWeight:900,fontSize:13}}>Premium Membership</span>
+          <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(52,211,153,0.15)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
+            <div style={{width:5,height:5,borderRadius:"50%",background:"#34d399"}}/>
+            <span style={{color:"#34d399",fontWeight:800,fontSize:9}}>Active</span>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:18,marginBottom:11}}>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?new Date(entInfo.memberSince).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—"}</div></div>
+        </div>
+        <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>View Benefits</button>
+      </div>
+    ):(
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
+        <div style={{fontSize:22,marginBottom:5}}>⚡</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>You're on the Free plan</div>
+        <div style={{color:t.sub,fontSize:10,marginBottom:10,lineHeight:1.5}}>Unlock AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
+        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>⚡ Upgrade to Premium</button>
+      </div>
+    )}
 
     {/* Exam countdown */}
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
