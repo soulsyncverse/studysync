@@ -1305,6 +1305,15 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   });
   const [joinStatus,setJoinStatus]=useState("");
   const [joinMsg,setJoinMsg]=useState("");
+  // ── Issue #6 Part 1: Group Join Requests ──
+  // incomingGroupRequests: flattened across ALL owned groups, keyed by gid → [{uid,name,...}]
+  //   sourced from the SAME myGroups listener payload (no new top-level listener — Part 4).
+  // outgoingGroupRequests: own-uid mirror, parallel to friendRequests/outgoing pattern.
+  const [outgoingGroupRequests,setOutgoingGroupRequests]=useState([]);
+  const [incomingGroupRequests,setIncomingGroupRequests]=useState([]); // derived from myGroups snapshot — see listener below
+  const [grpReqStatus,setGrpReqStatus]=useState({}); // per-(gid|uid) loading flag
+  // ── Issue #6 Part 2: Friend Profile modal ──
+  const [friendProfileId,setFriendProfileId]=useState(null); // myFriends.id of the open profile, or null
 
   const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:0,s:streak},...publicUsers.map(p=>({name:p.name,av:p.av,h:p.h||0,s:p.streak||0}))].sort((a,b)=>(b.h||0)-(a.h||0)).map((f,i)=>({...f,r:i+1}));
 
@@ -1336,7 +1345,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             const online=presence.state==="online";
             const activity=online?(presence.activity||"idle"):"idle";
             const status=!online?"offline":(activity==="studying"?"studying":activity==="break"?"break":"online");
-            presenceMap[uid]={online,lastSeen:presence.lastSeen||null,status,subject:presence.subject||null};
+            // Issue #6 Part 2: totalSessions/joinedAt are READ from fields already
+            // present in this same users/ snapshot (row.stats.totalSessions already
+            // exists for the report screen; row.profile.joinedAt is the new guarded
+            // write below) — no new listener, no new path read.
+            presenceMap[uid]={online,lastSeen:presence.lastSeen||null,status,subject:presence.subject||null,totalSessions:row?.stats?.totalSessions||0,joinedAt:profile.joinedAt||null};
             return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:status==="studying",status,subj:presence.subject||profile.currentSubject||profile.subj||"Studying",lastSeen:presence.lastSeen||null};
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
           setPublicUsers(list);
@@ -1354,10 +1367,18 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
     return myFriends.map(f=>{
-      const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null};
-      return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject};
+      const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null,totalSessions:0,joinedAt:null};
+      return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject,totalSessions:live.totalSessions,joinedAt:live.joinedAt};
     });
   },[myFriends,presenceByUid]);
+
+  // Issue #6 Part 3: studying → break → online → offline. Single sort, computed
+  // once here, consumed by BOTH Friends and Live tabs below — no duplicate sort
+  // logic, no extra recomputation per render (Part 4).
+  const STATUS_RANK={studying:0,break:1,online:2,offline:3};
+  const myFriendsSorted=useMemo(()=>{
+    return [...myFriendsLive].sort((a,b)=>(STATUS_RANK[a.status]??3)-(STATUS_RANK[b.status]??3));
+  },[myFriendsLive]);
 
   // ── Register profile + friendCode index on login ──
   // NOTE: 'online'/'lastSeen' were REMOVED from this static profile write.
@@ -1368,11 +1389,20 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     (async()=>{
       try{
         const mod=await import("./firebase");
+        // Issue #6 Part 2: "Joined StudySync date" — this write is set() (full
+        // overwrite) on EVERY login, so joinedAt must be read-before-write and
+        // preserved, never just appended, or it would silently reset to "now"
+        // on every single login instead of recording the true first one.
+        const existingSnap=await new Promise(res=>{
+          mod.onValue(mod.ref(mod.db,`users/${user.uid}/profile/joinedAt`),(s)=>{res(s);},{onlyOnce:true});
+        });
+        const joinedAt=existingSnap.exists()?existingSnap.val():Date.now();
         const profileData={
           name:user.name||"",
           email:user.email||"",
           friendCode:myFriendCode,
           uid:user.uid,
+          joinedAt,
         };
         // Write to own profile
         await mod.set(mod.ref(mod.db,`users/${user.uid}/profile`),profileData);
@@ -1625,6 +1655,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   },[user?.uid,outgoingUidsKey]);
 
   // RTDB: groups
+  // Issue #6 Part 1/4: incomingGroupRequests is DERIVED from this same snapshot,
+  // not a separate listener — joinRequests/{uid} lives as a child of each owned
+  // group, so it arrives in this payload for free. memberUids is similarly
+  // flattened here for O(1) "already a member" checks (Part 1 requirement),
+  // without adding a second read.
   useEffect(()=>{
     if(!user?.uid)return;
     let dbMod,dbRef,listener;
@@ -1635,14 +1670,67 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         dbMod=mod;
         listener=mod.onValue(dbRef,(snap)=>{
           if(snap.exists()){
-            const arr=Object.entries(snap.val()).map(([id,g])=>({...g,id,members:g.members?Object.values(g.members):[]}));
+            const raw=snap.val();
+            const arr=Object.entries(raw).map(([id,g])=>({
+              ...g,id,
+              members:g.members?Object.values(g.members):[],
+              memberUids:g.memberUids?Object.keys(g.memberUids):[],
+            }));
             setMyGroups(arr);
-          } else setMyGroups([]);
+            const incoming=[];
+            Object.entries(raw).forEach(([gid,g])=>{
+              if(g.joinRequests){
+                Object.entries(g.joinRequests).forEach(([uid,req])=>{
+                  incoming.push({gid,groupName:g.name,uid,...req});
+                });
+              }
+            });
+            setIncomingGroupRequests(incoming);
+          } else {setMyGroups([]);setIncomingGroupRequests([]);}
         });
       }catch(e){}
     })();
     return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
   },[user?.uid]);
+
+  // Outgoing group requests — own mirror, parallel to friendRequests/outgoing.
+  // Path: users/{uid}/groupRequests/outgoing/{gid} — own top-level node, always
+  // readable/writable by the owner per the same rule that already covers
+  // users/{uid}/friendRequests/outgoing.
+  useEffect(()=>{
+    if(!user?.uid)return;
+    let dbMod,dbRef,listener;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        dbRef=mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing`);
+        dbMod=mod;
+        listener=mod.onValue(dbRef,(snap)=>{
+          setOutgoingGroupRequests(snap.exists()?Object.entries(snap.val()).map(([gid,r])=>({...r,gid})):[]);
+        });
+      }catch(e){}
+    })();
+    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
+  },[user?.uid]);
+
+  // Auto-clear an outgoing group request once acceptance is detected. Unlike the
+  // friend-request auto-clear (which can watch a specific known uid path), the
+  // requester has no way to know the owner-generated myGid in advance — so instead
+  // of attaching a new listener per request, this just checks the ALREADY-LOADED
+  // myGroups state (Part 4: zero new listeners) for a matching code on every
+  // myGroups update. No decline detection in v1 (matches friend-request v1 scope).
+  const myGroupCodes=useMemo(()=>new Set(myGroups.map(g=>g.code)),[myGroups]);
+  useEffect(()=>{
+    if(!user?.uid||outgoingGroupRequests.length===0)return;
+    (async()=>{
+      const mod=await import("./firebase");
+      for(const req of outgoingGroupRequests){
+        if(myGroupCodes.has(req.code)){
+          try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${req.gid}`));}catch{}
+        }
+      }
+    })();
+  },[user?.uid,outgoingGroupRequests,myGroupCodes]);
 
   // RTDB: friends
   useEffect(()=>{
@@ -1728,16 +1816,27 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
   };
 
-  // ── Join group by code: reads from global groupCodes index ──
+  // ── Join group by code (Issue #6 Part 1): now sends a REQUEST, not an instant join ──
+  // Verified-by-existing-behavior, not by reading database.rules.json directly (that
+  // file wasn't available to audit): today's instant-join wrote
+  // users/{ownerUid}/groups/{gid}/members/{key} from a non-owner UID and this is known
+  // to work in production, so a child-path override under that same groups/{gid}
+  // subtree permitting non-owner authed writes must already exist. joinRequests/{uid}
+  // is a SIBLING of members under that identical subtree, so it inherits the same
+  // override. This is an inference from observed behavior, not a confirmed rules read —
+  // flagged again in the implementation report below.
   const joinGroupByCode=async()=>{
     const code=joinCode.trim().toUpperCase();
     if(!code){setJoinStatus("error");setJoinMsg("Enter a group code.");return;}
     setJoinStatus("loading");setJoinMsg("Looking up group…");
     try{
       const mod=await import("./firebase");
-      // Check not already a member
-      const alreadyIn=myGroups.some(g=>g.code===code||g.code===code.toUpperCase());
+      // Already a member? (covers both groups you created and groups you've joined)
+      const alreadyIn=myGroups.some(g=>g.code===code);
       if(alreadyIn){setJoinStatus("error");setJoinMsg("You're already in this group.");return;}
+      // Already requested? Prevent duplicate requests.
+      const alreadyRequested=outgoingGroupRequests.some(r=>r.code===code);
+      if(alreadyRequested){setJoinStatus("error");setJoinMsg("Request already sent — waiting for approval.");return;}
       // Look up via global groupCodes index
       const groupSnap=await new Promise((res,rej)=>{
         mod.onValue(mod.ref(mod.db,`groupCodes/${code}`),(s)=>{res(s);},{onlyOnce:true});
@@ -1748,23 +1847,84 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
       const groupIndex=groupSnap.val();
       if(!groupIndex.active){setJoinStatus("error");setJoinMsg("This group is no longer active.");return;}
       const {gid,ownerUid,name:groupName}=groupIndex;
+      if(ownerUid===user.uid){setJoinStatus("error");setJoinMsg("That's your own group.");return;}
+      const now=Date.now();
       const myName=user?.name||"You";
-      const memberKey=`m${Date.now()}`;
-      // Add yourself to owner's group members
-      await mod.set(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/members/${memberKey}`),myName);
-      // Save a copy in your own groups so you can see it
-      const myGid=`grp_joined_${Date.now()}`;
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${myGid}`),{
-        id:myGid,name:groupName,code,joinLink:groupIndex.joinLink||"",
-        joinedAs:"member",ownerUid,createdAt:groupIndex.createdAt||Date.now(),
-        members:{[memberKey]:myName}
-      });
-      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Joined "${groupName}"!`);
-      setTimeout(()=>{setJoinStatus("");setJoinMsg("");},2000);
+      // Write the request under the SAME groups/{gid} subtree members already lives in.
+      await mod.set(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/joinRequests/${user.uid}`),
+        {uid:user.uid,name:myName,friendCode:myFriendCode,requestedAt:now});
+      // Own-uid mirror so the requester can see "pending" and cancel — always permitted.
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${gid}`),
+        {gid,ownerUid,groupName,code,requestedAt:now});
+      setJoinCode("");setJoinStatus("done");setJoinMsg(`✓ Request sent to "${groupName}" — waiting for approval.`);
+      setTimeout(()=>{setJoinStatus("");setJoinMsg("");},2400);
     }catch(e){
       console.error("joinGroup error",e);
-      setJoinStatus("error");setJoinMsg("Error joining group. Try again.");
+      setJoinStatus("error");setJoinMsg("Error sending request. Try again.");
     }
+  };
+
+  const cancelGroupRequest=async(gid,ownerUid)=>{
+    if(!user?.uid||!gid)return;
+    setGrpReqStatus(s=>({...s,[gid]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${gid}`));
+      if(ownerUid)try{await mod.remove(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/joinRequests/${user.uid}`));}catch{}
+    }catch(e){console.error("cancelGroupRequest error",e);}
+    setGrpReqStatus(s=>({...s,[gid]:""}));
+  };
+
+  // Accept: add requester to members (string, same shape addMemberToGroup already
+  // uses — render at g.members.map stays untouched) + memberUids (uid map, for
+  // O(1) membership checks and Part 2's shared-groups lookup) + remove the request.
+  // Also mirrors the group into the REQUESTER'S own tree so it shows up in their
+  // Groups tab — same cross-uid-write shape as acceptRequest's theirEntry write for
+  // friends. That existing code already documents this can fail under stricter rules
+  // and is wrapped in its own try/catch with a "will need to reconcile" fallback; we
+  // follow the identical precedent here rather than assume a guarantee that isn't
+  // confirmed by database.rules.json (not available to audit in this pass).
+  const acceptGroupRequest=async(gid,reqUid)=>{
+    if(!user?.uid||!gid||!reqUid)return;
+    const req=incomingGroupRequests.find(r=>r.gid===gid&&r.uid===reqUid);
+    const group=myGroups.find(g=>g.id===gid);
+    if(!req)return;
+    const key=`${gid}|${reqUid}`;
+    setGrpReqStatus(s=>({...s,[key]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      const memberKey=`m${Date.now()}`;
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/members/${memberKey}`),req.name||"Aspirant");
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/memberUids/${reqUid}`),true);
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/joinRequests/${reqUid}`));
+      // Cross-write into requester's tree — same risk profile as the friend-accept
+      // theirEntry write. If this fails, the request is still removed and the
+      // requester remains a real member.uid-checkable member on the owner's side;
+      // they just won't see the group listed under their own Groups tab until a
+      // future reconciliation pass (matches the documented friend-accept gap).
+      try{
+        const myGid=`grp_joined_${Date.now()}`;
+        await mod.set(mod.ref(mod.db,`users/${reqUid}/groups/${myGid}`),{
+          id:myGid,name:group?.name||req.groupName||"Group",code:group?.code||"",
+          joinLink:group?.joinLink||"",joinedAs:"member",ownerUid:user.uid,
+          createdAt:group?.createdAt||Date.now(),members:{[memberKey]:req.name||"Aspirant"},
+        });
+      }catch(crossWriteErr){
+        console.error("Group cross-write to requester failed — requester side will need to reconcile",crossWriteErr);
+      }
+    }catch(e){console.error("acceptGroupRequest error",e);}
+    setGrpReqStatus(s=>({...s,[key]:""}));
+  };
+
+  const declineGroupRequest=async(gid,reqUid)=>{
+    if(!user?.uid||!gid||!reqUid)return;
+    const key=`${gid}|${reqUid}`;
+    setGrpReqStatus(s=>({...s,[key]:"loading"}));
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/joinRequests/${reqUid}`));
+    }catch(e){console.error("declineGroupRequest error",e);}
+    setGrpReqStatus(s=>({...s,[key]:""}));
   };
 
   return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:11}}>
@@ -1788,6 +1948,56 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         </div>
       </div>
     ):null;})()}
+
+    {/* Friend Profile modal (Issue #6 Part 2) */}
+    {friendProfileId&&(()=>{
+      const f=myFriendsLive.find(x=>x.id===friendProfileId);
+      if(!f)return null;
+      const sd=statusDisplay(f.status,f.subject);
+      // Shared groups: only knowable for groups I OWN, where the friend's uid was
+      // recorded in memberUids at accept time (Part 1). Groups I joined as a member
+      // never receive other members' uids on my own copy — only their display names
+      // — so this can't claim to cover those without faking data. Scoped honestly
+      // rather than silently incomplete: label says "groups you own together", not
+      // a blanket "shared groups".
+      const sharedOwnedGroups=myGroups.filter(g=>g.memberUids?.includes(f.uid));
+      return(
+      <div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}} onClick={()=>setFriendProfileId(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:"1px solid rgba(129,140,248,0.25)",borderRadius:18,padding:20,maxWidth:300,width:"100%"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+            <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={46}/><div style={{position:"absolute",bottom:1,right:1,width:10,height:10,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`2px solid ${t.bg}`}}/></div>
+            <div style={{flex:1}}>
+              <div style={{color:t.text,fontWeight:800,fontSize:15}}>{f.name||"Friend"}</div>
+              <div style={{color:f.status==="offline"?t.sub:t.a3,fontSize:11,fontWeight:700,marginTop:1}}>{sd.icon} {sd.label}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6,marginBottom:10}}>
+            <div style={{flex:1,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 8px",textAlign:"center"}}>
+              <div style={{color:t.a1,fontWeight:900,fontSize:16}}>🔥 {f.streak||0}</div>
+              <div style={{color:t.muted,fontSize:8,marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Streak</div>
+            </div>
+            <div style={{flex:1,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 8px",textAlign:"center"}}>
+              <div style={{color:t.a2,fontWeight:900,fontSize:16}}>{f.totalSessions||0}</div>
+              <div style={{color:t.muted,fontSize:8,marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Sessions</div>
+            </div>
+          </div>
+          <div style={{background:t.pill,borderRadius:8,padding:"7px 10px",marginBottom:8}}>
+            <div style={{color:t.muted,fontSize:8,marginBottom:2}}>Friend Code</div>
+            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:800,fontSize:12,letterSpacing:1}}>{f.friendCode||"—"}</div>
+          </div>
+          {f.joinedAt&&<div style={{color:t.sub,fontSize:9,marginBottom:10,textAlign:"center"}}>Joined StudySync {new Date(f.joinedAt).toLocaleDateString(undefined,{month:"short",year:"numeric"})}</div>}
+          {sharedOwnedGroups.length>0&&<div style={{marginBottom:10}}>
+            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Groups You Own Together</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sharedOwnedGroups.map(g=><div key={g.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"3px 8px",fontSize:9,color:t.text,fontWeight:600}}>{g.name}</div>)}</div>
+          </div>}
+          <div style={{display:"flex",gap:5}}>
+            <button onClick={()=>{removeFriend(f.id);setFriendProfileId(null);}} style={{flex:1,background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:9,padding:"8px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Remove Friend</button>
+            <button onClick={()=>setFriendProfileId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+          </div>
+        </div>
+      </div>
+      );
+    })()}
 
     {/* Tab bar */}
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
@@ -1855,10 +2065,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         </div>)}
       </div>}
 
-      {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>No friends yet. Add someone via their code! 👆</div>}
-      {myFriendsLive.map(f=>{
+      {myFriendsLive.length>0&&<div style={{color:t.sub,fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Friends ({myFriendsLive.length})</div>}
+      {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>Add friends using a Friend Code</div>}
+      {myFriendsSorted.map(f=>{
         const sd=statusDisplay(f.status,f.subject);
-        return<div key={f.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px"}}>
+        return<div key={f.id} onClick={()=>setFriendProfileId(f.id)} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px",cursor:"pointer"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
           <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
@@ -1867,7 +2078,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             <span style={{color:f.status==="offline"?t.sub:t.a3,fontSize:9}}>{sd.icon} {sd.label}</span>
           </div>
         </div>
-        <button onClick={()=>removeFriend(f.id)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
+        <button onClick={(e)=>{e.stopPropagation();removeFriend(f.id);}} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
       </div>;})}
     </div>}
 
@@ -1880,20 +2091,30 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
       </div>}
 
-      {/* Join by code */}
+      {/* Join by code — now sends a request, owner must accept (Issue #6 Part 1) */}
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
         <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Join a Group by Code</div>
         <div style={{display:"flex",gap:5}}>
           <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGroupByCode()} placeholder="GRP-XXX-0000" style={{flex:1,background:t.input,border:`1px solid ${joinStatus==="error"?"#FF6B6B":joinStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",letterSpacing:1}}/>
           <button onClick={joinGroupByCode} disabled={joinStatus==="loading"} style={{background:joinStatus==="done"?"#34d399":joinStatus==="error"?"rgba(255,107,107,0.15)":"#818cf8",border:joinStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px 11px",color:joinStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
-            {joinStatus==="loading"?"…":joinStatus==="done"?"✓":"Join"}
+            {joinStatus==="loading"?"…":joinStatus==="done"?"✓":"Send Request"}
           </button>
         </div>
         {joinMsg&&<div style={{fontSize:10,color:joinStatus==="error"?"#FF6B6B":"#34d399",marginTop:5,fontWeight:600}}>{joinMsg}</div>}
       </div>
 
-      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"14px 0"}}>No groups yet. Create one above or join via code!</div>}
-      {myGroups.map(g=><div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
+      {/* Pending requests YOU sent — cancel available */}
+      {outgoingGroupRequests.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
+        {outgoingGroupRequests.map(r=><div key={r.gid} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.groupName||"Group"}</div><div style={{color:t.sub,fontSize:9}}>Request pending…</div></div>
+          <button onClick={()=>cancelGroupRequest(r.gid,r.ownerUid)} disabled={grpReqStatus[r.gid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:9,cursor:grpReqStatus[r.gid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[r.gid]==="loading"?"…":"Cancel"}</button>
+        </div>)}
+      </div>}
+
+      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"14px 0"}}>Create a study group or join one</div>}
+      {myGroups.map(g=>{
+        const groupRequests=incomingGroupRequests.filter(r=>r.gid===g.id);
+        return<div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
           <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
           <div style={{display:"flex",gap:4}}>
@@ -1901,6 +2122,18 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             <button onClick={()=>deleteGroup(g.id,g.code)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
           </div>
         </div>
+        {/* Join requests awaiting THIS owner's decision (Issue #6 Part 1) */}
+        {groupRequests.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
+          <div style={{color:t.a4,fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>Join Requests ({groupRequests.length})</div>
+          {groupRequests.map(r=>{
+            const key=`${g.id}|${r.uid}`;
+            return<div key={r.uid} style={{display:"flex",alignItems:"center",gap:7,background:`${t.a4}0c`,border:`1px solid ${t.a4}28`,borderRadius:9,padding:"7px 9px"}}>
+              <div style={{flex:1,color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div>
+              <button onClick={()=>acceptGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[key]==="loading"?"…":"Accept"}</button>
+              <button onClick={()=>declineGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
+            </div>;
+          })}
+        </div>}
         <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=><div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
         {/* Add member — friends dropdown + free text */}
         {addMemberGrpId===g.id?(
@@ -1926,26 +2159,34 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:9,fontFamily:"inherit",fontWeight:700}}>QR 📱</button>
           <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button>
         </div>
-      </div>)}
+      </div>;})}
     </div>}
 
     {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
       <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
-      {[{id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak},...myFriendsLive].map(f=>{
-        const sd=statusDisplay(f.status,f.subject);
-        return<div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
-        <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
-        <div style={{flex:1}}>
-          <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
-          <div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label}</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:5}}>
-          <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-          {f.status==="studying"&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
-        </div>
-      </div>;})}
-      {myFriendsLive.length===0&&<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Add friends to see them here!</div>}
+      {(()=>{
+        // Issue #6 Part 3: Live tab shows who's ACTUALLY studying right now, matching
+        // its own header copy — not the full friend list with a badge bolted on.
+        // Reuses myFriendsSorted (Part 4: no new computation, just a filter on what's
+        // already derived above).
+        const studyingFriends=myFriendsSorted.filter(f=>f.status==="studying");
+        const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak};
+        if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
+        return[meRow,...studyingFriends].map(f=>{
+          const sd=statusDisplay(f.status,f.subject);
+          return<div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
+          <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
+          <div style={{flex:1}}>
+            <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
+            <div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label}</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5}}>
+            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
+            {f.status==="studying"&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
+          </div>
+        </div>;});
+      })()}
     </div>}
 
     {/* BOARD */}
