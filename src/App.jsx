@@ -1332,6 +1332,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         listener=mod.onValue(usersRef,(snap)=>{
           const data=snap.exists()?snap.val():{};
           const presenceMap={};
+          // DEBUG: Stage 1 users snapshot — uid (Firebase key), presence, profile per user
+          const rows=Object.entries(data).map(([uid,row])=>({uid,presence:row?.presence,profile:row?.profile}));
+          console.log("DEBUG: [Stage 1 users snapshot]",rows);
           const list=Object.entries(data).map(([uid,row])=>{
             const profile=row?.profile||{};
             const name=profile.name||profile.displayName||profile.email||"Aspirant";
@@ -1356,7 +1359,12 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
           // DEBUG: Stage 2 — presenceMap fully built, before it's pushed into state
           console.log("DEBUG: [Stage 2 — presenceMap built] full map =",JSON.stringify(presenceMap));
+          // DEBUG: Stage 2 presenceByUid — exact object about to be set into state
+          console.log("DEBUG: [Stage 2 presenceByUid]",presenceMap);
           setPublicUsers(list);
+          console.log("===== PRESENCE MAP =====");
+          console.log(presenceMap);
+          console.log("Keys:",Object.keys(presenceMap));
           setPresenceByUid(presenceMap);
         });
       }catch(e){setPublicUsers([]);setPresenceByUid({});}
@@ -1371,6 +1379,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
     const merged=myFriends.map(f=>{
+      console.log("Friend uid:",f.uid);
+      console.log("Lookup result:",presenceByUid[f.uid]);
+      console.log("All keys:",Object.keys(presenceByUid));
       const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null,totalSessions:0,joinedAt:null};
       return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject,totalSessions:live.totalSessions,joinedAt:live.joinedAt};
     });
