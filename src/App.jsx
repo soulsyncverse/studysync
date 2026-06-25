@@ -1336,6 +1336,8 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             const profile=row?.profile||{};
             const name=profile.name||profile.displayName||profile.email||"Aspirant";
             const presence=row?.presence||{};
+            // DEBUG: Stage 1 — raw snapshot, per-uid presence as read off users/{uid}/presence
+            console.log("DEBUG: [Stage 1 — raw snapshot] uid =",uid,"| row.presence =",JSON.stringify(presence));
             // status derivation (Issue #5): offline always wins regardless of a
             // stale activity value; otherwise activity (written by the Pomodoro
             // transition effect) decides studying/break, falling back to idle/online.
@@ -1352,6 +1354,8 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             presenceMap[uid]={online,lastSeen:presence.lastSeen||null,status,subject:presence.subject||null,totalSessions:row?.stats?.totalSessions||0,joinedAt:profile.joinedAt||null};
             return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:status==="studying",status,subj:presence.subject||profile.currentSubject||profile.subj||"Studying",lastSeen:presence.lastSeen||null};
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
+          // DEBUG: Stage 2 — presenceMap fully built, before it's pushed into state
+          console.log("DEBUG: [Stage 2 — presenceMap built] full map =",JSON.stringify(presenceMap));
           setPublicUsers(list);
           setPresenceByUid(presenceMap);
         });
@@ -1366,10 +1370,16 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // 'status' is the single field Friends-tab rendering should switch on:
   // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
-    return myFriends.map(f=>{
+    const merged=myFriends.map(f=>{
       const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null,totalSessions:0,joinedAt:null};
       return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject,totalSessions:live.totalSessions,joinedAt:live.joinedAt};
     });
+    // DEBUG: Stage 3 — myFriendsLive after merge. Logs f.uid (the join key used)
+    // alongside the live object actually found for it, so a key mismatch is visible.
+    merged.forEach(m=>{
+      console.log("DEBUG: [Stage 3 — myFriendsLive merge] f.id =",m.id,"| f.uid =",m.uid,"| presenceByUid[f.uid] found? =",presenceByUid[m.uid]!==undefined,"| merged.status =",m.status,"| merged.subject =",m.subject);
+    });
+    return merged;
   },[myFriends,presenceByUid]);
 
   // Issue #6 Part 3: studying → break → online → offline. Single sort, computed
@@ -1377,7 +1387,10 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // logic, no extra recomputation per render (Part 4).
   const STATUS_RANK={studying:0,break:1,online:2,offline:3};
   const myFriendsSorted=useMemo(()=>{
-    return [...myFriendsLive].sort((a,b)=>(STATUS_RANK[a.status]??3)-(STATUS_RANK[b.status]??3));
+    const sorted=[...myFriendsLive].sort((a,b)=>(STATUS_RANK[a.status]??3)-(STATUS_RANK[b.status]??3));
+    // DEBUG: Stage 4 — myFriendsSorted, full array after sort
+    console.log("DEBUG: [Stage 4 — myFriendsSorted] =",JSON.stringify(sorted.map(s=>({id:s.id,uid:s.uid,status:s.status,subject:s.subject}))));
+    return sorted;
   },[myFriendsLive]);
 
   // ── Register profile + friendCode index on login ──
@@ -2171,6 +2184,11 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         // Reuses myFriendsSorted (Part 4: no new computation, just a filter on what's
         // already derived above).
         const studyingFriends=myFriendsSorted.filter(f=>f.status==="studying");
+        // DEBUG: Stage 5 — studyingFriends, exactly what the Live tab's empty-state
+        // check and render map will use. Also logs the full myFriendsSorted it
+        // filtered FROM, side by side, so a render-time staleness is visible even
+        // if it matches what Stage 4's console.log showed a moment earlier.
+        console.log("DEBUG: [Stage 5 — pre-render] myFriendsSorted (at render) =",JSON.stringify(myFriendsSorted.map(s=>({id:s.id,status:s.status}))),"| studyingFriends =",JSON.stringify(studyingFriends.map(s=>({id:s.id,status:s.status}))));
         const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak};
         if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
         return[meRow,...studyingFriends].map(f=>{
