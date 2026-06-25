@@ -1329,8 +1329,13 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         const mod=await import("./firebase");
         dbMod=mod;
         usersRef=mod.ref(mod.db,"users");
+        console.log("ATTACHING USERS LISTENER");
         listener=mod.onValue(usersRef,(snap)=>{
+          console.log("USERS CALLBACK FIRED");
           const data=snap.exists()?snap.val():{};
+          console.log("snap.exists()",snap.exists());
+          console.log("user count",Object.keys(data).length);
+          console.log("uids",Object.keys(data));
           const presenceMap={};
           // DEBUG: Stage 1 users snapshot — uid (Firebase key), presence, profile per user
           const rows=Object.entries(data).map(([uid,row])=>({uid,presence:row?.presence,profile:row?.profile}));
@@ -1367,7 +1372,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
           console.log("Keys:",Object.keys(presenceMap));
           setPresenceByUid(presenceMap);
         });
-      }catch(e){setPublicUsers([]);setPresenceByUid({});}
+      }catch(e){console.error("USERS LISTENER ERROR",e);setPublicUsers([]);setPresenceByUid({});}
     })();
     return()=>{if(dbMod&&usersRef&&listener)dbMod.off(usersRef,listener);};
   },[user?.uid]);
