@@ -1355,10 +1355,16 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         publicUsersRef=mod.ref(mod.db,"publicUsers");
         listener=mod.onValue(publicUsersRef,(snap)=>{
           const data=snap.exists()?snap.val():{};
+          console.log("SNAP EXISTS", snap.exists());
+console.log("RAW DATA", data);
+console.log("RAW KEYS", Object.keys(data));
           const presenceMap={};
-          const list=Object.entries(data).map(([uid,row])=>{
-            const name=row?.name||"Aspirant";
-            const activity=row?.activity||"idle";
+         console.log("ENTRIES", Object.entries(data));
+         const list = Object.entries(data).map(([uid,row])=>{
+    console.log("PROCESSING UID", uid, row);
+           
+  const name = row?.name || "Aspirant";
+    const activity = row?.activity || "idle";
             // publicUsers/{uid}.online is now written directly by the connection-
             // presence effect (the same .info/connected + onDisconnect() lifecycle
             // that already drives users/{uid}/presence.state) — no longer
