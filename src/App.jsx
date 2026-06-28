@@ -1345,46 +1345,101 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   //   - profile.weekHours → was never actually used by Circle's Public/Friends/
   //     Live tabs (only by the unrelated Board tab's separate `LB` mock array),
   //     so there is nothing to migrate here regardless.
-  useEffect(()=>{
-    if(!user?.uid)return;
-    let dbMod,publicUsersRef,listener;
-    (async()=>{
-      try{
-        const mod=await import("./firebase");
-        dbMod=mod;
-        publicUsersRef=mod.ref(mod.db,"publicUsers");
-        listener=mod.onValue(publicUsersRef,(snap)=>{
-          const data=snap.exists()?snap.val():{};
-          console.log("SNAP EXISTS", snap.exists());
-console.log("RAW DATA", data);
-console.log("RAW KEYS", Object.keys(data));
-          const presenceMap={};
-         console.log("ENTRIES", Object.entries(data));
-         const list = Object.entries(data).map(([uid,row])=>{
-    console.log("PROCESSING UID", uid, row);
-           
-  const name = row?.name || "Aspirant";
-    const activity = row?.activity || "idle";
-            // publicUsers/{uid}.online is now written directly by the connection-
-            // presence effect (the same .info/connected + onDisconnect() lifecycle
-            // that already drives users/{uid}/presence.state) — no longer
-            // inferred from activity. A connected-but-idle user now correctly
-            // reads online:true/activity:"idle" → 🟢, distinct from offline.
-            const online=row?.online===true;
-            const status=!online?"offline":(activity==="studying"?"studying":activity==="break"?"break":"online");
-            presenceMap[uid]={online,lastSeen:row?.updatedAt||null,status,subject:row?.subject||null,totalSessions:row?.totalSessions||0,joinedAt:null};
-            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:0,city:"StudySync",studying:status==="studying",status,subj:row?.subject||"Studying",lastSeen:row?.updatedAt||null};
-          }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
-          setPublicUsers(list);
-          console.log("PUBLIC USERS SNAPSHOT",Object.keys(presenceMap));
-          console.log("TARGET USER","wgRPi4UYKeMaivfIMDEOFdjhDP12");
-          console.log("ENTRY",presenceMap["wgRPi4UYKeMaivfIMDEOFdjhDP12"]);
-          setPresenceByUid(presenceMap);
-        });
-      }catch(e){console.error("PUBLIC USERS READ FAILED",e);setPublicUsers([]);setPresenceByUid({});}
-    })();
-    return()=>{if(dbMod&&publicUsersRef&&listener)dbMod.off(publicUsersRef,listener);};
-  },[user?.uid]);
+ useEffect(() => {
+  if (!user?.uid) return;
+
+  let dbMod, publicUsersRef, listener;
+
+  (async () => {
+    try {
+      const mod = await import("./firebase");
+      dbMod = mod;
+
+      publicUsersRef = mod.ref(mod.db, "publicUsers");
+
+      console.log("ABOUT TO ATTACH PUBLIC USERS LISTENER");
+
+      listener = mod.onValue(publicUsersRef, (snap) => {
+
+        console.log("PUBLIC USERS CALLBACK FIRED");
+
+        const data = snap.exists() ? snap.val() : {};
+
+        console.log("SNAP EXISTS", snap.exists());
+        console.log("RAW DATA", data);
+        console.log("RAW KEYS", Object.keys(data));
+
+        const presenceMap = {};
+
+        console.log("ENTRIES", Object.entries(data));
+
+        const list = Object.entries(data)
+          .map(([uid, row]) => {
+
+            console.log("PROCESSING UID", uid, row);
+
+            const name = row?.name || "Aspirant";
+            const activity = row?.activity || "idle";
+
+            const online = row?.online === true;
+
+            const status = !online
+              ? "offline"
+              : activity === "studying"
+              ? "studying"
+              : activity === "break"
+              ? "break"
+              : "online";
+
+            presenceMap[uid] = {
+              online,
+              lastSeen: row?.updatedAt || null,
+              status,
+              subject: row?.subject || null,
+              totalSessions: row?.totalSessions || 0,
+              joinedAt: null,
+            };
+
+            return {
+              id: uid,
+              name,
+              av: (name || "A")[0].toUpperCase(),
+              streak: row?.streak || 0,
+              h: 0,
+              city: "StudySync",
+              studying: status === "studying",
+              status,
+              subj: row?.subject || "Studying",
+              lastSeen: row?.updatedAt || null,
+            };
+          })
+          .filter((p) => p.id !== user.uid && p.name)
+          .sort((a, b) => (b.streak || 0) - (a.streak || 0));
+
+        console.log("PUBLIC USERS SNAPSHOT", Object.keys(presenceMap));
+        console.log("TARGET USER", "wgRPi4UYKeMaivfIMDEOFdjhDP12");
+        console.log(
+          "ENTRY",
+          presenceMap["wgRPi4UYKeMaivfIMDEOFdjhDP12"]
+        );
+
+        setPublicUsers(list);
+        setPresenceByUid(presenceMap);
+      });
+
+    } catch (e) {
+      console.error("PUBLIC USERS READ FAILED", e);
+      setPublicUsers([]);
+      setPresenceByUid({});
+    }
+  })();
+
+  return () => {
+    if (dbMod && publicUsersRef && listener) {
+      dbMod.off(publicUsersRef, listener);
+    }
+  };
+}, [user?.uid]);
 
   // Friends joined with LIVE presence/activity from presenceByUid — which is now
   // sourced from publicUsers/, not the old users/ tree (Phase 2). This merge
