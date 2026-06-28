@@ -1321,81 +1321,77 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
   const myInviteLink=`https://studysync-4cvf.vercel.app/join?code=${myFriendCode}`;
 
+  // ── PHASE 2: Circle reads now come from publicUsers/, not users/ ──
+  // This replaces the old top-level `ref(db,"users")` listener entirely. That
+  // listener could never succeed under the deployed RTDB rules (no .read grant
+  // exists on the bare `users` node — confirmed via the rules audit) — it's
+  // not removed because it was redundant, it's removed because publicUsers/
+  // is the new, narrower, RULES-PERMITTED source for exactly this data.
+  //
+  // Output shapes are kept byte-identical to what the old listener produced,
+  // so every downstream consumer (setPublicUsers → Public tab render,
+  // setPresenceByUid → myFriendsLive merge → Friends/Live/Friend Profile) needs
+  // ZERO changes. This is a pure data-source swap underneath the same contract.
+  //
+  // Fields NOT present in publicUsers/{uid} (by Phase 1 design — it only ever
+  // wrote name/streak/totalSessions/activity/subject/updatedAt):
+  //   - profile.city  → was used for the Public-tab subtitle text. Falls back
+  //     to the same "StudySync" placeholder the OLD code already used when
+  //     profile.city was absent — so this is not a new fallback, just the
+  //     existing one now applying universally instead of conditionally.
+  //   - profile.joinedAt → Friend Profile's "Joined StudySync" line. Per
+  //     explicit decision, this is dropped silently (not in the 5-field spec
+  //     for that modal) — the modal no longer renders that line at all.
+  //   - profile.weekHours → was never actually used by Circle's Public/Friends/
+  //     Live tabs (only by the unrelated Board tab's separate `LB` mock array),
+  //     so there is nothing to migrate here regardless.
   useEffect(()=>{
     if(!user?.uid)return;
-    let dbMod,usersRef,listener;
+    let dbMod,publicUsersRef,listener;
     (async()=>{
       try{
         const mod=await import("./firebase");
         dbMod=mod;
-        usersRef=mod.ref(mod.db,"users");
-        console.log("ATTACHING USERS LISTENER");
-        listener=mod.onValue(usersRef,(snap)=>{
-          console.log("USERS CALLBACK FIRED");
+        publicUsersRef=mod.ref(mod.db,"publicUsers");
+        listener=mod.onValue(publicUsersRef,(snap)=>{
           const data=snap.exists()?snap.val():{};
-          console.log("snap.exists()",snap.exists());
-          console.log("user count",Object.keys(data).length);
-          console.log("uids",Object.keys(data));
           const presenceMap={};
-          // DEBUG: Stage 1 users snapshot — uid (Firebase key), presence, profile per user
-          const rows=Object.entries(data).map(([uid,row])=>({uid,presence:row?.presence,profile:row?.profile}));
-          console.log("DEBUG: [Stage 1 users snapshot]",rows);
           const list=Object.entries(data).map(([uid,row])=>{
-            const profile=row?.profile||{};
-            const name=profile.name||profile.displayName||profile.email||"Aspirant";
-            const presence=row?.presence||{};
-            // DEBUG: Stage 1 — raw snapshot, per-uid presence as read off users/{uid}/presence
-            console.log("DEBUG: [Stage 1 — raw snapshot] uid =",uid,"| row.presence =",JSON.stringify(presence));
-            // status derivation (Issue #5): offline always wins regardless of a
-            // stale activity value; otherwise activity (written by the Pomodoro
-            // transition effect) decides studying/break, falling back to idle/online.
-            // 'studying'/'subj' below replace the old buggy alias that equated
-            // ANY online state with "studying" — that conflated Online and
-            // Studying for every connected-but-idle user.
-            const online=presence.state==="online";
-            const activity=online?(presence.activity||"idle"):"idle";
+            const name=row?.name||"Aspirant";
+            const activity=row?.activity||"idle";
+            // publicUsers/{uid}.online is now written directly by the connection-
+            // presence effect (the same .info/connected + onDisconnect() lifecycle
+            // that already drives users/{uid}/presence.state) — no longer
+            // inferred from activity. A connected-but-idle user now correctly
+            // reads online:true/activity:"idle" → 🟢, distinct from offline.
+            const online=row?.online===true;
             const status=!online?"offline":(activity==="studying"?"studying":activity==="break"?"break":"online");
-            // Issue #6 Part 2: totalSessions/joinedAt are READ from fields already
-            // present in this same users/ snapshot (row.stats.totalSessions already
-            // exists for the report screen; row.profile.joinedAt is the new guarded
-            // write below) — no new listener, no new path read.
-            presenceMap[uid]={online,lastSeen:presence.lastSeen||null,status,subject:presence.subject||null,totalSessions:row?.stats?.totalSessions||0,joinedAt:profile.joinedAt||null};
-            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:profile.weekHours||row?.stats?.weekHours||0,city:profile.city||"StudySync",studying:status==="studying",status,subj:presence.subject||profile.currentSubject||profile.subj||"Studying",lastSeen:presence.lastSeen||null};
+            presenceMap[uid]={online,lastSeen:row?.updatedAt||null,status,subject:row?.subject||null,totalSessions:row?.totalSessions||0,joinedAt:null};
+            return {id:uid,name,av:(name||"A")[0].toUpperCase(),streak:row?.streak||0,h:0,city:"StudySync",studying:status==="studying",status,subj:row?.subject||"Studying",lastSeen:row?.updatedAt||null};
           }).filter(p=>p.id!==user.uid&&p.name).sort((a,b)=>(b.streak||0)-(a.streak||0));
-          // DEBUG: Stage 2 — presenceMap fully built, before it's pushed into state
-          console.log("DEBUG: [Stage 2 — presenceMap built] full map =",JSON.stringify(presenceMap));
-          // DEBUG: Stage 2 presenceByUid — exact object about to be set into state
-          console.log("DEBUG: [Stage 2 presenceByUid]",presenceMap);
           setPublicUsers(list);
-          console.log("===== PRESENCE MAP =====");
-          console.log(presenceMap);
-          console.log("Keys:",Object.keys(presenceMap));
           setPresenceByUid(presenceMap);
         });
-      }catch(e){console.error("USERS LISTENER ERROR",e);setPublicUsers([]);setPresenceByUid({});}
+      }catch(e){console.error("PUBLIC USERS READ FAILED",e);setPublicUsers([]);setPresenceByUid({});}
     })();
-    return()=>{if(dbMod&&usersRef&&listener)dbMod.off(usersRef,listener);};
+    return()=>{if(dbMod&&publicUsersRef&&listener)dbMod.off(publicUsersRef,listener);};
   },[user?.uid]);
 
-  // Friends joined with LIVE presence from presenceByUid — this replaces any
-  // trust in a frozen 'online' field that may still exist on old friendship
-  // records written before this fix. uid is the join key.
+  // Friends joined with LIVE presence/activity from presenceByUid — which is now
+  // sourced from publicUsers/, not the old users/ tree (Phase 2). This merge
+  // logic itself is unchanged: it still reads users/{myUid}/friends for the
+  // friend list (untouched, per requirements) and merges each friend's uid
+  // against presenceByUid for activity/subject/streak/totalSessions — exactly
+  // matching "merge each friend with publicUsers/{friend.uid}" from the spec,
+  // just expressed through the existing presenceByUid indirection rather than
+  // a second new lookup.
   // 'status' is the single field Friends-tab rendering should switch on:
   // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
-    const merged=myFriends.map(f=>{
-      console.log("Friend uid:",f.uid);
-      console.log("Lookup result:",presenceByUid[f.uid]);
-      console.log("All keys:",Object.keys(presenceByUid));
+    return myFriends.map(f=>{
       const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null,totalSessions:0,joinedAt:null};
       return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject,totalSessions:live.totalSessions,joinedAt:live.joinedAt};
     });
-    // DEBUG: Stage 3 — myFriendsLive after merge. Logs f.uid (the join key used)
-    // alongside the live object actually found for it, so a key mismatch is visible.
-    merged.forEach(m=>{
-      console.log("DEBUG: [Stage 3 — myFriendsLive merge] f.id =",m.id,"| f.uid =",m.uid,"| presenceByUid[f.uid] found? =",presenceByUid[m.uid]!==undefined,"| merged.status =",m.status,"| merged.subject =",m.subject);
-    });
-    return merged;
   },[myFriends,presenceByUid]);
 
   // Issue #6 Part 3: studying → break → online → offline. Single sort, computed
@@ -1403,10 +1399,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // logic, no extra recomputation per render (Part 4).
   const STATUS_RANK={studying:0,break:1,online:2,offline:3};
   const myFriendsSorted=useMemo(()=>{
-    const sorted=[...myFriendsLive].sort((a,b)=>(STATUS_RANK[a.status]??3)-(STATUS_RANK[b.status]??3));
-    // DEBUG: Stage 4 — myFriendsSorted, full array after sort
-    console.log("DEBUG: [Stage 4 — myFriendsSorted] =",JSON.stringify(sorted.map(s=>({id:s.id,uid:s.uid,status:s.status,subject:s.subject}))));
-    return sorted;
+    return [...myFriendsLive].sort((a,b)=>(STATUS_RANK[a.status]??3)-(STATUS_RANK[b.status]??3));
   },[myFriendsLive]);
 
   // ── Register profile + friendCode index on login ──
@@ -1502,6 +1495,13 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         const mod=await import("./firebase");
         dbMod=mod;
         const presenceRef=mod.ref(mod.db,`users/${user.uid}/presence`);
+        // PHASE 1.5 addition: same connection lifecycle, one more ref armed.
+        // publicUsersRef is NOT a new listener — onDisconnect() is a server-side
+        // queued write per ref, configured here inside the SAME .info/connected
+        // callback that already arms presenceRef. Arming a second ref on an
+        // existing callback reuses the connection lifecycle; it does not add a
+        // second subscription, a second poll, or a second presence system.
+        const publicUsersRef=mod.ref(mod.db,`publicUsers/${user.uid}`);
         connectedRef=mod.ref(mod.db,".info/connected");
         connectedListener=mod.onValue(connectedRef,(snap)=>{
           if(snap.val()===false)return; // this client's own connection is currently down; nothing to arm
@@ -1517,6 +1517,17 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
               // by the Pomodoro transition effect if a session is actually still running,
               // not assumed to persist across a reconnect event.
               mod.set(presenceRef,{state:"online",lastSeen:mod.serverTimestamp()});
+            })
+            .catch(()=>{});
+          // Mirror connection state into publicUsers/{uid}.online via the SAME
+          // arm-then-claim sequence, using update() (not set()) so this never
+          // touches name/streak/totalSessions/activity/subject/updatedAt — only
+          // the one new 'online' key. Armed first, same as presenceRef above,
+          // to close the same race window (a drop between arm and claim must
+          // not leave publicUsers stuck at online:true).
+          mod.onDisconnect(publicUsersRef).update({online:false})
+            .then(()=>{
+              mod.update(publicUsersRef,{online:true});
             })
             .catch(()=>{});
         });
@@ -2014,7 +2025,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
             <div style={{color:t.muted,fontSize:8,marginBottom:2}}>Friend Code</div>
             <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:800,fontSize:12,letterSpacing:1}}>{f.friendCode||"—"}</div>
           </div>
-          {f.joinedAt&&<div style={{color:t.sub,fontSize:9,marginBottom:10,textAlign:"center"}}>Joined StudySync {new Date(f.joinedAt).toLocaleDateString(undefined,{month:"short",year:"numeric"})}</div>}
+          {/* "Joined StudySync" date removed (Phase 2): publicUsers/{uid} does not
+              carry joinedAt — by explicit decision, this line is dropped rather
+              than kept via a private users/{friendUid} read. */}
           {sharedOwnedGroups.length>0&&<div style={{marginBottom:10}}>
             <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Groups You Own Together</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sharedOwnedGroups.map(g=><div key={g.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"3px 8px",fontSize:9,color:t.text,fontWeight:600}}>{g.name}</div>)}</div>
@@ -2200,11 +2213,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         // Reuses myFriendsSorted (Part 4: no new computation, just a filter on what's
         // already derived above).
         const studyingFriends=myFriendsSorted.filter(f=>f.status==="studying");
-        // DEBUG: Stage 5 — studyingFriends, exactly what the Live tab's empty-state
-        // check and render map will use. Also logs the full myFriendsSorted it
-        // filtered FROM, side by side, so a render-time staleness is visible even
-        // if it matches what Stage 4's console.log showed a moment earlier.
-        console.log("DEBUG: [Stage 5 — pre-render] myFriendsSorted (at render) =",JSON.stringify(myFriendsSorted.map(s=>({id:s.id,status:s.status}))),"| studyingFriends =",JSON.stringify(studyingFriends.map(s=>({id:s.id,status:s.status}))));
         const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak};
         if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
         return[meRow,...studyingFriends].map(f=>{
@@ -3434,7 +3442,9 @@ return () => {active=false;unsub();};
         // same way `name` is read here — until then, omitting it keeps this
         // node honest about what data actually exists.
         await mod.update(publicRef,patch);
-      }catch(e){console.error("publicUsers sync error",e);}
+      }catch(e){
+        console.error("PUBLIC USERS WRITE FAILED",e);
+      }
     })();
     // pomoSec intentionally excluded — same reasoning as the existing presence-
     // activity effect: this must fire only on discrete state transitions
@@ -3989,6 +3999,12 @@ return () => {active=false;unsub();};
             // Cancel the queued onDisconnect write — we already wrote offline
             // ourselves, so there's nothing left for the server to do on drop.
             mod.onDisconnect(presenceRef).cancel().catch(()=>{});
+            // PHASE 1.5: mirror the same explicit offline write into publicUsers,
+            // via update() so only 'online' changes — name/streak/totalSessions/
+            // activity/subject/updatedAt are left exactly as they were.
+            const publicUsersRef=mod.ref(mod.db,`publicUsers/${user.uid}`);
+            await mod.update(publicUsersRef,{online:false});
+            mod.onDisconnect(publicUsersRef).cancel().catch(()=>{});
           }catch(e){console.error("Logout presence write error",e);}
         }
         setLoggedIn(false);setUser(null);
