@@ -3381,6 +3381,68 @@ return () => {active=false;unsub();};
     };
   },[user?.uid]);
 
+  // ── PHASE 1: publicUsers/{uid} sync ──────────────────────────────────────
+  // New node, additive only. Does NOT touch users/{uid} in any way — it is a
+  // separate, narrower mirror containing ONLY the five fields Circle actually
+  // needs to read publicly: name, avatar, streak, totalSessions, activity,
+  // subject (+ updatedAt). users/{uid} itself, and every existing read/write
+  // against it anywhere else in this file, is completely untouched.
+  //
+  // Reuses existing state rather than new listeners (Part 4 discipline carried
+  // over from the original Circle work): streak/totalSessions come from the
+  // streak+stats effect directly above; activity/subject are derived with the
+  // EXACT same pomoRun/pomoMode/pomoCs logic the existing presence-activity
+  // effect already uses (kept deliberately identical so the two derivations
+  // can never disagree); name comes from user.name, which is already kept
+  // current by saveName's setUser() call — no new listener needed for name.
+  //
+  // update() (not set()) at this exact path: per Firebase RTDB semantics, a
+  // merge-update against a path that doesn't exist yet CREATES it with exactly
+  // the given keys; against a path that already exists, it merges those keys
+  // and leaves any other sibling untouched. This single call satisfies both
+  // "create on first login" and "update on every change" — no existence read
+  // needed first, and no risk of clobbering a field this effect doesn't own.
+  //
+  // totalSessions is read from stats.totalSessions specifically (a primitive),
+  // not the whole `stats` object, so this effect does NOT re-fire (and does
+  // NOT write again) when unrelated stats fields (totalMinutes, lastStudyDate)
+  // change without totalSessions itself changing — avoids duplicate writes.
+  useEffect(()=>{
+    if(!user?.uid)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const publicRef=mod.ref(mod.db,`publicUsers/${user.uid}`);
+        const activity=!pomoRun?"idle":(pomoMode==="focus"?"studying":"break");
+        const subject=activity==="studying"?(pomoCs||""):null;
+        const patch={
+          name:user.name||"",
+          streak:streak||0,
+          totalSessions:stats?.totalSessions||0,
+          activity,
+          subject,
+          updatedAt:mod.serverTimestamp(),
+        };
+        // NOTE: 'avatar' is deliberately NOT written here. No part of this
+        // codebase currently stores a profile.avatar field anywhere — every
+        // existing avatar rendering in the app derives a colored initial from
+        // `name` client-side (see the Av component). Writing an empty/undefined
+        // avatar key would be worse than omitting it: Firebase silently drops
+        // `undefined` values from update() calls, so the key would never
+        // actually be created either way. If/when a real avatar field exists
+        // under users/{uid}/profile.avatar, this effect should read it the
+        // same way `name` is read here — until then, omitting it keeps this
+        // node honest about what data actually exists.
+        await mod.update(publicRef,patch);
+      }catch(e){console.error("publicUsers sync error",e);}
+    })();
+    // pomoSec intentionally excluded — same reasoning as the existing presence-
+    // activity effect: this must fire only on discrete state transitions
+    // (login, name edit, streak/session change, pomo start/pause/resume/reset/
+    // completion/break-switch), never on the per-second countdown tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[user?.uid,user?.name,streak,stats?.totalSessions,pomoRun,pomoMode,pomoCs]);
+
   // ── Entitlement (Pro status) — Firebase is the only source of truth ──
   // isPro itself stays a React state var (everything below already reads it that
   // way), but it is now strictly a *cache* of users/{uid}/entitlement, populated
