@@ -1612,20 +1612,19 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
 
         console.log("PUBLIC ONLINE: write true success");
 
-      }catch(e){
-
-        console.error("PUBLIC ONLINE: write true failed",e);
-
+         } catch (e) {
+        console.error("Presence setup error", e);
       }
+    })();
 
-    })
-    .catch((e)=>{
-
-      console.error("PUBLIC ONLINE: arm failed",e);
-
-    });
-
-});
+    return () => {
+      // Unmounting (e.g. logout) — stop watching connection state.
+      // The explicit offline write on logout is handled elsewhere.
+      if (dbMod && connectedRef && connectedListener) {
+        dbMod.off(connectedRef, connectedListener);
+      }
+    };
+  }, [user?.uid]);
 
   // ── Friend Requests v1 ──
   // Verified against the deployed rules.json:
