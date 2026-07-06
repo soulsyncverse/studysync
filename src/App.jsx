@@ -1423,13 +1423,10 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     presenceMap["wgRPi4UYKeMaivfIMDEOFdjhDP12"]
   );
 
-  setPublicUsers(list);
+   setPublicUsers(list);
   setPresenceByUid(presenceMap);
 });
 
-} catch (e) {
-  console.error("GET FAILED", e);
-}
     } catch (e) {
       console.error("PUBLIC USERS READ FAILED", e);
       setPublicUsers([]);
