@@ -1612,9 +1612,15 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
 
         console.log("PUBLIC ONLINE: write true success");
 
-         } catch (e) {
-        console.error("Presence setup error", e);
+      } catch (e) {
+        console.error("PUBLIC ONLINE: write true failed", e);
       }
+    })
+    .catch((e) => {
+      console.error("PUBLIC ONLINE: arm failed", e);
+    });
+});
+      }catch(e){console.error("Presence setup error",e);}
     })();
 
     return () => {
