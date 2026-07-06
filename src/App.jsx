@@ -1359,74 +1359,24 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
       console.log("ABOUT TO ATTACH PUBLIC USERS LISTENER");
 
-      listener = mod.onValue(publicUsersRef, (snap) => {
+  listener = null;
 
-        console.log("PUBLIC USERS CALLBACK FIRED");
+try {
+  console.log("ABOUT TO CALL GET");
 
-        const data = snap.exists() ? snap.val() : {};
+  const snap = await mod.get(publicUsersRef);
 
-        console.log("SNAP EXISTS", snap.exists());
-        console.log("RAW DATA", data);
-        console.log("RAW KEYS", Object.keys(data));
+  console.log("GET CALLED");
+  console.log("GET EXISTS", snap.exists());
 
-        const presenceMap = {};
+  const data = snap.exists() ? snap.val() : {};
 
-        console.log("ENTRIES", Object.entries(data));
+  console.log("GET DATA", data);
+  console.log("GET KEYS", Object.keys(data));
 
-        const list = Object.entries(data)
-          .map(([uid, row]) => {
-
-            console.log("PROCESSING UID", uid, row);
-
-            const name = row?.name || "Aspirant";
-            const activity = row?.activity || "idle";
-
-            const online = row?.online === true;
-
-            const status = !online
-              ? "offline"
-              : activity === "studying"
-              ? "studying"
-              : activity === "break"
-              ? "break"
-              : "online";
-
-            presenceMap[uid] = {
-              online,
-              lastSeen: row?.updatedAt || null,
-              status,
-              subject: row?.subject || null,
-              totalSessions: row?.totalSessions || 0,
-              joinedAt: null,
-            };
-
-            return {
-              id: uid,
-              name,
-              av: (name || "A")[0].toUpperCase(),
-              streak: row?.streak || 0,
-              h: 0,
-              city: "StudySync",
-              studying: status === "studying",
-              status,
-              subj: row?.subject || "Studying",
-              lastSeen: row?.updatedAt || null,
-            };
-          })
-          .filter((p) => p.id !== user.uid && p.name)
-          .sort((a, b) => (b.streak || 0) - (a.streak || 0));
-
-        console.log("PUBLIC USERS SNAPSHOT", Object.keys(presenceMap));
-        console.log("TARGET USER", "wgRPi4UYKeMaivfIMDEOFdjhDP12");
-        console.log(
-          "ENTRY",
-          presenceMap["wgRPi4UYKeMaivfIMDEOFdjhDP12"]
-        );
-
-        setPublicUsers(list);
-        setPresenceByUid(presenceMap);
-      });
-
+} catch (e) {
+  console.error("GET FAILED", e);
+}
     } catch (e) {
       console.error("PUBLIC USERS READ FAILED", e);
       setPublicUsers([]);
