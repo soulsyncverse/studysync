@@ -1567,46 +1567,65 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         // callback that already arms presenceRef. Arming a second ref on an
         // existing callback reuses the connection lifecycle; it does not add a
         // second subscription, a second poll, or a second presence system.
-        const publicUsersRef=mod.ref(mod.db,`publicUsers/${user.uid}`);
-        connectedRef=mod.ref(mod.db,".info/connected");
-        connectedListener=mod.onValue(connectedRef,(snap)=>{
-          if(snap.val()===false)return; // this client's own connection is currently down; nothing to arm
-          // Arm the server-side offline write BEFORE claiming online, every time we (re)connect.
-          // This set() intentionally REPLACES the whole node on disconnect — activity/subject
-          // are meant to be cleared when the connection drops, not preserved (see Pomodoro
-          // transition effect for the reasoning: a stale "studying" subject must not outlive
-          // the connection that produced it).
-          mod.onDisconnect(presenceRef).set({state:"offline",lastSeen:mod.serverTimestamp()})
-            .then(()=>{
-              // This set() also intentionally REPLACES the whole node. It does NOT carry
-              // forward activity/subject from before the (re)connect — those are re-asserted
-              // by the Pomodoro transition effect if a session is actually still running,
-              // not assumed to persist across a reconnect event.
-              mod.set(presenceRef,{state:"online",lastSeen:mod.serverTimestamp()});
-            })
-            .catch(()=>{});
-          // Mirror connection state into publicUsers/{uid}.online via the SAME
-          // arm-then-claim sequence, using update() (not set()) so this never
-          // touches name/streak/totalSessions/activity/subject/updatedAt — only
-          // the one new 'online' key. Armed first, same as presenceRef above,
-          // to close the same race window (a drop between arm and claim must
-          // not leave publicUsers stuck at online:true).
-          mod.onDisconnect(publicUsersRef).update({online:false})
-            .then(()=>{
-              mod.update(publicUsersRef,{online:true});
-            })
-            .catch(()=>{});
+      const publicUsersRef=mod.ref(mod.db,`publicUsers/${user.uid}`);
+connectedRef=mod.ref(mod.db,".info/connected");
+connectedListener=mod.onValue(connectedRef,(snap)=>{
+  if(snap.val()===false)return; // this client's own connection is currently down; nothing to arm
+
+  // Arm the server-side offline write BEFORE claiming online, every time we (re)connect.
+  // This set() intentionally REPLACES the whole node on disconnect — activity/subject
+  // are meant to be cleared when the connection drops, not preserved (see Pomodoro
+  // transition effect for the reasoning: a stale "studying" subject must not outlive
+  // the connection that produced it).
+  mod.onDisconnect(presenceRef).set({
+    state:"offline",
+    lastSeen:mod.serverTimestamp()
+  })
+    .then(()=>{
+      // This set() also intentionally REPLACES the whole node. It does NOT carry
+      // forward activity/subject from before the (re)connect — those are re-asserted
+      // by the Pomodoro transition effect if a session is actually still running,
+      // not assumed to persist across a reconnect event.
+      mod.set(presenceRef,{
+        state:"online",
+        lastSeen:mod.serverTimestamp()
+      });
+    })
+    .catch(()=>{});
+
+  // Mirror connection state into publicUsers/{uid}.online
+  console.log("PUBLIC ONLINE: arming onDisconnect");
+
+  mod.onDisconnect(publicUsersRef)
+    .update({ online:false })
+    .then(async()=>{
+
+      console.log("PUBLIC ONLINE: arm succeeded");
+
+      try{
+
+        console.log("PUBLIC ONLINE: writing true");
+
+        await mod.update(publicUsersRef,{
+          online:true
         });
-      }catch(e){console.error("Presence setup error",e);}
-    })();
-    return()=>{
-      // Unmounting (e.g. logout) — stop watching connection state.
-      // The explicit offline write on logout is handled by writePresenceOffline(),
-      // called from the Profile component's onLogout. We do NOT write offline here
-      // unconditionally, since this cleanup also runs on ordinary re-renders.
-      if(dbMod&&connectedRef&&connectedListener)dbMod.off(connectedRef,connectedListener);
-    };
-  },[user?.uid]);
+
+        console.log("PUBLIC ONLINE: write true success");
+
+      }catch(e){
+
+        console.error("PUBLIC ONLINE: write true failed",e);
+
+      }
+
+    })
+    .catch((e)=>{
+
+      console.error("PUBLIC ONLINE: arm failed",e);
+
+    });
+
+});
 
   // ── Friend Requests v1 ──
   // Verified against the deployed rules.json:
