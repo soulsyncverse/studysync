@@ -1903,14 +1903,19 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
   // Add member from friends dropdown or any name
   const addMemberToGroup=async(gId)=>{
     const memberName=addMemberSel.trim();
-    if(!memberName)return;
+    if(!memberName||addMemberStatus==="loading")return; // re-entrancy guard
     setAddMemberStatus("loading");
     try{
       const mod=await import("./firebase");
-      const membersRef=mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members`);
-      const snap=await new Promise(res=>mod.onValue(membersRef,(s)=>{res(s);},{onlyOnce:true}));
-      const existing=snap.exists()?Object.values(snap.val()):[];
-      if(existing.includes(memberName)){setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;}
+      const groupRef=mod.ref(mod.db,`users/${user.uid}/groups/${gId}`);
+      const snap=await new Promise(res=>mod.onValue(groupRef,(s)=>{res(s);},{onlyOnce:true}));
+      const gData=snap.exists()?snap.val():{};
+      const existingNames=gData.members?Object.values(gData.members):[];
+      const existingUids=gData.memberUids?Object.keys(gData.memberUids):[];
+      const matchedFriend=myFriends.find(f=>f.name===memberName);
+      if(existingNames.includes(memberName)||(matchedFriend&&existingUids.includes(matchedFriend.uid))){
+        setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;
+      }
       await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members/m${Date.now()}`),memberName);
       setAddMemberSel("");setAddMemberStatus("done");
       setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
@@ -2247,7 +2252,7 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
             </select>}
             <div style={{display:"flex",gap:5}}>
               <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={()=>addMemberToGroup(g.id)} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+              <button onClick={()=>addMemberToGroup(g.id)} disabled={addMemberStatus==="loading"} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:addMemberStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
                 {addMemberStatus==="loading"?"…":addMemberStatus==="done"?"✓":addMemberStatus==="error"?"✗":addMemberStatus==="exists"?"Exists!":"Add"}
               </button>
               <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
