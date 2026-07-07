@@ -1357,26 +1357,14 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
 
       publicUsersRef = mod.ref(mod.db, "publicUsers");
 
-      console.log("ABOUT TO ATTACH PUBLIC USERS LISTENER");
-
   listener = mod.onValue(publicUsersRef, (snap) => {
-
-  console.log("PUBLIC USERS CALLBACK FIRED");
 
   const data = snap.exists() ? snap.val() : {};
 
-  console.log("SNAP EXISTS", snap.exists());
-  console.log("RAW DATA", data);
-  console.log("RAW KEYS", Object.keys(data));
-
   const presenceMap = {};
-
-  console.log("ENTRIES", Object.entries(data));
 
   const list = Object.entries(data)
     .map(([uid, row]) => {
-
-      console.log("PROCESSING UID", uid, row);
 
       const name = row?.name || "Aspirant";
       const activity = row?.activity || "idle";
@@ -1416,13 +1404,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
     .filter((p) => p.id !== user.uid && p.name)
     .sort((a, b) => (b.streak || 0) - (a.streak || 0));
 
-  console.log("PUBLIC USERS SNAPSHOT", Object.keys(presenceMap));
-  console.log("TARGET USER", "wgRPi4UYKeMaivfIMDEOFdjhDP12");
-  console.log(
-    "ENTRY",
-    presenceMap["wgRPi4UYKeMaivfIMDEOFdjhDP12"]
-  );
-
    setPublicUsers(list);
   setPresenceByUid(presenceMap);
 });
@@ -1453,8 +1434,6 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // "studying" | "break" | "online" | "offline".
   const myFriendsLive=useMemo(()=>{
     return myFriends.map(f=>{
-      console.log("MERGE UID",f.uid);
-      console.log("LOOKUP",presenceByUid[f.uid]);
       const live=presenceByUid[f.uid]||{online:false,lastSeen:null,status:"offline",subject:null,totalSessions:0,joinedAt:null};
       return {...f,online:live.online,lastSeen:live.lastSeen,status:live.status,subject:live.subject,totalSessions:live.totalSessions,joinedAt:live.joinedAt};
     });
@@ -1594,23 +1573,15 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
     .catch(()=>{});
 
   // Mirror connection state into publicUsers/{uid}.online
-  console.log("PUBLIC ONLINE: arming onDisconnect");
-
   mod.onDisconnect(publicUsersRef)
     .update({ online:false })
     .then(async()=>{
 
-      console.log("PUBLIC ONLINE: arm succeeded");
-
       try{
-
-        console.log("PUBLIC ONLINE: writing true");
 
         await mod.update(publicUsersRef,{
           online:true
         });
-
-        console.log("PUBLIC ONLINE: write true success");
 
       } catch (e) {
         console.error("PUBLIC ONLINE: write true failed", e);
@@ -2302,7 +2273,6 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
         // its own header copy — not the full friend list with a badge bolted on.
         // Reuses myFriendsSorted (Part 4: no new computation, just a filter on what's
         // already derived above).
-        console.log("myFriendsSorted",myFriendsSorted);
         const studyingFriends=myFriendsSorted.filter(f=>f.status==="studying");
         const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak};
         if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
