@@ -2085,37 +2085,39 @@ const createGroup = async () => {
   // and is wrapped in its own try/catch with a "will need to reconcile" fallback; we
   // follow the identical precedent here rather than assume a guarantee that isn't
   // confirmed by database.rules.json (not available to audit in this pass).
-  const acceptGroupRequest=async(gid,reqUid)=>{
-    if(!user?.uid||!gid||!reqUid)return;
-    const req=incomingGroupRequests.find(r=>r.gid===gid&&r.uid===reqUid);
-    const group=myGroups.find(g=>g.id===gid);
-    if(!req)return;
-    const key=`${gid}|${reqUid}`;
-    setGrpReqStatus(s=>({...s,[key]:"loading"}));
-    try{
-      const mod=await import("./firebase");
-      const memberKey=`m${Date.now()}`;
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/members/${memberKey}`),req.name||"Aspirant");
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/memberUids/${reqUid}`),true);
-      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/joinRequests/${reqUid}`));
-      // Cross-write into requester's tree — same risk profile as the friend-accept
-      // theirEntry write. If this fails, the request is still removed and the
-      // requester remains a real member.uid-checkable member on the owner's side;
-      // they just won't see the group listed under their own Groups tab until a
-      // future reconciliation pass (matches the documented friend-accept gap).
-      try{
-        const myGid=`grp_joined_${Date.now()}`;
-        await mod.set(mod.ref(mod.db,`users/${reqUid}/groups/${myGid}`),{
-          id:myGid,name:group?.name||req.groupName||"Group",code:group?.code||"",
-          joinLink:group?.joinLink||"",joinedAs:"member",ownerUid:user.uid,
-          createdAt:group?.createdAt||Date.now(),members:{[memberKey]:req.name||"Aspirant"},
-        });
-      }catch(crossWriteErr){
-        console.error("Group cross-write to requester failed — requester side will need to reconcile",crossWriteErr);
-      }
-    }catch(e){console.error("acceptGroupRequest error",e);}
-    setGrpReqStatus(s=>({...s,[key]:""}));
-  };
+  const acceptGroupRequest = async (gid, reqUid) => {
+  if (!user?.uid || !gid || !reqUid) return;
+
+  const req = incomingGroupRequests.find(
+    r => r.gid === gid && r.uid === reqUid
+  );
+
+  if (!req) return;
+
+  const key = `${gid}|${reqUid}`;
+
+  setGrpReqStatus(s => ({ ...s, [key]: "loading" }));
+
+  try {
+    const mod = await import("./firebase");
+
+    // Add requester as a member (Groups V2)
+    await mod.set(
+      mod.ref(mod.db, `groups/${gid}/members/${reqUid}`),
+      true
+    );
+
+    // Remove pending request
+    await mod.remove(
+      mod.ref(mod.db, `groups/${gid}/joinRequests/${reqUid}`)
+    );
+
+  } catch (e) {
+    console.error("acceptGroupRequest error", e);
+  }
+
+  setGrpReqStatus(s => ({ ...s, [key]: "" }));
+};
 
   const declineGroupRequest=async(gid,reqUid)=>{
     if(!user?.uid||!gid||!reqUid)return;
