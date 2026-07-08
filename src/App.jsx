@@ -1864,32 +1864,78 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
     }catch(e){}
   };
 
-  // ── Groups ──
-  const createGroup=async()=>{
-    if(!grpName.trim())return;
-    const gid=`grp_${Date.now()}`;
-    const rawCode=`GRP-${grpName.slice(0,3).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
-    // Store code uppercase, no ambiguity
-    const code=rawCode.toUpperCase();
-    const joinLink=`https://studysync-4cvf.vercel.app/?joinGroup=${code}`;
-    setGrpName("");setShowCreate(false);
-    if(!user?.uid)return;
-    try{
-      const mod=await import("./firebase");
-      const groupData={
-        id:gid,name:grpName,code,joinLink,
-        creatorUid:user.uid,creatorName:user.name||"",
-        createdAt:Date.now(),
-        members:{m0:user?.name||"You"}
-      };
-      // Write to creator's user node
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gid}`),groupData);
-      // Write to global groupCodes index — key=code — readable by all auth users
-      await mod.set(mod.ref(mod.db,`groupCodes/${code}`),{
-        gid,ownerUid:user.uid,name:grpName,code,joinLink,active:true,createdAt:Date.now()
-      });
-    }catch(e){console.error("createGroup error",e);}
-  };
+ // ── Groups V2 ──
+const createGroup = async () => {
+  if (!grpName.trim()) return;
+
+  const gid = `grp_${Date.now()}`;
+
+  const rawCode = `GRP-${grpName.slice(0, 3).toUpperCase()}-${Math.floor(
+    1000 + Math.random() * 9000
+  )}`;
+
+  const code = rawCode.toUpperCase();
+
+  const joinLink = `https://studysync-4cvf.vercel.app/?joinGroup=${code}`;
+
+  const groupName = grpName.trim();
+
+  setGrpName("");
+  setShowCreate(false);
+
+  if (!user?.uid) return;
+
+  try {
+    const mod = await import("./firebase");
+
+    const groupData = {
+      id: gid,
+      name: groupName,
+      code,
+      joinLink,
+
+      ownerUid: user.uid,
+      ownerName: user.name || "",
+
+      createdAt: Date.now(),
+
+      members: {
+        [user.uid]: true
+      },
+
+      joinRequests: {}
+    };
+
+    // Canonical group
+    await mod.set(
+      mod.ref(mod.db, `groups/${gid}`),
+      groupData
+    );
+
+    // Owner's reference
+    await mod.set(
+      mod.ref(mod.db, `users/${user.uid}/groupRefs/${gid}`),
+      true
+    );
+
+    // Group code lookup
+    await mod.set(
+      mod.ref(mod.db, `groupCodes/${code}`),
+      {
+        gid,
+        ownerUid: user.uid,
+        name: groupName,
+        code,
+        joinLink,
+        active: true,
+        createdAt: Date.now()
+      }
+    );
+
+  } catch (e) {
+    console.error("createGroup error", e);
+  }
+};
 
   const deleteGroup=async(gId,gCode)=>{
     if(!user?.uid)return;
