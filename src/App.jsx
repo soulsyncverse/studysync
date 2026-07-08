@@ -2052,7 +2052,7 @@ const createGroup = async () => {
       const now=Date.now();
       const myName=user?.name||"You";
       // Write the request under the SAME groups/{gid} subtree members already lives in.
-      await mod.set(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/joinRequests/${user.uid}`),
+     await mod.set(mod.ref(mod.db,`groups/${gid}/joinRequests/${user.uid}`),
         {uid:user.uid,name:myName,friendCode:myFriendCode,requestedAt:now});
       // Own-uid mirror so the requester can see "pending" and cancel — always permitted.
       await mod.set(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${gid}`),
@@ -2065,16 +2065,32 @@ const createGroup = async () => {
     }
   };
 
-  const cancelGroupRequest=async(gid,ownerUid)=>{
-    if(!user?.uid||!gid)return;
-    setGrpReqStatus(s=>({...s,[gid]:"loading"}));
-    try{
-      const mod=await import("./firebase");
-      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${gid}`));
-      if(ownerUid)try{await mod.remove(mod.ref(mod.db,`users/${ownerUid}/groups/${gid}/joinRequests/${user.uid}`));}catch{}
-    }catch(e){console.error("cancelGroupRequest error",e);}
-    setGrpReqStatus(s=>({...s,[gid]:""}));
-  };
+ const cancelGroupRequest = async (gid, ownerUid) => {
+  if (!user?.uid || !gid) return;
+
+  setGrpReqStatus(s => ({ ...s, [gid]: "loading" }));
+
+  try {
+    const mod = await import("./firebase");
+
+    // Remove my outgoing request
+    await mod.remove(
+      mod.ref(mod.db, `users/${user.uid}/groupRequests/outgoing/${gid}`)
+    );
+
+    // Remove canonical group request
+    try {
+      await mod.remove(
+        mod.ref(mod.db, `groups/${gid}/joinRequests/${user.uid}`)
+      );
+    } catch {}
+
+  } catch (e) {
+    console.error("cancelGroupRequest error", e);
+  }
+
+  setGrpReqStatus(s => ({ ...s, [gid]: "" }));
+};
 
   // Accept: add requester to members (string, same shape addMemberToGroup already
   // uses — render at g.members.map stays untouched) + memberUids (uid map, for
