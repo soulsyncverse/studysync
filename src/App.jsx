@@ -1755,44 +1755,93 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[user?.uid,outgoingUidsKey]);
 
-  // RTDB: groups
-  // Issue #6 Part 1/4: incomingGroupRequests is DERIVED from this same snapshot,
-  // not a separate listener — joinRequests/{uid} lives as a child of each owned
-  // group, so it arrives in this payload for free. memberUids is similarly
-  // flattened here for O(1) "already a member" checks (Part 1 requirement),
-  // without adding a second read.
-  useEffect(()=>{
-    if(!user?.uid)return;
-    let dbMod,dbRef,listener;
-    (async()=>{
-      try{
-        const mod=await import("./firebase");
-        dbRef=mod.ref(mod.db,`users/${user.uid}/groups`);
-        dbMod=mod;
-        listener=mod.onValue(dbRef,(snap)=>{
-          if(snap.exists()){
-            const raw=snap.val();
-            const arr=Object.entries(raw).map(([id,g])=>({
-              ...g,id,
-              members:g.members?Object.values(g.members):[],
-              memberUids:g.memberUids?Object.keys(g.memberUids):[],
-            }));
-            setMyGroups(arr);
-            const incoming=[];
-            Object.entries(raw).forEach(([gid,g])=>{
-              if(g.joinRequests){
-                Object.entries(g.joinRequests).forEach(([uid,req])=>{
-                  incoming.push({gid,groupName:g.name,uid,...req});
+ // RTDB: Groups V2
+useEffect(() => {
+  if (!user?.uid) return;
+
+  let unsubRefs = null;
+  let groupUnsubs = [];
+
+  (async () => {
+    try {
+      const mod = await import("./firebase");
+
+      const refsRef = mod.ref(mod.db, `users/${user.uid}/groupRefs`);
+
+      unsubRefs = mod.onValue(refsRef, async (refsSnap) => {
+
+        // Remove old listeners
+        groupUnsubs.forEach(fn => fn && fn());
+        groupUnsubs = [];
+
+        if (!refsSnap.exists()) {
+          setMyGroups([]);
+          setIncomingGroupRequests([]);
+          return;
+        }
+
+        const ids = Object.keys(refsSnap.val() || {});
+
+        const groups = [];
+        const incoming = [];
+
+        ids.forEach(gid => {
+
+          const gRef = mod.ref(mod.db, `groups/${gid}`);
+
+          const unsub = mod.onValue(gRef, (gSnap) => {
+
+            if (!gSnap.exists()) return;
+
+            const g = gSnap.val();
+
+            const obj = {
+              ...g,
+              id: gid,
+              members: g.members ? Object.keys(g.members) : [],
+              memberUids: g.members ? Object.keys(g.members) : []
+            };
+
+            const idx = groups.findIndex(x => x.id === gid);
+
+            if (idx >= 0)
+              groups[idx] = obj;
+            else
+              groups.push(obj);
+
+            if (g.joinRequests) {
+              Object.entries(g.joinRequests).forEach(([uid, req]) => {
+                incoming.push({
+                  gid,
+                  groupName: g.name,
+                  uid,
+                  ...req
                 });
-              }
-            });
-            setIncomingGroupRequests(incoming);
-          } else {setMyGroups([]);setIncomingGroupRequests([]);}
+              });
+            }
+
+            setMyGroups([...groups]);
+            setIncomingGroupRequests([...incoming]);
+
+          });
+
+          groupUnsubs.push(() => mod.off(gRef, unsub));
+
         });
-      }catch(e){}
-    })();
-    return()=>{if(dbMod&&dbRef&&listener)dbMod.off(dbRef,listener);};
-  },[user?.uid]);
+
+      });
+
+    } catch (e) {
+      console.error(e);
+    }
+  })();
+
+  return () => {
+    if (unsubRefs) unsubRefs();
+    groupUnsubs.forEach(fn => fn && fn());
+  };
+
+}, [user?.uid]);
 
   // Outgoing group requests — own mirror, parallel to friendRequests/outgoing.
   // Path: users/{uid}/groupRequests/outgoing/{gid} — own top-level node, always
