@@ -1805,6 +1805,17 @@ useEffect(() => {
 
               const g = gSnap.val();
 
+              if (!g.members || !g.members[user.uid]) {
+                // We were removed from this group (owner can't remove themselves,
+                // so this only ever applies to non-owner members). Drop the local
+                // entry and self-clean our own groupRef — own-uid write only.
+                const idx = groups.findIndex(x => x.id === gid);
+                if (idx >= 0) groups.splice(idx, 1);
+                try {
+                  await mod.remove(mod.ref(mod.db, `users/${user.uid}/groupRefs/${gid}`));
+                } catch {}
+              } else {
+
               const obj = {
                 ...g,
                 id: gid,
@@ -1818,6 +1829,7 @@ useEffect(() => {
                 groups[idx] = obj;
               else
                 groups.push(obj);
+              }
             }
 
             // Rebuild incoming requests from scratch on every update instead of
@@ -2052,6 +2064,21 @@ const createGroup = async () => {
       setAddMemberSel("");setAddMemberStatus("done");
       setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
+  };
+
+  // Remove member (owner-only). Writes only to the canonical group's members
+  // map — no write into the removed member's own tree. Their client detects
+  // the removal itself via the group loader's reconciliation branch above and
+  // self-clears its own groupRef.
+  const removeMemberFromGroup=async(gId,memberUid)=>{
+    if(!user?.uid||!gId||!memberUid)return;
+    const g=myGroups.find(x=>x.id===gId);
+    if(!g||g.ownerUid!==user.uid)return; // only the owner can remove members
+    if(memberUid===user.uid)return; // owner can't remove themselves
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`groups/${gId}/members/${memberUid}`));
+    }catch(e){console.error("removeMemberFromGroup error",e);}
   };
 
   // ── Join group by code (Issue #6 Part 1): now sends a REQUEST, not an instant join ──
@@ -2394,7 +2421,12 @@ const createGroup = async () => {
         </div>}
         <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=>{
           const label=m===user?.uid?(user?.name||"You"):(publicUsersById[m]||myFriends.find(f=>f.uid===m)?.name||"Aspirant");
-          return<div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{label}</div>;
+          const isOwnerPill=m===g.ownerUid;
+          const canRemove=g.ownerUid===user?.uid&&!isOwnerPill;
+          return<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>
+            <span>{isOwnerPill?"👑 ":""}{label}</span>
+            {canRemove&&<button onClick={()=>removeMemberFromGroup(g.id,m)} title="Remove member" style={{background:"none",border:"none",color:"#FF6B6B",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit",padding:0}}>Remove</button>}
+          </div>;
         })}</div>
         {/* Add member — friends dropdown + free text */}
         {addMemberGrpId===g.id?(
