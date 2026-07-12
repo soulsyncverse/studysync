@@ -2081,6 +2081,20 @@ const createGroup = async () => {
     }catch(e){console.error("removeMemberFromGroup error",e);}
   };
 
+  // Leave group (member-only). Removes only our own entry from the canonical
+  // members map — the group loader's reconciliation branch already watches
+  // for our own uid disappearing from members and self-clears our groupRef,
+  // so no direct groupRef write is needed here.
+  const leaveGroup=async(gId)=>{
+    if(!user?.uid||!gId)return;
+    const g=myGroups.find(x=>x.id===gId);
+    if(!g||g.ownerUid===user.uid)return; // owner cannot leave — must delete instead
+    try{
+      const mod=await import("./firebase");
+      await mod.remove(mod.ref(mod.db,`groups/${gId}/members/${user.uid}`));
+    }catch(e){console.error("leaveGroup error",e);}
+  };
+
   // ── Join group by code (Issue #6 Part 1): now sends a REQUEST, not an instant join ──
   // Verified-by-existing-behavior, not by reading database.rules.json directly (that
   // file wasn't available to audit): today's instant-join wrote
@@ -2404,7 +2418,11 @@ const createGroup = async () => {
           <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
           <div style={{display:"flex",gap:4}}>
             <button onClick={()=>setGrpQrId(g.id)} title="QR Code" style={{background:"rgba(129,140,248,0.1)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:8,padding:"4px 7px",color:"#818cf8",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>QR</button>
-            <button onClick={()=>deleteGroup(g.id,g.code)} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+            {g.ownerUid===user?.uid?(
+              <button onClick={()=>deleteGroup(g.id,g.code)} title="Delete Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+            ):(
+              <button onClick={()=>leaveGroup(g.id)} title="Leave Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Leave</button>
+            )}
           </div>
         </div>
         {/* Join requests awaiting THIS owner's decision (Issue #6 Part 1) */}
