@@ -1311,6 +1311,9 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // outgoingGroupRequests: own-uid mirror, parallel to friendRequests/outgoing pattern.
   const [outgoingGroupRequests,setOutgoingGroupRequests]=useState([]);
   const [incomingGroupRequests,setIncomingGroupRequests]=useState([]); // derived from myGroups snapshot — see listener below
+  // uid -> display name, built from the already-loaded publicUsers list (Problem 5).
+  // No new listener — publicUsers is already populated elsewhere in the app.
+  const publicUsersById=useMemo(()=>Object.fromEntries(publicUsers.map(p=>[p.id,p.name])),[publicUsers]);
   const [grpReqStatus,setGrpReqStatus]=useState({}); // per-(gid|uid) loading flag
   // ── Issue #6 Part 2: Friend Profile modal ──
   const [friendProfileId,setFriendProfileId]=useState(null); // myFriends.id of the open profile, or null
@@ -1783,45 +1786,61 @@ useEffect(() => {
         const ids = Object.keys(refsSnap.val() || {});
 
         const groups = [];
-        const incoming = [];
 
         ids.forEach(gid => {
 
           const gRef = mod.ref(mod.db, `groups/${gid}`);
 
-          const unsub = mod.onValue(gRef, (gSnap) => {
+          const unsub = mod.onValue(gRef, async (gSnap) => {
 
-            if (!gSnap.exists()) return;
+            if (!gSnap.exists()) {
+              // Group was deleted — drop the stale local entry and self-clean
+              // our own dangling groupRef (own-uid write only).
+              const idx = groups.findIndex(x => x.id === gid);
+              if (idx >= 0) groups.splice(idx, 1);
+              try {
+                await mod.remove(mod.ref(mod.db, `users/${user.uid}/groupRefs/${gid}`));
+              } catch {}
+            } else {
 
-            const g = gSnap.val();
+              const g = gSnap.val();
 
-            const obj = {
-              ...g,
-              id: gid,
-              members: g.members ? Object.keys(g.members) : [],
-              memberUids: g.members ? Object.keys(g.members) : []
-            };
+              const obj = {
+                ...g,
+                id: gid,
+                members: g.members ? Object.keys(g.members) : [],
+                memberUids: g.members ? Object.keys(g.members) : []
+              };
 
-            const idx = groups.findIndex(x => x.id === gid);
+              const idx = groups.findIndex(x => x.id === gid);
 
-            if (idx >= 0)
-              groups[idx] = obj;
-            else
-              groups.push(obj);
-
-            if (g.joinRequests) {
-              Object.entries(g.joinRequests).forEach(([uid, req]) => {
-                incoming.push({
-                  gid,
-                  groupName: g.name,
-                  uid,
-                  ...req
-                });
-              });
+              if (idx >= 0)
+                groups[idx] = obj;
+              else
+                groups.push(obj);
             }
 
+            // Rebuild incoming requests from scratch on every update instead of
+            // pushing onto a persistent array — pushing caused each group's
+            // onValue re-fire to re-append its requests on top of whatever was
+            // already there, producing duplicates (Problem 1) and stale entries
+            // that lingered after accept/decline (Problem 2).
+            const incoming = [];
+            groups.forEach(gr => {
+              if (gr.joinRequests) {
+                Object.entries(gr.joinRequests).forEach(([uid, req]) => {
+                  incoming.push({
+                    gid: gr.id,
+                    groupName: gr.name,
+                    uid,
+                    ...req
+                  });
+                });
+              }
+            });
+
             setMyGroups([...groups]);
-            setIncomingGroupRequests([...incoming]);
+            setIncomingGroupRequests(incoming);
 
           });
 
@@ -1869,18 +1888,29 @@ useEffect(() => {
   // of attaching a new listener per request, this just checks the ALREADY-LOADED
   // myGroups state (Part 4: zero new listeners) for a matching code on every
   // myGroups update. No decline detection in v1 (matches friend-request v1 scope).
-  const myGroupCodes=useMemo(()=>new Set(myGroups.map(g=>g.code)),[myGroups]);
   useEffect(()=>{
     if(!user?.uid||outgoingGroupRequests.length===0)return;
+    let dbMod,listeners=[];
     (async()=>{
       const mod=await import("./firebase");
-      for(const req of outgoingGroupRequests){
-        if(myGroupCodes.has(req.code)){
-          try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${req.gid}`));}catch{}
-        }
-      }
+      dbMod=mod;
+      outgoingGroupRequests.forEach(req=>{
+        const gRef=mod.ref(mod.db,`groups/${req.gid}`);
+        const listener=mod.onValue(gRef,async(snap)=>{
+          if(!snap.exists())return;
+          const g=snap.val();
+          if(g.members&&g.members[user.uid]){
+            // Accepted: create our own groupRef (own-uid write) and clear the
+            // outgoing mirror. Nothing here touches another user's tree.
+            try{await mod.set(mod.ref(mod.db,`users/${user.uid}/groupRefs/${req.gid}`),true);}catch{}
+            try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${req.gid}`));}catch{}
+          }
+        });
+        listeners.push(()=>mod.off(gRef,listener));
+      });
     })();
-  },[user?.uid,outgoingGroupRequests,myGroupCodes]);
+    return()=>{listeners.forEach(fn=>fn());};
+  },[user?.uid,outgoingGroupRequests]);
 
   // RTDB: friends
   useEffect(()=>{
@@ -1990,28 +2020,29 @@ const createGroup = async () => {
     if(!user?.uid)return;
     try{
       const mod=await import("./firebase");
-      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gId}`));
+      await mod.remove(mod.ref(mod.db,`groups/${gId}`));
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRefs/${gId}`));
       if(gCode) await mod.remove(mod.ref(mod.db,`groupCodes/${gCode}`));
-    }catch(e){}
+    }catch(e){console.error("deleteGroup error",e);}
   };
 
   // Add member from friends dropdown or any name
   const addMemberToGroup=async(gId)=>{
     const memberName=addMemberSel.trim();
     if(!memberName||addMemberStatus==="loading")return; // re-entrancy guard
+    const matchedFriend=myFriends.find(f=>f.name===memberName);
+    if(!matchedFriend){
+      // Canonical members are keyed by uid — only a known friend can be added directly.
+      setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);return;
+    }
+    const g=myGroups.find(x=>x.id===gId);
+    if(g?.memberUids?.includes(matchedFriend.uid)){
+      setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;
+    }
     setAddMemberStatus("loading");
     try{
       const mod=await import("./firebase");
-      const groupRef=mod.ref(mod.db,`users/${user.uid}/groups/${gId}`);
-      const snap=await new Promise(res=>mod.onValue(groupRef,(s)=>{res(s);},{onlyOnce:true}));
-      const gData=snap.exists()?snap.val():{};
-      const existingNames=gData.members?Object.values(gData.members):[];
-      const existingUids=gData.memberUids?Object.keys(gData.memberUids):[];
-      const matchedFriend=myFriends.find(f=>f.name===memberName);
-      if(existingNames.includes(memberName)||(matchedFriend&&existingUids.includes(matchedFriend.uid))){
-        setAddMemberStatus("exists");setTimeout(()=>setAddMemberStatus(""),1500);return;
-      }
-      await mod.set(mod.ref(mod.db,`users/${user.uid}/groups/${gId}/members/m${Date.now()}`),memberName);
+      await mod.set(mod.ref(mod.db,`groups/${gId}/members/${matchedFriend.uid}`),true);
       setAddMemberSel("");setAddMemberStatus("done");
       setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
@@ -2141,7 +2172,7 @@ const createGroup = async () => {
     setGrpReqStatus(s=>({...s,[key]:"loading"}));
     try{
       const mod=await import("./firebase");
-      await mod.remove(mod.ref(mod.db,`users/${user.uid}/groups/${gid}/joinRequests/${reqUid}`));
+      await mod.remove(mod.ref(mod.db,`groups/${gid}/joinRequests/${reqUid}`));
     }catch(e){console.error("declineGroupRequest error",e);}
     setGrpReqStatus(s=>({...s,[key]:""}));
   };
@@ -2355,13 +2386,16 @@ const createGroup = async () => {
             </div>;
           })}
         </div>}
-        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=><div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{m}</div>)}</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>{g.members.map((m,i)=>{
+          const label=m===user?.uid?(user?.name||"You"):(publicUsersById[m]||myFriends.find(f=>f.uid===m)?.name||"Aspirant");
+          return<div key={i} style={{background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>{label}</div>;
+        })}</div>
         {/* Add member — friends dropdown + free text */}
         {addMemberGrpId===g.id?(
           <div style={{marginBottom:7}}>
             {myFriends.length>0&&<select value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontFamily:"inherit",fontSize:10,marginBottom:5,cursor:"pointer"}}>
               <option value="">— Select a friend or type below —</option>
-              {myFriends.filter(f=>!g.members.includes(f.name)).map(f=><option key={f.id} value={f.name}>{f.name}</option>)}
+              {myFriends.filter(f=>!g.memberUids?.includes(f.uid)).map(f=><option key={f.id} value={f.name}>{f.name}</option>)}
             </select>}
             <div style={{display:"flex",gap:5}}>
               <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
