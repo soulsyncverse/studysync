@@ -1899,12 +1899,18 @@ useEffect(() => {
         const listener=mod.onValue(gRef,async(snap)=>{
           if(!snap.exists())return;
           const g=snap.val();
-          if(g.members&&g.members[user.uid]){
-            // Accepted: create our own groupRef (own-uid write) and clear the
-            // outgoing mirror. Nothing here touches another user's tree.
+          const isMember=!!(g.members&&g.members[user.uid]);
+          const hasRequest=!!(g.joinRequests&&g.joinRequests[user.uid]);
+
+          if(isMember){
+            // Accepted: create our own groupRef and clear the outgoing mirror.
             try{await mod.set(mod.ref(mod.db,`users/${user.uid}/groupRefs/${req.gid}`),true);}catch{}
             try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${req.gid}`));}catch{}
+          }else if(!hasRequest){
+            // Declined (request gone, never became a member): clear the outgoing mirror.
+            try{await mod.remove(mod.ref(mod.db,`users/${user.uid}/groupRequests/outgoing/${req.gid}`));}catch{}
           }
+          // else: request still pending — do nothing.
         });
         listeners.push(()=>mod.off(gRef,listener));
       });
