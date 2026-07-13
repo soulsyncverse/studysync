@@ -540,7 +540,7 @@ function Login({t,onLogin}){
 
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
-  pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs,
+  pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoFocusMin,pomoCs,setPomoCs,
   onPomoReset=()=>{},onPomoStop=()=>{}}){
   const allSubjects=[...subjects,...customSubjects];
   const [pf,setPf]=useState(pomoCf);
@@ -598,7 +598,7 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
       <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
-    <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoSess*pomoCf/60)}h${(pomoSess*pomoCf)%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoFocusMin/60)}h${pomoFocusMin%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
     {/* Subject pills */}
     <div className="ss-pomo-subjects" style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",maxWidth:390}}>
       {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
@@ -3607,7 +3607,33 @@ return () => {active=false;unsub();};
   const [pomoCf,setPomoCf]=useState(()=>parseInt(localStorage.getItem("ss_pomo_dur")||"25"));
   const [pomoRun,setPomoRun]=useState(false); // never restore as running — calculate elapsed instead
   const [pomoSess,setPomoSess]=useState(0);
+  const [pomoFocusMin,setPomoFocusMin]=useState(0); // sum of ACTUAL elapsed focus minutes per session — not pomoSess*pomoCf
   const [pomoCs,setPomoCs]=useState("");
+
+  // One-time init: seed today's Sessions/Focus Time from the existing
+  // users/{uid}/sessions data on load or user change — matches the same
+  // date-filter logic Reports already uses. This is a single onlyOnce read,
+  // not a live listener, so it never fights with the local increments in the
+  // natural-completion effect / handlePomoStop, which keep updating pomoSess
+  // and pomoFocusMin at runtime exactly as they do today.
+  useEffect(()=>{
+    if(!user?.uid){setPomoSess(0);setPomoFocusMin(0);return;}
+    let cancelled=false;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const sessRef=mod.ref(mod.db,`users/${user.uid}/sessions`);
+        const snap=await new Promise(res=>mod.onValue(sessRef,(s)=>res(s),{onlyOnce:true}));
+        if(cancelled)return;
+        const today=istDateString();
+        const all=snap.exists()?Object.values(snap.val()):[];
+        const todays=all.filter(s=>s?.date===today);
+        setPomoSess(todays.length);
+        setPomoFocusMin(todays.reduce((sum,s)=>sum+(s.minutes||0),0));
+      }catch(e){console.error("pomo today-stats init error",e);}
+    })();
+    return()=>{cancelled=true;};
+  },[user?.uid]);
   // ── Pro cross-device sync identity — inert for free users, only read/written when isPro ──
   const [pomoSessionId,setPomoSessionId]=useState(()=>`p_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
   const deviceIdRef=useRef(null);
@@ -4000,6 +4026,7 @@ return () => {active=false;unsub();};
       secEverPositiveRef.current=false; // consumed — require new session to build up again
       if(pomoModeRef.current==="focus"){
         setPomoSess(n=>n+1); // single authoritative increment — guarded by completionFiredRef above
+        setPomoFocusMin(m=>m+pomoCfRef.current); // natural completion: full configured duration was actually studied
         try{
           const ctx=new(window.AudioContext||window.webkitAudioContext)();
           const gain=ctx.createGain();gain.connect(ctx.destination);
@@ -4197,6 +4224,7 @@ return () => {active=false;unsub();};
         const today=istDateString();
         await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
         setPomoSess(n=>n+1);
+        setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
         onSessionComplete(elapsedMinutes);
       }catch(e){console.error("handlePomoStop error",e);}
     })();
@@ -4296,7 +4324,7 @@ return () => {active=false;unsub();};
 
     {/* Content */}
     <div className="ss-content">
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoFocusMin={pomoFocusMin} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro} user={user}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
