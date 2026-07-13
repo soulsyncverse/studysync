@@ -62,6 +62,18 @@ function dl(date){
   const diff=Math.ceil((target-now)/86400000);
   return Math.max(0,diff);
 }
+// Formats a ms timestamp as "08 Jul 2026" — same locale/options already used
+// for the Premium "Member Since" field, factored out so subscribedAt/expiresAt
+// render identically without duplicating the toLocaleDateString call.
+function fmtPremDate(ms){
+  if(typeof ms!=="number")return null;
+  return new Date(ms).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
+}
+// Whole days between now and an expiry timestamp, floored at 0 once expired.
+function daysUntil(expiresAt){
+  if(typeof expiresAt!=="number")return null;
+  return Math.ceil((expiresAt-Date.now())/86400000);
+}
 function istDateString(offsetDays=0){
   const d=new Date(Date.now()+offsetDays*86400000);
   const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
@@ -3271,14 +3283,14 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const [deleteStep,setDeleteStep]=useState(0); // 0=none,1=first confirm,2=second confirm,3=deleting
   const [codeCopied,setCodeCopied]=useState(false);
   // ── Premium Membership section state ──
-  const [entInfo,setEntInfo]=useState({plan:"",memberSince:null});
+  const [entInfo,setEntInfo]=useState({plan:"",memberSince:null,subscribedAt:null,expiresAt:null});
   const [mockCount,setMockCount]=useState(0);
   const [recallCount,setRecallCount]=useState(0);
   const [benefitsOpen,setBenefitsOpen]=useState(false);
 
-  // Plan name + Member Since — sourced from the same users/{uid}/entitlement node the app already uses as the source of truth for isPro
+  // Plan name + Member Since + subscription dates — sourced from the same users/{uid}/entitlement node the app already uses as the source of truth for isPro
   useEffect(()=>{
-    if(!isPro||!user?.uid){setEntInfo({plan:"",memberSince:null});return;}
+    if(!isPro||!user?.uid){setEntInfo({plan:"",memberSince:null,subscribedAt:null,expiresAt:null});return;}
     let dbMod,entRef,entListener;
     (async()=>{
       try{
@@ -3287,7 +3299,13 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
         entRef=mod.ref(mod.db,`users/${user.uid}/entitlement`);
         entListener=mod.onValue(entRef,(snap)=>{
           const v=snap.exists()?snap.val():null;
-          setEntInfo({plan:v?.plan||"premium",memberSince:typeof v?.updatedAt==="number"?v.updatedAt:null});
+          setEntInfo({
+            plan:v?.plan||"premium",
+            memberSince:typeof v?.updatedAt==="number"?v.updatedAt:null,
+            // Older entitlements predate these fields — stay null so the UI can hide the date section gracefully.
+            subscribedAt:typeof v?.subscribedAt==="number"?v.subscribedAt:null,
+            expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null
+          });
         });
       }catch(e){}
     })();
@@ -3418,23 +3436,33 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
 
     {/* Premium Membership */}
-    {isPro?(
+    {isPro?(()=>{
+      const hasDates=typeof entInfo.subscribedAt==="number"&&typeof entInfo.expiresAt==="number";
+      const isExpired=hasDates&&Date.now()>entInfo.expiresAt;
+      const daysLeft=hasDates?daysUntil(entInfo.expiresAt):null;
+      return(
       <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.10),rgba(52,211,153,0.06))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:14,padding:"13px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
           <span style={{fontSize:16}}>⚡</span>
           <span style={{color:t.text,fontWeight:900,fontSize:13}}>Premium Membership</span>
-          <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(52,211,153,0.15)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:"#34d399"}}/>
-            <span style={{color:"#34d399",fontWeight:800,fontSize:9}}>Active</span>
+          <div style={{display:"inline-flex",alignItems:"center",gap:4,background:isExpired?"rgba(255,107,107,0.15)":"rgba(52,211,153,0.15)",border:`1px solid ${isExpired?"rgba(255,107,107,0.3)":"rgba(52,211,153,0.3)"}`,borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
+            <div style={{width:5,height:5,borderRadius:"50%",background:isExpired?"#FF6B6B":"#34d399"}}/>
+            <span style={{color:isExpired?"#FF6B6B":"#34d399",fontWeight:800,fontSize:9}}>{isExpired?"Expired":"Active"}</span>
           </div>
         </div>
-        <div style={{display:"flex",gap:18,marginBottom:11}}>
+        <div style={{display:"flex",gap:18,marginBottom:hasDates?9:11,flexWrap:"wrap"}}>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?new Date(entInfo.memberSince).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—"}</div></div>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?fmtPremDate(entInfo.memberSince):"—"}</div></div>
         </div>
+        {hasDates&&<div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Subscribed On</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(entInfo.subscribedAt)}</div></div>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>{isExpired?"Expired On":"Valid Till"}</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(entInfo.expiresAt)}</div></div>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Days Remaining</div><div style={{color:isExpired?"#FF6B6B":"#34d399",fontWeight:700,fontSize:11,marginTop:2}}>{isExpired?"Expired":`${daysLeft} day${daysLeft!==1?"s":""}`}</div></div>
+        </div>}
         <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>View Benefits</button>
       </div>
-    ):(
+      );
+    })():(
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
         <div style={{fontSize:22,marginBottom:5}}>⚡</div>
         <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>You're on the Free plan</div>
@@ -4210,7 +4238,9 @@ return () => {active=false;unsub();};
       if(user?.uid){
         try{
           const mod=await import("./firebase");
-          await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp()});
+          const subscribedAt=Date.now();
+          const expiresAt=subscribedAt+30*24*60*60*1000; // 30-day Premium duration
+          await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp(),subscribedAt,expiresAt});
         }catch(e){console.error("entitlement persist error",e);}
       }
     }} onRestore={()=>{}}/>}
