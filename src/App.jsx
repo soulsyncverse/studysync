@@ -541,7 +541,7 @@ function Login({t,onLogin}){
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoCs,setPomoCs,
-  onPomoReset=()=>{}}){
+  onPomoReset=()=>{},onPomoStop=()=>{}}){
   const allSubjects=[...subjects,...customSubjects];
   const [pf,setPf]=useState(pomoCf);
   const [show,setShow]=useState(false);
@@ -594,7 +594,7 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
     </div>
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
+      <button onClick={()=>{const elapsedSec=tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
       <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
@@ -3868,7 +3868,7 @@ return () => {active=false;unsub();};
     return()=>clearInterval(iv);
   },[]);
 
-  const onSessionComplete=useCallback(async()=>{
+  const onSessionComplete=useCallback(async(minutesOverride)=>{
     if(!user?.uid)return;
     try{
       const mod=await import("./firebase");
@@ -3882,10 +3882,11 @@ return () => {active=false;unsub();};
       ]);
       const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
       let currentStreak=streakSnap.exists()?Number(streakSnap.val())||0:0;
+      const minutesToAdd=typeof minutesOverride==="number"?minutesOverride:(pomoCfRef.current||25);
       // Stats: always increment (each session counts)
       await mod.set(statsRef,{
         totalSessions:(prev.totalSessions||0)+1,
-        totalMinutes:(prev.totalMinutes||0)+(pomoCfRef.current||25),
+        totalMinutes:(prev.totalMinutes||0)+minutesToAdd,
         lastStudyDate:today,
       });
       // Streak: only update once per day — guard against same-day double sessions
@@ -4182,6 +4183,25 @@ return () => {active=false;unsub();};
     setPomoSessionId(newId);
   },[isPro,user?.uid]);
 
+  // Records a partial focus session when Stop/Reset is pressed mid-timer.
+  // Uses the exact same session schema/path as natural completion, and the
+  // same onSessionComplete stats/streak path — just with the real elapsed
+  // minutes instead of the full configured duration.
+  const handlePomoStop=useCallback((elapsedSec,mode,subject)=>{
+    if(!user?.uid||mode!=="focus")return; // breaks are never recorded as study time
+    const elapsedMinutes=Math.floor(elapsedSec/60);
+    if(elapsedMinutes<1)return; // ignore sub-minute sessions (Requirement 5)
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const today=istDateString();
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
+        setPomoSess(n=>n+1);
+        onSessionComplete(elapsedMinutes);
+      }catch(e){console.error("handlePomoStop error",e);}
+    })();
+  },[user?.uid,onSessionComplete]);
+
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
   // Expose user globally for components that can't receive it via props
@@ -4276,7 +4296,7 @@ return () => {active=false;unsub();};
 
     {/* Content */}
     <div className="ss-content">
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro} user={user}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
