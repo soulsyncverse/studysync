@@ -69,11 +69,6 @@ function fmtPremDate(ms){
   if(typeof ms!=="number")return null;
   return new Date(ms).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
 }
-// Whole days between now and an expiry timestamp, floored at 0 once expired.
-function daysUntil(expiresAt){
-  if(typeof expiresAt!=="number")return null;
-  return Math.ceil((expiresAt-Date.now())/86400000);
-}
 function istDateString(offsetDays=0){
   const d=new Date(Date.now()+offsetDays*86400000);
   const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
@@ -3437,27 +3432,31 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
 
     {/* Premium Membership */}
     {isPro?(()=>{
-      const hasDates=typeof entInfo.subscribedAt==="number"&&typeof entInfo.expiresAt==="number";
-      const isExpired=hasDates&&Date.now()>entInfo.expiresAt;
-      const daysLeft=hasDates?daysUntil(entInfo.expiresAt):null;
+      // Root cause of Valid Till never rendering: it was inside a block gated on
+      // BOTH subscribedAt AND expiresAt existing. Any pre-existing Premium user
+      // (entitlement written before this feature existed) has neither, so the
+      // whole block — including Valid Till — was skipped. Fixed: derive Valid
+      // Till on its own, falling back to memberSince (updatedAt) + 30 days when
+      // expiresAt itself isn't stored yet, per backward-compatibility requirement.
+      const validTill=typeof entInfo.expiresAt==="number"
+        ? entInfo.expiresAt
+        : (typeof entInfo.memberSince==="number" ? entInfo.memberSince+30*24*60*60*1000 : null);
       return(
       <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.10),rgba(52,211,153,0.06))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:14,padding:"13px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
           <span style={{fontSize:16}}>⚡</span>
           <span style={{color:t.text,fontWeight:900,fontSize:13}}>Premium Membership</span>
-          <div style={{display:"inline-flex",alignItems:"center",gap:4,background:isExpired?"rgba(255,107,107,0.15)":"rgba(52,211,153,0.15)",border:`1px solid ${isExpired?"rgba(255,107,107,0.3)":"rgba(52,211,153,0.3)"}`,borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
-            <div style={{width:5,height:5,borderRadius:"50%",background:isExpired?"#FF6B6B":"#34d399"}}/>
-            <span style={{color:isExpired?"#FF6B6B":"#34d399",fontWeight:800,fontSize:9}}>{isExpired?"Expired":"Active"}</span>
+          <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(52,211,153,0.15)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
+            <div style={{width:5,height:5,borderRadius:"50%",background:"#34d399"}}/>
+            <span style={{color:"#34d399",fontWeight:800,fontSize:9}}>Active</span>
           </div>
         </div>
-        <div style={{display:"flex",gap:18,marginBottom:hasDates?9:11,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:18,marginBottom:validTill?9:11,flexWrap:"wrap"}}>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?fmtPremDate(entInfo.memberSince):"—"}</div></div>
         </div>
-        {hasDates&&<div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Subscribed On</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(entInfo.subscribedAt)}</div></div>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>{isExpired?"Expired On":"Valid Till"}</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(entInfo.expiresAt)}</div></div>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Days Remaining</div><div style={{color:isExpired?"#FF6B6B":"#34d399",fontWeight:700,fontSize:11,marginTop:2}}>{isExpired?"Expired":`${daysLeft} day${daysLeft!==1?"s":""}`}</div></div>
+        {validTill&&<div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(validTill)}</div></div>
         </div>}
         <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>View Benefits</button>
       </div>
