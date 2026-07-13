@@ -210,9 +210,9 @@ function Gate({t,name,icon,onPro}){
 function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
   const [sel,setSel]=useState("monthly");
   const [ld,setLd]=useState(false);const [ok,setOk]=useState(false);
-  const plans={trial:{l:"7-Day Trial",p:0,per:"then ₹25/mo",badge:"START FREE",c:"#34d399"},monthly:{l:"1 Month",p:25,orig:50,per:"month",badge:"50% OFF",c:"#818cf8"},quarter:{l:"3 Months",p:70,orig:150,per:"3 months",badge:"BEST VALUE",c:"#60a5fa"}};
+  const plans={trial:{l:"7-Day Trial",p:0,per:"then ₹25/mo",badge:"START FREE",c:"#34d399",days:7},monthly:{l:"1 Month",p:25,orig:50,per:"month",badge:"50% OFF",c:"#818cf8",days:30},quarter:{l:"3 Months",p:70,orig:150,per:"3 months",badge:"BEST VALUE",c:"#60a5fa",days:90}};
   const feats=[{i:"🤖",l:"AI Assistant"},{i:"📋",l:"Syllabus Tracker"},{i:"🃏",l:"Active Recall"},{i:"📈",l:"Mock Tests"},{i:"🔄",l:"Cross-Device Sync"},{i:"👑",l:"All Badges"}];
-  const pay=async()=>{setLd(true);await new Promise(r=>setTimeout(r,1200));setLd(false);setOk(true);setTimeout(()=>{if(isRestore)onRestore();else onUpgrade();onClose();},1500);};
+  const pay=async()=>{setLd(true);await new Promise(r=>setTimeout(r,1200));setLd(false);setOk(true);setTimeout(()=>{if(isRestore)onRestore();else onUpgrade(sel,plans[sel].days);onClose();},1500);};
   return(
     <div style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(8px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"26px 26px 0 0",width:"100%",maxWidth:540,maxHeight:"92vh",overflowY:"auto",border:"1px solid rgba(129,140,248,0.18)",borderBottom:"none"}}>
@@ -4231,14 +4231,15 @@ return () => {active=false;unsub();};
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
     {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
-    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={async()=>{
+    {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={async(planKey,durationDays)=>{
       setIsPro(true); // optimistic local update — instant UI, no wait on the round-trip
       push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});
       if(user?.uid){
         try{
           const mod=await import("./firebase");
           const subscribedAt=Date.now();
-          const expiresAt=subscribedAt+30*24*60*60*1000; // 30-day Premium duration
+          const days=typeof durationDays==="number"&&durationDays>0?durationDays:30; // fallback only if the modal somehow didn't pass one
+          const expiresAt=subscribedAt+days*24*60*60*1000; // expiry now driven by the actual purchased plan's duration
           await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp(),subscribedAt,expiresAt});
         }catch(e){console.error("entitlement persist error",e);}
       }
