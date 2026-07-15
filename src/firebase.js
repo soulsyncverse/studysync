@@ -1,6 +1,19 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { getDatabase, ref, set, get, onValue, off, push, remove, update, onDisconnect, serverTimestamp } from 'firebase/database';
+import {
+  getDatabase,
+  ref,
+  set,
+  get,
+  onValue,
+  off,
+  push,
+  remove,
+  update,
+  onDisconnect,
+  serverTimestamp,
+  runTransaction
+} from 'firebase/database';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -13,16 +26,40 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getDatabase(app);
-export { ref, set, get, onValue, off, push, remove, update, onDisconnect, serverTimestamp };
+
+export {
+  ref,
+  set,
+  get,
+  onValue,
+  off,
+  push,
+  remove,
+  update,
+  onDisconnect,
+  serverTimestamp,
+  runTransaction
+};
 
 export async function signInGoogle() {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    return { user: { name: result.user.displayName, email: result.user.email, uid: result.user.uid }, error: null };
+    return {
+      user: {
+        name: result.user.displayName,
+        email: result.user.email,
+        uid: result.user.uid
+      },
+      error: null
+    };
   } catch (err) {
-    return { user: null, error: err.message };
+    return {
+      user: null,
+      error: err.message
+    };
   }
 }
