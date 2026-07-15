@@ -75,6 +75,19 @@ function istDateString(offsetDays=0){
   const get=type=>parts.find(p=>p.type===type)?.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
+// ── Streak system constants ─────────────────────────────────────
+const STREAK_MIN_MINUTES=10;   // minutes of study required in a single IST day to count toward the streak
+const RESTORE_MIN_MINUTES=120; // minutes of study required (same IST day) before a broken streak can be restored
+const RESTORE_WINDOW_DAYS=4;   // calendar days after a break during which restore stays available
+// Whole-day difference between two "YYYY-MM-DD" IST date strings (to - from).
+// Same date-string + "T00:00:00" anchoring technique the existing dl() helper
+// already uses elsewhere in this file, so the day-count is consistent with it.
+function daysBetweenIST(fromDateStr,toDateStr){
+  if(!fromDateStr||!toDateStr)return null;
+  const from=new Date(fromDateStr+"T00:00:00");
+  const to=new Date(toDateStr+"T00:00:00");
+  return Math.round((to-from)/86400000);
+}
 const DEFAULT_EXAM_KEY="UPSC CSE";
 const DEFAULT_EXAM_MODE="Prelims";
 function validExamKey(key,customExamIds=[]){if(EXAMS[key])return key;if(customExamIds.includes(key))return key;return DEFAULT_EXAM_KEY;}
@@ -730,7 +743,7 @@ function Planner({t,subjects,customSubjects,user}){
 }
 
 // ── STREAK (Feature 6 — badges for Pro) ──────────────────────
-function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
+function Streak({t,pushN,ns,onRestore,streak,isPro,user,streakBreak,streakWarning,todayStudyMinutes}){
   const badge=getBadge(streak);
   const nextBadge=BADGES.find(b=>b.min>streak);
   const [showBadge,setShowBadge]=useState(false);
@@ -803,7 +816,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
       <div style={{fontSize:40}}>🔥</div>
       <div style={{fontSize:46,fontWeight:900,color:t.a1,lineHeight:1}}>{streak}</div>
       <div style={{fontSize:10,color:t.sub,marginTop:2}}>Day Streak</div>
-      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:10,fontWeight:700,display:"inline-block"}}>🔔 Study today — don't break the chain!</div>
+      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:10,fontWeight:700,display:"inline-block"}}>{streakBreak?"💔 Streak broken — restore below":streakWarning?"🔥 Your streak is at risk. Study today to keep it alive.":"🔔 Study today — don't break the chain!"}</div>
     </div>
 
     {/* Badge card */}
@@ -833,9 +846,10 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user}){
       </div>
     ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:18}}>👑</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:11}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>See your streak journey and all milestones</div></div></div>}
 
-    <div style={{display:"grid",gridTemplateColumns:"1fr",gap:7}}>
-      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>💔 Restore Streak</button>
-    </div>
+    {streakBreak&&<div style={{display:"grid",gridTemplateColumns:"1fr",gap:5}}>
+      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{isPro?"💔 Restore Streak":"💔 Restore Streak → Upgrade to Premium"}</button>
+      {isPro&&<div style={{color:t.sub,fontSize:9,textAlign:"center"}}>{todayStudyMinutes>=RESTORE_MIN_MINUTES?`Ready — restores to ${streakBreak.previousStreak} days`:`Study ${RESTORE_MIN_MINUTES-todayStudyMinutes} more minute${RESTORE_MIN_MINUTES-todayStudyMinutes===1?"":"s"} today to unlock (${todayStudyMinutes}/${RESTORE_MIN_MINUTES}m)`}</div>}
+    </div>}
 
     {/* Dynamic study calendar — real session data, correct month/year */}
     <div>
@@ -3593,7 +3607,6 @@ return () => {active=false;unsub();};
    // changes end 
   const [isPro,setIsPro]=useState(false);
   const [proOpen,setProOpen]=useState(false);
-  const [restoreOpen,setRestoreOpen]=useState(false);
   const [tab,setTab]=useState("timer");
   const [nOpen,setNOpen]=useState(false);
   const [qrOpen,setQrOpen]=useState(false);
@@ -3683,12 +3696,13 @@ return () => {active=false;unsub();};
     }
   },[]);
   const [streak,setStreak]=useState(0);
-  const [stats,setStats]=useState({totalSessions:0,totalMinutes:0,lastStudyDate:""});
+  const [stats,setStats]=useState({totalSessions:0,totalMinutes:0,lastStudyDate:"",todayMinutes:0,lastStreakDate:""});
+  const [streakBreak,setStreakBreak]=useState(null); // {previousStreak,brokenAt,restoreExpiresAt} while a restore window is open, else null
 
   // Load streak + stats from Firebase on login
   useEffect(()=>{
     if(!user?.uid)return;
-    let dbMod,streakRef,statsRef,streakListener,statsListener;
+    let dbMod,streakRef,statsRef,breakRef,streakListener,statsListener,breakListener;
     (async()=>{
       try{
         const mod=await import("./firebase");
@@ -3703,16 +3717,82 @@ return () => {active=false;unsub();};
         statsListener=mod.onValue(statsRef,(snap)=>{
           if(snap.exists()) setStats(snap.val());
         });
-        // Streak is loaded here only. Study-session completion is the single normal writer/resetter.
+        // Streak break/restore record — absent for users who've never broken a streak
+        breakRef=mod.ref(mod.db,`users/${user.uid}/streakBreak`);
+        breakListener=mod.onValue(breakRef,(snap)=>{
+          setStreakBreak(snap.exists()?snap.val():null);
+        });
+        // Streak is loaded here; onSessionComplete is the normal writer, and the
+        // break-detection effect below is the only other writer (streak=0 + break record).
       }catch(e){console.error("stats load error",e);}
     })();
     return()=>{
       if(dbMod){
         if(streakRef&&streakListener)dbMod.off(streakRef,streakListener);
         if(statsRef&&statsListener)dbMod.off(statsRef,statsListener);
+        if(breakRef&&breakListener)dbMod.off(breakRef,breakListener);
       }
     };
   },[user?.uid]);
+
+  // Derived streak-status — recomputed from stats, not persisted anywhere new.
+  // priorStreakDate falls back to the old lastStudyDate field so existing users
+  // (who have no lastStreakDate yet) get correct continuity on first read.
+  const streakGap=useMemo(()=>{
+    const priorStreakDate=stats?.lastStreakDate||stats?.lastStudyDate||"";
+    if(!priorStreakDate)return null;
+    return daysBetweenIST(priorStreakDate,istDateString());
+  },[stats?.lastStreakDate,stats?.lastStudyDate]);
+  const streakWarning=streakGap===2; // exactly one full day already missed, today not yet studied
+  const todayStudyMinutes=stats?.lastStudyDate===istDateString()?(stats?.todayMinutes||0):0;
+
+  // Break-detection: no backend/cron exists, so this runs client-side whenever
+  // stats loads or changes. Two full consecutive missed days (gap>=3, i.e. both
+  // days have genuinely elapsed) breaks the streak and opens a 4-day restore
+  // window. An already-expired restore window is cleared permanently.
+  useEffect(()=>{
+    if(!user?.uid)return;
+    (async()=>{
+      try{
+        const mod=await import("./firebase");
+        const today=istDateString();
+        if(streakBreak&&today>streakBreak.restoreExpiresAt){
+          await mod.remove(mod.ref(mod.db,`users/${user.uid}/streakBreak`));
+          return;
+        }
+        if(streakGap!==null&&streakGap>=3&&streak>0&&!streakBreak){
+          const restoreExpiresAt=istDateString(RESTORE_WINDOW_DAYS);
+          await Promise.all([
+            mod.set(mod.ref(mod.db,`users/${user.uid}/streak`),0),
+            mod.set(mod.ref(mod.db,`users/${user.uid}/streakBreak`),{previousStreak:streak,brokenAt:today,restoreExpiresAt}),
+          ]);
+        }
+      }catch(e){console.error("streak break-detection error",e);}
+    })();
+  },[user?.uid,streakGap,streak,streakBreak]);
+
+  // Restore Streak: Premium-gated, requires RESTORE_MIN_MINUTES studied TODAY,
+  // restores the exact previousStreak (not +1), clears the break record, and
+  // resumes normal day-to-day progression from today.
+  const restoreStreak=useCallback(async()=>{
+    if(!user?.uid)return;
+    if(!isPro){ setProOpen(true); return; } // not Premium — send to the real purchase flow, not a fake mock
+    if(!streakBreak)return;
+    const today=istDateString();
+    if(today>streakBreak.restoreExpiresAt)return; // window already expired — guard, should already be auto-cleared
+    if(todayStudyMinutes<RESTORE_MIN_MINUTES){
+      const remaining=RESTORE_MIN_MINUTES-todayStudyMinutes;
+      push({icon:"🔥",title:"Keep studying to restore",body:`Study ${remaining} more minute${remaining===1?"":"s"} today to unlock your restore.`,col:"#FFB86B"});
+      return;
+    }
+    try{
+      const mod=await import("./firebase");
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/streak`),streakBreak.previousStreak);
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/stats/lastStreakDate`),today);
+      await mod.remove(mod.ref(mod.db,`users/${user.uid}/streakBreak`));
+      push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streakBreak.previousStreak} days!`,col:"#FF6B6B"});
+    }catch(e){console.error("restoreStreak error",e);}
+  },[user?.uid,isPro,streakBreak,todayStudyMinutes]);
 
   // ── PHASE 1: publicUsers/{uid} sync ──────────────────────────────────────
   // New node, additive only. Does NOT touch users/{uid} in any way — it is a
@@ -3903,34 +3983,74 @@ return () => {active=false;unsub();};
       const mod=await import("./firebase");
       const today=istDateString();
       const yesterday=istDateString(-1);
+      const dayBeforeYesterday=istDateString(-2);
       const statsRef=mod.ref(mod.db,`users/${user.uid}/stats`);
       const streakRef=mod.ref(mod.db,`users/${user.uid}/streak`);
+      const minutesToAdd=typeof minutesOverride==="number"?minutesOverride:(pomoCfRef.current||25);
+
+      if(typeof mod.runTransaction==="function"){
+        // Transacted: two devices completing sessions around the same moment
+        // both get correctly accumulated instead of one silently overwriting
+        // the other's stats write. The streak-qualification decision is folded
+        // into this same atomic update, so a losing device's retry sees the
+        // winner's already-committed lastStreakDate and correctly skips a
+        // second increment for the same day.
+        let priorStreakDate="",justQualified=false;
+        const statsResult=await mod.runTransaction(statsRef,(p)=>{
+          const prev=p||{totalSessions:0,totalMinutes:0,lastStudyDate:"",todayMinutes:0,lastStreakDate:""};
+          const todayMinutes=(prev.lastStudyDate===today?(prev.todayMinutes||0):0)+minutesToAdd;
+          priorStreakDate=prev.lastStreakDate||prev.lastStudyDate||"";
+          justQualified=priorStreakDate!==today && todayMinutes>=STREAK_MIN_MINUTES;
+          return{
+            totalSessions:(prev.totalSessions||0)+1,
+            totalMinutes:(prev.totalMinutes||0)+minutesToAdd,
+            lastStudyDate:today,
+            todayMinutes,
+            lastStreakDate:justQualified?today:(prev.lastStreakDate||""),
+          };
+        });
+        if(!statsResult.committed)return; // transaction aborted (e.g. offline) — nothing further to do
+        if(justQualified){
+          const streakResult=await mod.runTransaction(streakRef,(prevStreak)=>{
+            const base=typeof prevStreak==="number"?prevStreak:0;
+            return(priorStreakDate===yesterday||priorStreakDate===dayBeforeYesterday)?base+1:1;
+          });
+          if(streakResult.committed) setStreak(streakResult.snapshot.val());
+        }
+        return;
+      }
+
+      // Fallback — runTransaction not available on this firebase wrapper build.
+      // Same logic as above, but as a plain read-then-set (the pre-existing
+      // behavior), so nothing breaks if the export is missing.
       const [statsSnap,streakSnap]=await Promise.all([
         new Promise(res=>mod.onValue(statsRef,(s)=>{res(s);},{onlyOnce:true})),
         new Promise(res=>mod.onValue(streakRef,(s)=>{res(s);},{onlyOnce:true})),
       ]);
-      const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:""};
+      const prev=statsSnap.exists()?statsSnap.val():{totalSessions:0,totalMinutes:0,lastStudyDate:"",todayMinutes:0,lastStreakDate:""};
       let currentStreak=streakSnap.exists()?Number(streakSnap.val())||0:0;
-      const minutesToAdd=typeof minutesOverride==="number"?minutesOverride:(pomoCfRef.current||25);
-      // Stats: always increment (each session counts)
+      const todayMinutes=(prev.lastStudyDate===today?(prev.todayMinutes||0):0)+minutesToAdd;
+      let lastStreakDate=prev.lastStreakDate||"";
+      const priorStreakDate=lastStreakDate||prev.lastStudyDate||"";
+      const alreadyCountedToday=priorStreakDate===today;
+      if(!alreadyCountedToday && todayMinutes>=STREAK_MIN_MINUTES){
+        if(priorStreakDate===yesterday||priorStreakDate===dayBeforeYesterday){
+          currentStreak=currentStreak+1; // consecutive day, or resuming after the single grace day
+        } else {
+          currentStreak=1; // first-ever qualifying day, or a gap of 2+ days already passed
+        }
+        lastStreakDate=today;
+        await mod.set(streakRef,currentStreak);
+        setStreak(currentStreak);
+      }
+      // Stats: always increment (each session counts, regardless of streak eligibility)
       await mod.set(statsRef,{
         totalSessions:(prev.totalSessions||0)+1,
         totalMinutes:(prev.totalMinutes||0)+minutesToAdd,
         lastStudyDate:today,
+        todayMinutes,
+        lastStreakDate,
       });
-      // Streak: only update once per day — guard against same-day double sessions
-      if(prev.lastStudyDate!==today){
-        if(prev.lastStudyDate===yesterday){
-          currentStreak=currentStreak+1; // consecutive day
-        } else if(!prev.lastStudyDate){
-          currentStreak=1; // very first session ever
-        } else {
-          currentStreak=1; // missed one or more days — reset to 1
-        }
-        await mod.set(streakRef,currentStreak);
-        setStreak(currentStreak);
-      }
-      // Same day: streak unchanged, only totalSessions/totalMinutes updated above
     }catch(e){console.error("onSessionComplete error",e);}
   },[user?.uid]);
 
@@ -4253,9 +4373,21 @@ return () => {active=false;unsub();};
   useEffect(()=>{
     if(!loggedIn)return;
     const t1=setTimeout(()=>{if(ns.studyReminder)push({icon:"📖",title:`Hello, ${user?.name?.split(" ")[0]||"Aspirant"}!`,body:`${es.name} — ${days} days to go. Start your Pomodoro! 🌅`,col:"#6EE7F7"});},2500);
-    const t2=setTimeout(()=>{if(ns.streakBreak)push({icon:"🔥",title:"Streak at risk!",body:`${streak}-day streak on the line! Study now 😬`,col:"#FF6B6B"});},8000);
-    return()=>{clearTimeout(t1);clearTimeout(t2);};
+    return()=>{clearTimeout(t1);};
   },[loggedIn,ns]);
+
+  // Streak-at-risk warning — condition-based (real gap check), not timer-based.
+  // Fires only when exactly one full day has already been missed (genuinely at
+  // risk), and only once per calendar day even across multiple logins/reopens.
+  useEffect(()=>{
+    if(!loggedIn||!user?.uid||!streakWarning||!ns.streakBreak)return;
+    const key=`ss_streakWarnShown_${user.uid}_${istDateString()}`;
+    try{
+      if(localStorage.getItem(key))return;
+      push({icon:"🔥",title:"Your streak is at risk!",body:"Study today to keep it alive.",col:"#FF6B6B"});
+      localStorage.setItem(key,"1");
+    }catch(e){}
+  },[loggedIn,user?.uid,streakWarning,ns.streakBreak]);
 
   // Nav config — free tabs + pro tabs (no revise)
   const FREE=[{id:"timer",icon:"⏱",l:"Timer",c:"#FF6B6B"},{id:"planner",icon:"📅",l:"Planner",c:"#FFB86B"},{id:"streak",icon:"🔥",l:"Streak",c:"#FF6B6B"},{id:"exam",icon:"🎯",l:"Exam",c:es.color||"#818cf8"},{id:"circle",icon:"👥",l:"Circle",c:"#C16BFF"},{id:"report",icon:"📊",l:"Report",c:"#6EE7F7"}];
@@ -4295,7 +4427,6 @@ return () => {active=false;unsub();};
         }catch(e){console.error("entitlement persist error",e);}
       }
     }} onRestore={()=>{}}/>}
-    {restoreOpen&&<PricingModal t={t} onClose={()=>setRestoreOpen(false)} isRestore={true} onUpgrade={()=>{}} onRestore={()=>{setStreak(s=>s+1);push({icon:"🔥",title:"Streak Restored! 🎉",body:`You're back to ${streak+1} days!`,col:"#FF6B6B"});}}/>}
 
     {/* Header */}
     <div style={{position:"sticky",top:0,zIndex:100,background:t.nav,backdropFilter:"blur(18px)",borderBottom:`1px solid ${t.border}`,paddingTop:"calc(7px + env(safe-area-inset-top, 0px))",paddingLeft:11,paddingRight:11,paddingBottom:7}}>
@@ -4329,7 +4460,7 @@ return () => {active=false;unsub();};
     <div className="ss-content">
       {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoFocusMin={pomoFocusMin} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
-      {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={()=>setRestoreOpen(true)} streak={streak} isPro={isPro} user={user}/>}
+      {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={restoreStreak} streak={streak} isPro={isPro} user={user} streakBreak={streakBreak} streakWarning={streakWarning} todayStudyMinutes={todayStudyMinutes}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
