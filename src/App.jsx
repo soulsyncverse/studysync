@@ -2741,7 +2741,11 @@ function AI({t,subjects,customSubjects}){
     const q=text||inp.trim();if(!q)return;setInp("");
     setMsgs(m=>[...m,{r:"u",text:q}]);setLd(true);
     const{maxTokens,depth}=classifyAIComplexity(q);
-    const result=await callAI(q,aiSystemPrompt(subj,depth),maxTokens);
+   const result = await callAI(
+  q,
+  "You are a helpful UPSC study assistant.",
+  500
+);
     setMsgs(m=>[...m,{r:"a",text:result}]);setLd(false);
   };
   return(<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 210px)",minHeight:285}}>
