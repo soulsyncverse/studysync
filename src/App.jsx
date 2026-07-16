@@ -184,42 +184,12 @@ async function saveCustomExamToDb(uid,examId,data){
 function avbg(c){return `hsl(${c.charCodeAt(0)*37%360},52%,46%)`;}
 function Av({c,sz=36}){return <div style={{width:sz,height:sz,borderRadius:"50%",background:avbg(c),display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,color:"#fff",fontSize:sz*.38,flexShrink:0}}>{c}</div>;}
 
-async function callAI(prompt,system="You are a helpful UPSC study assistant.",maxTokens=500){
+async function callAI(prompt,system="You are a helpful UPSC study assistant."){
   try{
-    const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:prompt}],system,max_tokens:maxTokens})});
+    const r=await fetch("/api/claude",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:[{role:"user",content:prompt}],system,max_tokens:500})});
     if(!r.ok)throw new Error();
     const d=await r.json();return d.content?.[0]?.text||"Could not generate.";
   }catch{return "AI is currently unavailable. Please check your API configuration.";}
-}
-
-// ── AI Assistant: adaptive response depth ───────────────────────
-// Lightweight local heuristic (no extra API call/latency) that reads the
-// question itself to decide how much room the model should be given, instead
-// of every question getting the same fixed budget regardless of complexity.
-function classifyAIComplexity(q){
-  const text=q.trim().toLowerCase();
-  const words=text.split(/\s+/).filter(Boolean).length;
-  const analytical=/\b(discuss|analys?e|critically examine|evaluate|examine|elucidate|comment on|to what extent|causes?,?\s*impacts?|significance of)\b/.test(text);
-  const broad=/\b(for upsc|comprehensive|entire|overview of|in detail)\b/.test(text)||words>=20;
-  const factual=/^(what is|who is|when (was|is|did)|define|name the|which)\b/.test(text)&&words<=12;
-  if(broad) return{maxTokens:4000,depth:"as thorough as the topic genuinely warrants, potentially 2000+ words"};
-  if(analytical) return{maxTokens:2700,depth:"a full UPSC Mains-style analytical answer, roughly 1500-2000 words"};
-  if(factual) return{maxTokens:1100,depth:"a focused, direct factual answer, roughly 500-800 words"};
-  return{maxTokens:1700,depth:"a well-explained conceptual answer, roughly 800-1200 words"};
-}
-// Builds the system prompt for a given depth tier. Removed the old hardcoded
-// "Answer in 3-5 sentences" cap entirely — that was fighting any attempt at a
-// fuller answer regardless of what the question actually needed.
-function aiSystemPrompt(subj,depth){
-  return `You are a knowledgeable, precise UPSC/UPPCS/NDA/CDS/CAPF study assistant helping a serious civil-services aspirant. Subject context: ${subj}.
-
-Write ${depth}. Adapt length to what the question genuinely needs — never pad a simple factual question, and never artificially shorten a broad or analytical one.
-
-Where genuinely relevant (not forced into every answer), include: a clear structure, definitions, conceptual explanation, examples, constitutional articles, Supreme Court judgments, committees/commissions, important reports, schemes/government initiatives, relevant data or statistics, advantages, disadvantages, criticism, and a balanced way-forward conclusion. For UPSC-oriented questions, weave in Prelims perspective, Mains perspective, Interview perspective, PYQ linkage, interdisciplinary connections, and current-affairs linkage only where they genuinely improve the answer.
-
-This renders as plain text with no markdown parser — use plain section labels on their own line (e.g. "Key Provisions:") instead of ## or ** syntax, and use "•" for bullets and "1." "2." for numbered points. Keep paragraphs short.
-
-Prefer accuracy over length. If you are uncertain about a specific fact, date, name, or figure, say so plainly rather than inventing one.`;
 }
 
 // ── LOGO ──────────────────────────────────────────────────────
@@ -2740,8 +2710,7 @@ function AI({t,subjects,customSubjects}){
   const send=async(text)=>{
     const q=text||inp.trim();if(!q)return;setInp("");
     setMsgs(m=>[...m,{r:"u",text:q}]);setLd(true);
-    const{maxTokens,depth}=classifyAIComplexity(q);
- const result = await callAI(q, aiSystemPrompt(subj, depth), maxTokens);
+    const result=await callAI(q,`You are a friendly, concise UPSC/UPPCS/NDA/CDS/CAPF study assistant. Subject context: ${subj}. Answer in 3-5 sentences. Give mnemonics/examples where helpful.`);
     setMsgs(m=>[...m,{r:"a",text:result}]);setLd(false);
   };
   return(<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 210px)",minHeight:285}}>
