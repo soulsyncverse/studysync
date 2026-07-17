@@ -1720,6 +1720,17 @@ connectedListener=mod.onValue(connectedRef,(snap)=>{
     try{
       const mod=await import("./firebase");
       await mod.remove(mod.ref(mod.db,`friendRequests/${user.uid}/${fromUid}`));
+      // BUGFIX: also clear the sender's own-uid outgoing mirror so their "Request
+      // pending…" UI updates immediately instead of staying stale until the sender
+      // happens to become friends with someone else (the only other place that mirror
+      // was ever cleared). Symmetric to what cancelRequest() already does for the
+      // sender-initiated path. NOTE: per the rules.json documented above,
+      // users/$uid is only writable by $uid===auth.uid — this write needs the same
+      // kind of narrow override that already exists for users/$uid/friends/$fid
+      // (".write":"auth != null") added for users/$uid/friendRequests/outgoing/$fid,
+      // or this remove() will fail with a caught permission error and the mirror
+      // will stay stale exactly as it does today. Flagging this for a rules.json update.
+      try{await mod.remove(mod.ref(mod.db,`users/${fromUid}/friendRequests/outgoing/${user.uid}`));}catch{}
     }catch(e){console.error("declineRequest error",e);}
     setReqStatus(s=>({...s,[fromUid]:""}));
   };
@@ -2512,7 +2523,14 @@ const createGroup = async () => {
         // Reuses myFriendsSorted (Part 4: no new computation, just a filter on what's
         // already derived above).
         const studyingFriends=myFriendsSorted.filter(f=>f.status==="studying");
-        const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:"studying",subject:"Polity",streak};
+        // BUGFIX: previously hardcoded status:"studying",subject:"Polity" — always showed
+        // a fixed placeholder instead of the current user's actual live activity/subject.
+        // presenceByUid already contains an entry for our own uid (it's built from the
+        // full publicUsers/ payload before the "exclude me" filter that only applies to
+        // the `list`/publicUsers array), so we reuse that same live data source that
+        // friends already read correctly — no new listener, no new Firebase path.
+        const myLive=presenceByUid[user?.uid]||{status:"offline",subject:null};
+        const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:myLive.status,subject:myLive.subject,streak};
         if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
         return[meRow,...studyingFriends].map(f=>{
           const sd=statusDisplay(f.status,f.subject);
