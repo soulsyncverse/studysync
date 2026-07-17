@@ -764,7 +764,11 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user,streakBreak,streakWarnin
         dbMod=mod;
         listener=mod.onValue(dbRef,(snap)=>{
           if(snap.exists()){
-            const dates=new Set(Object.values(snap.val()).map(s=>s.date).filter(Boolean));
+            const minutesByDate={};
+            Object.values(snap.val()).forEach(s=>{
+              if(s.date) minutesByDate[s.date]=(minutesByDate[s.date]||0)+(s.minutes||0);
+            });
+            const dates=new Set(Object.entries(minutesByDate).filter(([,m])=>m>=STREAK_MIN_MINUTES).map(([d])=>d));
             setStudiedDates(dates);
           } else setStudiedDates(new Set());
         });
@@ -2600,7 +2604,9 @@ function Report({t,es,user,streak}){
   const selMins=selSessions.reduce((a,s)=>a+(s.minutes||0),0);
 
   // Longest streak calc
-  const dateSet=new Set(sessions.map(s=>s.date));
+  const minutesByDate={};
+  sessions.forEach(s=>{if(s.date)minutesByDate[s.date]=(minutesByDate[s.date]||0)+(s.minutes||0);});
+  const dateSet=new Set(Object.entries(minutesByDate).filter(([,m])=>m>=STREAK_MIN_MINUTES).map(([d])=>d));
   let longest=0,cur=0;
   for(let i=0;i<365;i++){
     const ds=istDateString(-i);
@@ -2705,7 +2711,9 @@ function AI({t,subjects,customSubjects}){
   const [msgs,setMsgs]=useState([{r:"a",text:"Namaste! 🙏 I'm your AI study assistant. Ask me anything — concepts, PYQs, strategies, or motivation!"}]);
   const [inp,setInp]=useState("");const [ld,setLd]=useState(false);const [subj,setSubj]=useState("General");
   const endRef=useRef();
-  useEffect(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),[msgs]);
+  useEffect(()=>{
+    endRef.current?.scrollIntoView?.({behavior:"smooth"});
+  },[msgs]);
   const qp=["Explain Article 356","What is fiscal deficit?","UPPCS vs UPSC","Key rivers of India","Motivate me!"];
   const send=async(text)=>{
     const q=text||inp.trim();if(!q)return;setInp("");
