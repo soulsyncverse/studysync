@@ -607,8 +607,8 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
     </div>
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{const elapsedSec=tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
-      <button onClick={()=>setPomoRun(r=>!r)} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
+      <button onClick={()=>{const elapsedSec=pomoSec===0?0:tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
+      <button onClick={()=>{if(!pomoRun&&pomoSec===0)setPomoSec(tot);setPomoRun(r=>!r);}} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
     </div>
     <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoFocusMin/60)}h${pomoFocusMin%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
@@ -2102,6 +2102,13 @@ const createGroup = async () => {
     try{
       const mod=await import("./firebase");
       await mod.set(mod.ref(mod.db,`groups/${gId}/members/${matchedFriend.uid}`),true);
+      // BUGFIX: mirror the group into the new member's own tree so their client's
+      // groupRefs listener picks it up immediately — the join-request path already
+      // does the equivalent self-write on the requester's own device, but a direct
+      // add has no requester, so nothing was ever writing this pointer before.
+      // Requires a matching users/$uid/groupRefs/$groupId rule override (see rules
+      // note); wrapped separately so a missing rule can't undo the member-add above.
+      try{await mod.set(mod.ref(mod.db,`users/${matchedFriend.uid}/groupRefs/${gId}`),true);}catch(e){console.error("addMemberToGroup groupRefs mirror error",e);}
       setAddMemberSel("");setAddMemberStatus("done");
       setTimeout(()=>{setAddMemberStatus("");setAddMemberGrpId(null);},1200);
     }catch(e){setAddMemberStatus("error");setTimeout(()=>setAddMemberStatus(""),1500);}
@@ -3650,7 +3657,9 @@ return () => {active=false;unsub();};
   const [pomoRun,setPomoRun]=useState(false); // never restore as running — calculate elapsed instead
   const [pomoSess,setPomoSess]=useState(0);
   const [pomoFocusMin,setPomoFocusMin]=useState(0); // sum of ACTUAL elapsed focus minutes per session — not pomoSess*pomoCf
-  const [pomoCs,setPomoCs]=useState("");
+  const [pomoCs,setPomoCs]=useState(()=>{
+    try{const s=JSON.parse(localStorage.getItem(POMO_LS_KEY)||"{}");return s.cs||"";}catch{return"";}
+  });
 
   // One-time init: seed today's Sessions/Focus Time from the existing
   // users/{uid}/sessions data on load or user change — matches the same
@@ -4088,7 +4097,7 @@ return () => {active=false;unsub();};
   useEffect(()=>{
     if(pomoRun){
       // Only reset completion guard if there are seconds remaining — never reset at sec=0
-      if(pomoSecRef.current>0){
+      if(pomoSec>0){
         completionFiredRef.current=false;
       }
       try{
@@ -4096,9 +4105,9 @@ return () => {active=false;unsub();};
         if(saved.running&&saved.endTime&&saved.endTime>Date.now()){
           pomoEndTimeRef.current=saved.endTime;
         } else {
-          pomoEndTimeRef.current=Date.now()+(pomoSecRef.current*1000);
+          pomoEndTimeRef.current=Date.now()+(pomoSec*1000);
         }
-      }catch{pomoEndTimeRef.current=Date.now()+(pomoSecRef.current*1000);}
+      }catch{pomoEndTimeRef.current=Date.now()+(pomoSec*1000);}
     } else {
       pomoEndTimeRef.current=null;
     }
@@ -4146,7 +4155,7 @@ return () => {active=false;unsub();};
       cf:pomoCf,cs:pomoCs
     }));
     return()=>clearInterval(pomoIntervalRef.current);
-  },[pomoRun,pomoMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  },[pomoRun,pomoMode,pomoCs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle session completion side-effects (sound, notification, Firebase) — separate to avoid stale closures
   const pomoRunRef=useRef(pomoRun);
