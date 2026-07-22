@@ -1809,15 +1809,11 @@ useEffect(() => {
 
       unsubRefs = mod.onValue(refsRef, async (refsSnap) => {
 
-        // [DIAG-1] groupRefs listener — every snapshot received
-        console.log("[GROUPS] groupRefs snapshot", refsSnap.val());
-
         // Remove old listeners
         groupUnsubs.forEach(fn => fn && fn());
         groupUnsubs = [];
 
         if (!refsSnap.exists()) {
-          console.log("[GROUPS] skip: groupRefs snapshot does not exist — clearing myGroups");
           setMyGroups([]);
           setIncomingGroupRequests([]);
           return;
@@ -1829,26 +1825,13 @@ useEffect(() => {
 
         ids.forEach(gid => {
 
-          // [DIAG-2] Subscription stage
-          console.log("[GROUPS] subscribing", gid);
-
           const gRef = mod.ref(mod.db, `groups/${gid}`);
 
           const unsub = mod.onValue(gRef, async (gSnap) => {
 
-            // [DIAG-3] Group snapshot from groups/{gid}
-            console.log("[GROUPS] group snapshot", {
-              gid,
-              exists: gSnap.exists(),
-              owner: gSnap.exists() ? gSnap.val().ownerUid : undefined,
-              members: gSnap.exists() ? gSnap.val().members : undefined,
-              value: gSnap.val()
-            });
-
             if (!gSnap.exists()) {
               // Group was deleted — drop the stale local entry and self-clean
               // our own dangling groupRef (own-uid write only).
-              console.log("[GROUPS] skip reason: group deleted / snapshot missing", {gid});
               const idx = groups.findIndex(x => x.id === gid);
               if (idx >= 0) groups.splice(idx, 1);
               try {
@@ -1858,25 +1841,10 @@ useEffect(() => {
 
               const g = gSnap.val();
 
-              // [DIAG-4] Membership check — logged immediately before the check runs
-              console.log("[GROUPS] membership check", {
-                gid,
-                uid: user.uid,
-                members: g.members,
-                result: !!g.members?.[user.uid]
-              });
-
               if (!g.members || !g.members[user.uid]) {
                 // We were removed from this group (owner can't remove themselves,
                 // so this only ever applies to non-owner members). Drop the local
                 // entry and self-clean our own groupRef — own-uid write only.
-                // [DIAG-5] Self-cleanup branch
-                console.warn("[GROUPS] SELF CLEANUP", {
-                  gid,
-                  uid: user.uid,
-                  members: g.members
-                });
-                console.log("[GROUPS] skip reason: membership check failed", {gid});
                 const idx = groups.findIndex(x => x.id === gid);
                 if (idx >= 0) groups.splice(idx, 1);
                 try {
@@ -1923,12 +1891,6 @@ useEffect(() => {
                 });
               }
             });
-
-            // [DIAG-7] Final array — logged immediately before setMyGroups.
-            // Logging the local `groups` array (not the `myGroups` state variable)
-            // because state hasn't committed yet at this point — `myGroups` would
-            // still show the PREVIOUS value here, not the one actually being set.
-            console.log("[GROUPS] final myGroups", [...groups]);
 
             setMyGroups([...groups]);
             setIncomingGroupRequests(incoming);
