@@ -75,6 +75,27 @@ function istDateString(offsetDays=0){
   const get=type=>parts.find(p=>p.type===type)?.value;
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
+// Public weekly-minutes aggregate — called after every session write (natural
+// completion + handlePomoStop). Reads ONLY the caller's own sessions (uid is
+// always the logged-in user calling this, never a friend's uid), sums this
+// week's minutes with the same week-boundary formula Reports uses, and writes
+// a single leaf under publicUsers/{uid} so the Leaderboard can read it for
+// everyone (self + friends) without ever touching another user's raw sessions.
+async function updatePublicWeekMinutes(uid){
+  if(!uid)return;
+  try{
+    const mod=await import("./firebase");
+    const sess=await new Promise((resolve)=>{
+      mod.onValue(mod.ref(mod.db,`users/${uid}/sessions`),(snap)=>{
+        resolve(snap.exists()?Object.values(snap.val()):[]);
+      },{onlyOnce:true});
+    });
+    const istDow=new Date(new Date().toLocaleString("en-US",{timeZone:"Asia/Kolkata"})).getDay();
+    const weekStr=istDateString(-istDow);
+    const weekMinutes=sess.filter(s=>s.date>=weekStr).reduce((a,s)=>a+(s.minutes||0),0);
+    await mod.set(mod.ref(mod.db,`publicUsers/${uid}/weekMinutes`),weekMinutes);
+  }catch(e){console.error("updatePublicWeekMinutes error",e);}
+}
 // ── Streak system constants ─────────────────────────────────────
 const STREAK_MIN_MINUTES=10;   // minutes of study required in a single IST day to count toward the streak
 const RESTORE_MIN_MINUTES=120; // minutes of study required (same IST day) before a broken streak can be restored
@@ -1343,7 +1364,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
   // ── Issue #6 Part 2: Friend Profile modal ──
   const [friendProfileId,setFriendProfileId]=useState(null); // myFriends.id of the open profile, or null
 
-  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:0,s:streak},...publicUsers.map(p=>({name:p.name,av:p.av,h:p.h||0,s:p.streak||0}))].sort((a,b)=>(b.h||0)-(a.h||0)).map((f,i)=>({...f,r:i+1}));
+  const LB=[{name:user?.name||"You",av:(user?.name||"K")[0],h:Math.round(((presenceByUid[user?.uid]?.weekMinutes||0)/60)*10)/10,s:streak},...publicUsers.map(p=>({name:p.name,av:p.av,h:Math.round(((p.weekMinutes||0)/60)*10)/10,s:p.streak||0}))].sort((a,b)=>(b.h||0)-(a.h||0)).map((f,i)=>({...f,r:i+1}));
 
   // Friend code is stored in RTDB profile — deterministic from uid for backwards compat
   const myFriendCode=user?.uid?`SYNC-${user.uid.slice(0,8).toUpperCase()}`:"SYNC-XXXXXXXX";
@@ -1413,6 +1434,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         status,
         subject: row?.subject || null,
         totalSessions: row?.totalSessions || 0,
+        weekMinutes: row?.weekMinutes || 0,
         joinedAt: null,
       };
 
@@ -1421,7 +1443,7 @@ function Circle({t,friends,setFriends,openQR,subjects,customSubjects,isPro,onPro
         name,
         av: (name || "A")[0].toUpperCase(),
         streak: row?.streak || 0,
-        h: 0,
+        weekMinutes: row?.weekMinutes || 0,
         city: "StudySync",
         studying: status === "studying",
         status,
@@ -4202,6 +4224,7 @@ return () => {active=false;unsub();};
           import("./firebase").then(mod=>{
             const today=istDateString();
             mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
+            updatePublicWeekMinutes(user.uid);
             onSessionComplete();
           }).catch(()=>{});
         }
@@ -4381,6 +4404,7 @@ return () => {active=false;unsub();};
         const mod=await import("./firebase");
         const today=istDateString();
         await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
+        updatePublicWeekMinutes(user.uid);
         setPomoSess(n=>n+1);
         setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
         onSessionComplete(elapsedMinutes);
