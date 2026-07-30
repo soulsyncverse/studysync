@@ -69,6 +69,27 @@ function fmtPremDate(ms){
   if(typeof ms!=="number")return null;
   return new Date(ms).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"});
 }
+// Normalizes users/{uid}/entitlement.expiresAt to epoch ms regardless of how
+// it was stored — a plain number (the app's own write path) is the only
+// format previously accepted; this also covers a numeric/ISO date string and
+// a Firestore/RTDB Timestamp-shaped object ({seconds,...} or .toMillis()),
+// which legacy or manually-seeded entitlement records may use. Returns null
+// only when there's genuinely nothing usable, preserving the existing
+// "no expiresAt = legacy user, never expires" backward-compatibility rule.
+function parseExpiresAt(v){
+  if(typeof v==="number"&&!Number.isNaN(v))return v;
+  if(typeof v==="string"&&v.trim()!==""){
+    const n=Number(v);
+    if(!Number.isNaN(n))return n;
+    const parsed=Date.parse(v);
+    if(!Number.isNaN(parsed))return parsed;
+  }
+  if(v&&typeof v==="object"){
+    if(typeof v.toMillis==="function"){const n=v.toMillis();if(typeof n==="number"&&!Number.isNaN(n))return n;}
+    if(typeof v.seconds==="number")return v.seconds*1000;
+  }
+  return null;
+}
 function istDateString(offsetDays=0){
   const d=new Date(Date.now()+offsetDays*86400000);
   const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kolkata",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d);
@@ -3377,7 +3398,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
             memberSince:typeof v?.updatedAt==="number"?v.updatedAt:null,
             // Older entitlements predate these fields — stay null so the UI can hide the date section gracefully.
             subscribedAt:typeof v?.subscribedAt==="number"?v.subscribedAt:null,
-            expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null,
+            expiresAt:parseExpiresAt(v?.expiresAt),
             cancelled:!!v?.cancelled
           });
         });
@@ -3538,17 +3559,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
 
     {/* Premium Membership */}
-    {isPro?(()=>{
-      // Root cause of Valid Till never rendering: it was inside a block gated on
-      // BOTH subscribedAt AND expiresAt existing. Any pre-existing Premium user
-      // (entitlement written before this feature existed) has neither, so the
-      // whole block — including Valid Till — was skipped. Fixed: derive Valid
-      // Till on its own, falling back to memberSince (updatedAt) + 30 days when
-      // expiresAt itself isn't stored yet, per backward-compatibility requirement.
-      const validTill=typeof entInfo.expiresAt==="number"
-        ? entInfo.expiresAt
-        : (typeof entInfo.memberSince==="number" ? entInfo.memberSince+30*24*60*60*1000 : null);
-      return(
+    {isPro?(
       <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.10),rgba(52,211,153,0.06))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:14,padding:"13px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
           <span style={{fontSize:16}}>⚡</span>
@@ -3558,19 +3569,21 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
             <span style={{color:"#34d399",fontWeight:800,fontSize:9}}>Active</span>
           </div>
         </div>
-        <div style={{display:"flex",gap:18,marginBottom:validTill?9:11,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:18,marginBottom:9,flexWrap:"wrap"}}>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?fmtPremDate(entInfo.memberSince):"—"}</div></div>
         </div>
-        {validTill&&<div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(validTill)}</div></div>
-        </div>}
-        {entInfo.cancelled&&<div style={{color:t.sub,fontSize:9,marginBottom:9,background:t.pill,borderRadius:8,padding:"6px 9px"}}>Auto-renew is off — Premium stays active until {validTill?fmtPremDate(validTill):"your expiry date"}, then your account moves to Free.</div>}
+        {/* expiresAt is the ONLY authoritative expiry field. If it's genuinely
+            absent (legacy account, granted before this field existed), we show
+            that honestly instead of inventing a date from updatedAt. */}
+        <div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
+          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{typeof entInfo.expiresAt==="number"?fmtPremDate(entInfo.expiresAt):"Legacy Premium — no expiry recorded"}</div></div>
+        </div>
+        {entInfo.cancelled&&<div style={{color:t.sub,fontSize:9,marginBottom:9,background:t.pill,borderRadius:8,padding:"6px 9px"}}>Auto-renew is off — Premium stays active {typeof entInfo.expiresAt==="number"?`until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free.`:"(no expiry recorded on this legacy account)."}</div>}
         <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",marginBottom:entInfo.cancelled?0:6}}>View Benefits</button>
         {!entInfo.cancelled&&<button onClick={()=>setCancelConfirmOpen(true)} style={{width:"100%",background:"none",border:"none",color:t.muted,fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>Cancel Premium</button>}
       </div>
-      );
-    })():(typeof entInfo.expiresAt==="number"&&entInfo.expiresAt<Date.now())?(
+    ):(typeof entInfo.expiresAt==="number"&&entInfo.expiresAt<Date.now())?(
       // Was Premium, expiresAt has passed — distinct from "never subscribed" below.
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
         <div style={{fontSize:22,marginBottom:5}}>⏳</div>
@@ -3977,7 +3990,7 @@ return () => {active=false;unsub();};
         entRef=mod.ref(mod.db,`users/${user.uid}/entitlement`);
         entListener=mod.onValue(entRef,(snap)=>{
           const v=snap.exists()?snap.val():null;
-          setEntRaw({isPro:!!v?.isPro,expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null});
+          setEntRaw({isPro:!!v?.isPro,expiresAt:parseExpiresAt(v?.expiresAt)});
         },(err)=>{console.error("entitlement read error",err);setEntRaw({isPro:false,expiresAt:null});});
       }catch(e){console.error("entitlement load error",e);setEntRaw({isPro:false,expiresAt:null});}
     })();
@@ -4545,7 +4558,7 @@ return () => {active=false;unsub();};
       if(user?.uid){
         try{
           const mod=await import("./firebase");
-          await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp(),subscribedAt,expiresAt});
+          await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp(),subscribedAt,expiresAt,cancelled:false});
         }catch(e){console.error("entitlement persist error",e);}
       }
     }} onRestore={()=>{}}/>}
