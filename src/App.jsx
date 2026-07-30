@@ -3350,14 +3350,20 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
   const [deleteStep,setDeleteStep]=useState(0); // 0=none,1=first confirm,2=second confirm,3=deleting
   const [codeCopied,setCodeCopied]=useState(false);
   // ── Premium Membership section state ──
-  const [entInfo,setEntInfo]=useState({plan:"",memberSince:null,subscribedAt:null,expiresAt:null});
+  const [entInfo,setEntInfo]=useState({plan:"",memberSince:null,subscribedAt:null,expiresAt:null,cancelled:false});
+  const [cancelConfirmOpen,setCancelConfirmOpen]=useState(false);
+  const [cancelling,setCancelling]=useState(false);
   const [mockCount,setMockCount]=useState(0);
   const [recallCount,setRecallCount]=useState(0);
   const [benefitsOpen,setBenefitsOpen]=useState(false);
 
-  // Plan name + Member Since + subscription dates — sourced from the same users/{uid}/entitlement node the app already uses as the source of truth for isPro
+  // Plan name + Member Since + subscription dates — sourced from the same users/{uid}/entitlement node the app already uses as the source of truth for isPro.
+  // Loads regardless of current isPro (not gated on it) so an expired user's
+  // stored expiresAt is still readable here — that's what lets the UI show
+  // "Premium expired on <date>" instead of losing the record the moment
+  // effective Premium flips false.
   useEffect(()=>{
-    if(!isPro||!user?.uid){setEntInfo({plan:"",memberSince:null,subscribedAt:null,expiresAt:null});return;}
+    if(!user?.uid){setEntInfo({plan:"",memberSince:null,subscribedAt:null,expiresAt:null,cancelled:false});return;}
     let dbMod,entRef,entListener;
     (async()=>{
       try{
@@ -3371,13 +3377,14 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
             memberSince:typeof v?.updatedAt==="number"?v.updatedAt:null,
             // Older entitlements predate these fields — stay null so the UI can hide the date section gracefully.
             subscribedAt:typeof v?.subscribedAt==="number"?v.subscribedAt:null,
-            expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null
+            expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null,
+            cancelled:!!v?.cancelled
           });
         });
       }catch(e){}
     })();
     return()=>{if(dbMod&&entRef&&entListener)dbMod.off(entRef,entListener);};
-  },[isPro,user?.uid]);
+  },[user?.uid]);
 
   // Usage — Mock Tests taken + Recall Cards created, derived from existing nested Firebase trees (no new paths)
   useEffect(()=>{
@@ -3400,6 +3407,22 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
       }
     };
   },[isPro,user?.uid]);
+
+  const cancelPremium=async()=>{
+    if(!user?.uid)return;
+    setCancelling(true);
+    try{
+      const mod=await import("./firebase");
+      // Single-leaf write, matching the codebase's established pattern for
+      // targeted updates — leaves isPro/expiresAt/plan/subscribedAt untouched,
+      // so effective Premium keeps working exactly until expiresAt passes.
+      // This is intentionally future-proofed for auto-renew: a renewal flow
+      // just needs to clear this flag again.
+      await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement/cancelled`),true);
+    }catch(e){console.error("cancelPremium error",e);}
+    setCancelling(false);
+    setCancelConfirmOpen(false);
+  };
 
   const saveName=async()=>{
     if(!nameVal.trim()||!user?.uid){setEditingName(false);return;}
@@ -3471,6 +3494,18 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
       </div>
     )}
     {benefitsOpen&&<PremiumBenefitsModal t={t} onClose={()=>setBenefitsOpen(false)} isPro={isPro} mockCount={mockCount} recallCount={recallCount} totalSessions={stats?.totalSessions||0} streak={streak}/>}
+    {cancelConfirmOpen&&(
+      <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(5px)"}} onClick={()=>!cancelling&&setCancelConfirmOpen(false)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,width:"100%",maxWidth:320,padding:18,boxShadow:t.sh}}>
+          <div style={{fontSize:13,fontWeight:800,color:t.text,marginBottom:6}}>Cancel Premium?</div>
+          <div style={{color:t.sub,fontSize:11,marginBottom:14,lineHeight:1.5}}>{typeof entInfo.expiresAt==="number"?`You'll keep full Premium access until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free. This won't cancel immediately.`:"Premium won't renew going forward. You'll keep access until your current period ends."}</div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setCancelConfirmOpen(false)} disabled={cancelling} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>Never mind</button>
+            <button onClick={cancelPremium} disabled={cancelling} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"9px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>{cancelling?"…":"Yes, Cancel"}</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Avatar + name */}
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
@@ -3530,10 +3565,20 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
         {validTill&&<div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
           <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{fmtPremDate(validTill)}</div></div>
         </div>}
-        <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>View Benefits</button>
+        {entInfo.cancelled&&<div style={{color:t.sub,fontSize:9,marginBottom:9,background:t.pill,borderRadius:8,padding:"6px 9px"}}>Auto-renew is off — Premium stays active until {validTill?fmtPremDate(validTill):"your expiry date"}, then your account moves to Free.</div>}
+        <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",marginBottom:entInfo.cancelled?0:6}}>View Benefits</button>
+        {!entInfo.cancelled&&<button onClick={()=>setCancelConfirmOpen(true)} style={{width:"100%",background:"none",border:"none",color:t.muted,fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>Cancel Premium</button>}
       </div>
       );
-    })():(
+    })():(typeof entInfo.expiresAt==="number"&&entInfo.expiresAt<Date.now())?(
+      // Was Premium, expiresAt has passed — distinct from "never subscribed" below.
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
+        <div style={{fontSize:22,marginBottom:5}}>⏳</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>Premium expired on {fmtPremDate(entInfo.expiresAt)}</div>
+        <div style={{color:t.sub,fontSize:10,marginBottom:10,lineHeight:1.5}}>Renew to keep AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
+        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>⚡ Renew Premium</button>
+      </div>
+    ):(
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
         <div style={{fontSize:22,marginBottom:5}}>⚡</div>
         <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>You're on the Free plan</div>
@@ -3661,6 +3706,7 @@ return () => {active=false;unsub();};
 
    // changes end 
   const [isPro,setIsPro]=useState(false);
+  const [entRaw,setEntRaw]=useState({isPro:false,expiresAt:null}); // raw cache of users/{uid}/entitlement — isPro above is DERIVED from this, never set directly except on logout
   const [proOpen,setProOpen]=useState(false);
   const [tab,setTab]=useState("timer");
   const [nOpen,setNOpen]=useState(false);
@@ -3922,7 +3968,7 @@ return () => {active=false;unsub();};
   // involvement — this fixes the "logout/login can revert to Free" bug, since the
   // old code never persisted isPro anywhere at all.
   useEffect(()=>{
-    if(!user?.uid){setIsPro(false);return;} // no account in this tab — never show stale Pro
+    if(!user?.uid){setIsPro(false);setEntRaw({isPro:false,expiresAt:null});return;} // no account in this tab — never show stale Pro
     let dbMod,entRef,entListener;
     (async()=>{
       try{
@@ -3930,12 +3976,29 @@ return () => {active=false;unsub();};
         dbMod=mod;
         entRef=mod.ref(mod.db,`users/${user.uid}/entitlement`);
         entListener=mod.onValue(entRef,(snap)=>{
-          setIsPro(snap.exists()?!!snap.val()?.isPro:false);
-        },(err)=>{console.error("entitlement read error",err);setIsPro(false);});
-      }catch(e){console.error("entitlement load error",e);setIsPro(false);}
+          const v=snap.exists()?snap.val():null;
+          setEntRaw({isPro:!!v?.isPro,expiresAt:typeof v?.expiresAt==="number"?v.expiresAt:null});
+        },(err)=>{console.error("entitlement read error",err);setEntRaw({isPro:false,expiresAt:null});});
+      }catch(e){console.error("entitlement load error",e);setEntRaw({isPro:false,expiresAt:null});}
     })();
     return()=>{if(dbMod&&entRef&&entListener)dbMod.off(entRef,entListener);};
   },[user?.uid]);
+
+  // Effective Premium = raw isPro AND not expired. Older entitlements written
+  // before expiresAt existed have no expiry to check — stay valid (backward
+  // compatibility requirement). Re-derives on every raw change (login, profile
+  // load, cancel/renew writes) AND on a 60s tick, so an expiry that passes
+  // while the app is simply left open still takes effect without needing any
+  // new Firebase write or an app restart.
+  useEffect(()=>{
+    const recompute=()=>{
+      const notExpired=typeof entRaw.expiresAt!=="number"||entRaw.expiresAt>=Date.now();
+      setIsPro(!!entRaw.isPro&&notExpired);
+    };
+    recompute();
+    const id=setInterval(recompute,60000);
+    return()=>clearInterval(id);
+  },[entRaw]);
   const [examSubjects,setExamSubjects]=useState({});
   const [customExams,setCustomExams]=useState([]);
   const [examDates,setExamDates]=useState({});
@@ -4474,14 +4537,14 @@ return () => {active=false;unsub();};
     {qrOpen&&<QRModal t={t} user={user} onClose={()=>setQrOpen(false)} setFriends={setFriends}/>}
     {exOpen&&<ExamSetup t={t} es={es} setEs={setEs} onClose={()=>setExOpen(false)} examSubjects={examSubjects} setExamSubjects={setExamSubjects} customExams={customExams} setCustomExams={setCustomExams} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips} user={user}/>}
     {proOpen&&<PricingModal t={t} onClose={()=>setProOpen(false)} isRestore={false} onUpgrade={async(planKey,durationDays)=>{
-      setIsPro(true); // optimistic local update — instant UI, no wait on the round-trip
+      const days=typeof durationDays==="number"&&durationDays>0?durationDays:30; // fallback only if the modal somehow didn't pass one
+      const subscribedAt=Date.now();
+      const expiresAt=subscribedAt+days*24*60*60*1000; // expiry now driven by the actual purchased plan's duration
+      setEntRaw({isPro:true,expiresAt}); // optimistic local update — instant UI, no wait on the round-trip
       push({icon:"⚡",title:"Welcome to Premium! 🎉",body:"All features unlocked!",col:"#818cf8"});
       if(user?.uid){
         try{
           const mod=await import("./firebase");
-          const subscribedAt=Date.now();
-          const days=typeof durationDays==="number"&&durationDays>0?durationDays:30; // fallback only if the modal somehow didn't pass one
-          const expiresAt=subscribedAt+days*24*60*60*1000; // expiry now driven by the actual purchased plan's duration
           await mod.set(mod.ref(mod.db,`users/${user.uid}/entitlement`),{isPro:true,plan:"premium",updatedAt:mod.serverTimestamp(),subscribedAt,expiresAt});
         }catch(e){console.error("entitlement persist error",e);}
       }
