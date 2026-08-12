@@ -248,16 +248,16 @@ function Logo({sz=32}){
 // ── TOASTS ────────────────────────────────────────────────────
 function Toasts({notifs,dismiss,t}){
   return(<div style={{position:"fixed",top:64,right:10,zIndex:9999,display:"flex",flexDirection:"column",gap:6,maxWidth:290,pointerEvents:"none"}}>
-    {notifs.map(n=><div key={n.id} style={{background:t.nb,border:`1px solid ${n.col||t.a1}44`,borderLeft:`3px solid ${n.col||t.a1}`,borderRadius:11,padding:"9px 10px",boxShadow:"0 8px 26px rgba(0,0,0,0.4)",display:"flex",gap:7,alignItems:"flex-start",pointerEvents:"all",animation:"slideIn .3s ease"}}><div style={{fontSize:16,flexShrink:0}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{n.title}</div><div style={{color:t.sub,fontSize:10,marginTop:1,lineHeight:1.4}}>{n.body}</div></div><button onClick={()=>dismiss(n.id)} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:13,padding:"0 1px",flexShrink:0}}>×</button></div>)}
+    {notifs.map(n=><div key={n.id} style={{background:t.nb,border:`1px solid ${n.col||t.a1}44`,borderLeft:`3px solid ${n.col||t.a1}`,borderRadius:11,padding:"9px 10px",boxShadow:"0 8px 26px rgba(0,0,0,0.4)",display:"flex",gap:7,alignItems:"flex-start",pointerEvents:"all",animation:"slideIn .3s ease"}}><div style={{fontSize:t.fs(16),flexShrink:0}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{n.title}</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:1,lineHeight:1.4}}>{n.body}</div></div><button onClick={()=>dismiss(n.id)} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:t.fs(13),padding:"0 1px",flexShrink:0}}>×</button></div>)}
   </div>);
 }
 
 // ── GATE ──────────────────────────────────────────────────────
 function Gate({t,name,icon,onPro}){
   return(<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:280,gap:14,textAlign:"center",padding:"0 18px"}}>
-    <div style={{position:"relative",width:"100%",maxWidth:280}}><div style={{filter:"blur(4px)",opacity:.22,pointerEvents:"none",display:"flex",flexDirection:"column",gap:5}}>{[1,2,3].map(i=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"11px",height:44}}/>)}</div><div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:38}}>{icon}</div><div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.9),rgba(52,211,153,0.9))",borderRadius:10,padding:"4px 12px"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Premium Feature</span></div></div></div>
-    <div><div style={{fontSize:15,fontWeight:800,color:t.text,marginBottom:3}}>{name}</div><div style={{color:t.sub,fontSize:11,lineHeight:1.6,maxWidth:240}}>Start with <span style={{color:"#34d399",fontWeight:700}}>7-day free trial</span> or <span style={{color:"#818cf8",fontWeight:700}}>₹25/month</span></div></div>
-    <button onClick={onPro} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"10px 26px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 18px rgba(129,140,248,0.35)"}}>⚡ Try Free for 7 Days</button>
+    <div style={{position:"relative",width:"100%",maxWidth:280}}><div style={{filter:"blur(4px)",opacity:.22,pointerEvents:"none",display:"flex",flexDirection:"column",gap:5}}>{[1,2,3].map(i=><div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"11px",height:44}}/>)}</div><div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:t.fs(38)}}>{icon}</div><div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.9),rgba(52,211,153,0.9))",borderRadius:10,padding:"4px 12px"}}><span style={{color:"#fff",fontWeight:800,fontSize:t.fs(10)}}>⚡ Premium Feature</span></div></div></div>
+    <div><div style={{fontSize:t.fs(15),fontWeight:800,color:t.text,marginBottom:3}}>{name}</div><div style={{color:t.sub,fontSize:t.fs(11),lineHeight:1.6,maxWidth:240}}>Start with <span style={{color:"#34d399",fontWeight:700}}>7-day free trial</span> or <span style={{color:"#818cf8",fontWeight:700}}>₹25/month</span></div></div>
+    <button onClick={onPro} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"10px 26px",color:"#fff",fontWeight:900,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 18px rgba(129,140,248,0.35)"}}>⚡ Try Free for 7 Days</button>
   </div>);
 }
 
@@ -273,24 +273,24 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"26px 26px 0 0",width:"100%",maxWidth:540,maxHeight:"92vh",overflowY:"auto",border:"1px solid rgba(129,140,248,0.18)",borderBottom:"none"}}>
         <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.08))",padding:"18px 18px 14px",borderRadius:"26px 26px 0 0",textAlign:"center"}}>
           <div style={{width:28,height:4,background:"rgba(255,255,255,0.16)",borderRadius:2,margin:"0 auto 12px"}}/>
-          <div style={{fontSize:18}}>⚡</div>
-          <div style={{fontSize:19,fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>{isRestore?"Restore Your Streak 🔥":"StudySync Premium"}</div>
-          <div style={{color:"rgba(255,255,255,0.4)",fontSize:11,marginTop:2}}>{isRestore?"Don't lose your progress":"7-day free trial · Cancel anytime"}</div>
+          <div style={{fontSize:t.fs(18)}}>⚡</div>
+          <div style={{fontSize:t.fs(19),fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>{isRestore?"Restore Your Streak 🔥":"StudySync Premium"}</div>
+          <div style={{color:"rgba(255,255,255,0.4)",fontSize:t.fs(11),marginTop:2}}>{isRestore?"Don't lose your progress":"7-day free trial · Cancel anytime"}</div>
         </div>
         <div style={{padding:"14px 15px 0"}}>
           {isRestore?(
             <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:12}}>
-              <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:13,padding:"13px",textAlign:"center"}}><div style={{fontSize:30}}>🔥</div><div style={{color:t.a1,fontWeight:900,fontSize:20,marginTop:3}}>Streak Broken!</div><div style={{color:t.sub,fontSize:10,marginTop:3}}>Restore for ₹10 or study 2× today</div></div>
+              <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:13,padding:"13px",textAlign:"center"}}><div style={{fontSize:t.fs(30)}}>🔥</div><div style={{color:t.a1,fontWeight:900,fontSize:t.fs(20),marginTop:3}}>Streak Broken!</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:3}}>Restore for ₹10 or study 2× today</div></div>
               <div style={{background:t.card,border:"1.5px solid rgba(129,140,248,0.3)",borderRadius:12,padding:"11px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>💳 Pay to Restore</span><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:t.sub,fontSize:11,textDecoration:"line-through"}}>₹20</span><span style={{background:"#818cf8",color:"#fff",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>₹10</span></div></div>
-                <div style={{color:t.sub,fontSize:10,marginBottom:8}}>One-time first-restore offer</div>
-                <button onClick={pay} disabled={ld} style={{width:"100%",background:ld?"rgba(129,140,248,0.3)":"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{ld?<><div style={{width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Restoring…</>:"Pay ₹10 — Restore Now"}</button>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:t.fs(13)}}>💳 Pay to Restore</span><div style={{display:"flex",alignItems:"center",gap:4}}><span style={{color:t.sub,fontSize:t.fs(11),textDecoration:"line-through"}}>₹20</span><span style={{background:"#818cf8",color:"#fff",borderRadius:6,padding:"1px 7px",fontSize:t.fs(10),fontWeight:800}}>₹10</span></div></div>
+                <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:8}}>One-time first-restore offer</div>
+                <button onClick={pay} disabled={ld} style={{width:"100%",background:ld?"rgba(129,140,248,0.3)":"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>{ld?<><div style={{width:12,height:12,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Restoring…</>:"Pay ₹10 — Restore Now"}</button>
               </div>
               <div style={{background:t.card,border:"1px solid rgba(52,211,153,0.25)",borderRadius:12,padding:"11px"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:13}}>📖 Study to Restore</span><span style={{background:"rgba(52,211,153,0.2)",color:"#34d399",borderRadius:6,padding:"1px 7px",fontSize:10,fontWeight:800}}>FREE</span></div>
-                <div style={{color:t.sub,fontSize:10,marginBottom:7}}>Study 4+ hours today (2× normal)</div>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:t.text,fontWeight:800,fontSize:t.fs(13)}}>📖 Study to Restore</span><span style={{background:"rgba(52,211,153,0.2)",color:"#34d399",borderRadius:6,padding:"1px 7px",fontSize:t.fs(10),fontWeight:800}}>FREE</span></div>
+                <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:7}}>Study 4+ hours today (2× normal)</div>
                 <div style={{height:4,background:"rgba(255,255,255,0.06)",borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:"37%",background:"linear-gradient(90deg,#34d399,#60a5fa)",borderRadius:2}}/></div>
-                <div style={{color:t.sub,fontSize:9,marginTop:4,textAlign:"center"}}>1.5h / 4h studied today</div>
+                <div style={{color:t.sub,fontSize:t.fs(9),marginTop:4,textAlign:"center"}}>1.5h / 4h studied today</div>
               </div>
             </div>
           ):(
@@ -298,20 +298,20 @@ function PricingModal({t,onClose,onUpgrade,isRestore,onRestore}){
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginBottom:12}}>
                 {Object.entries(plans).map(([k,p])=>(
                   <button key={k} onClick={()=>setSel(k)} style={{background:sel===k?`${p.c}15`:t.card,border:`2px solid ${sel===k?p.c:t.border}`,borderRadius:13,padding:"10px 5px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",position:"relative",transition:"all .25s"}}>
-                    {p.badge&&<div style={{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",background:sel===k?p.c:"rgba(129,140,248,0.7)",color:"#fff",fontSize:7,fontWeight:900,padding:"2px 5px",borderRadius:14,whiteSpace:"nowrap"}}>{p.badge}</div>}
-                    <div style={{color:t.sub,fontSize:9,fontWeight:600,marginBottom:2}}>{p.l}</div>
-                    {p.p===0?<div style={{color:p.c,fontWeight:900,fontSize:15}}>FREE</div>:<><div style={{color:t.text,fontWeight:900,fontSize:18}}><span style={{fontSize:10}}>₹</span>{p.p}</div>{p.orig&&<div style={{color:t.muted,fontSize:8,textDecoration:"line-through"}}>₹{p.orig}</div>}</>}
-                    <div style={{color:p.c,fontSize:8,fontWeight:700,marginTop:1}}>{p.per}</div>
+                    {p.badge&&<div style={{position:"absolute",top:-7,left:"50%",transform:"translateX(-50%)",background:sel===k?p.c:"rgba(129,140,248,0.7)",color:"#fff",fontSize:t.fs(7),fontWeight:900,padding:"2px 5px",borderRadius:14,whiteSpace:"nowrap"}}>{p.badge}</div>}
+                    <div style={{color:t.sub,fontSize:t.fs(9),fontWeight:600,marginBottom:2}}>{p.l}</div>
+                    {p.p===0?<div style={{color:p.c,fontWeight:900,fontSize:t.fs(15)}}>FREE</div>:<><div style={{color:t.text,fontWeight:900,fontSize:t.fs(18)}}><span style={{fontSize:t.fs(10)}}>₹</span>{p.p}</div>{p.orig&&<div style={{color:t.muted,fontSize:t.fs(8),textDecoration:"line-through"}}>₹{p.orig}</div>}</>}
+                    <div style={{color:p.c,fontSize:t.fs(8),fontWeight:700,marginTop:1}}>{p.per}</div>
                   </button>
                 ))}
               </div>
-              {!ok?<button onClick={pay} disabled={ld} style={{width:"100%",padding:"12px",borderRadius:13,border:"none",cursor:"pointer",background:ld?"rgba(129,140,248,0.3)":sel==="trial"?"linear-gradient(135deg,#34d399,#10b981)":"linear-gradient(135deg,#818cf8,#60a5fa)",color:"#fff",fontWeight:900,fontSize:13,fontFamily:"inherit",transition:"all .3s",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:7}}>
+              {!ok?<button onClick={pay} disabled={ld} style={{width:"100%",padding:"12px",borderRadius:13,border:"none",cursor:"pointer",background:ld?"rgba(129,140,248,0.3)":sel==="trial"?"linear-gradient(135deg,#34d399,#10b981)":"linear-gradient(135deg,#818cf8,#60a5fa)",color:"#fff",fontWeight:900,fontSize:t.fs(13),fontFamily:"inherit",transition:"all .3s",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:7}}>
                 {ld?<><div style={{width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,0.3)",borderTop:"2px solid #fff",animation:"spin .7s linear infinite"}}/>Processing…</>:sel==="trial"?"🎉 Start 7-Day Free Trial":`💳 Pay ₹${plans[sel].p} · Razorpay`}
-              </button>:<div style={{padding:"12px",borderRadius:13,background:"linear-gradient(135deg,#34d399,#10b981)",color:"#fff",fontWeight:900,fontSize:13,textAlign:"center",marginBottom:7}}>✓ Welcome to Premium! 🎉</div>}
+              </button>:<div style={{padding:"12px",borderRadius:13,background:"linear-gradient(135deg,#34d399,#10b981)",color:"#fff",fontWeight:900,fontSize:t.fs(13),textAlign:"center",marginBottom:7}}>✓ Welcome to Premium! 🎉</div>}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:5,marginBottom:10}}>
-                {feats.map(f=><div key={f.l} style={{background:t.card,border:"1px solid rgba(129,140,248,0.08)",borderRadius:9,padding:"7px 5px",textAlign:"center"}}><div style={{fontSize:15,marginBottom:2}}>{f.i}</div><div style={{color:t.text,fontWeight:700,fontSize:8,lineHeight:1.2}}>{f.l}</div></div>)}
+                {feats.map(f=><div key={f.l} style={{background:t.card,border:"1px solid rgba(129,140,248,0.08)",borderRadius:9,padding:"7px 5px",textAlign:"center"}}><div style={{fontSize:t.fs(15),marginBottom:2}}>{f.i}</div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(8),lineHeight:1.2}}>{f.l}</div></div>)}
               </div>
-              <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:4}}>{["🔒 Secure","💳 UPI/Cards","↩️ Cancel anytime"].map(b=><div key={b} style={{color:t.sub,fontSize:9}}>{b}</div>)}</div>
+              <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:4}}>{["🔒 Secure","💳 UPI/Cards","↩️ Cancel anytime"].map(b=><div key={b} style={{color:t.sub,fontSize:t.fs(9)}}>{b}</div>)}</div>
             </>
           )}
         </div>
@@ -441,51 +441,51 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
     <div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
       <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:540,maxHeight:"90vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 34px"}}>
         <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 11px"}}/>
-        <div style={{fontSize:14,fontWeight:800,color:t.text,marginBottom:1}}>🎯 Set Your Exam</div>
-        <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Choose exam & mode — subjects auto-load</div>
+        <div style={{fontSize:t.fs(14),fontWeight:800,color:t.text,marginBottom:1}}>🎯 Set Your Exam</div>
+        <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:12}}>Choose exam & mode — subjects auto-load</div>
 
         {/* Delete confirmation */}
         {deleteConfirmId&&(
           <div style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:12,padding:"12px",marginBottom:10,textAlign:"center"}}>
-            <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:8}}>Delete this custom exam?</div>
+            <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12),marginBottom:8}}>Delete this custom exam?</div>
             <div style={{display:"flex",gap:7}}>
-              <button onClick={()=>setDeleteConfirmId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:8,padding:"8px",color:t.text,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-              <button onClick={()=>doDeleteCustom(deleteConfirmId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:8,padding:"8px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+              <button onClick={()=>setDeleteConfirmId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:8,padding:"8px",color:t.text,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={()=>doDeleteCustom(deleteConfirmId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:8,padding:"8px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
             </div>
           </div>
         )}
 
         {/* Built-in exams */}
-        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Built-in Exams</div>
+        <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Built-in Exams</div>
         <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:12}}>
           {Object.entries(EXAMS).filter(([k])=>k!=="Custom").map(([k,v])=>(
             <button key={k} onClick={()=>{const first=Object.keys(v.modes)[0];setEx(k);setMd(first);setDt(getExamDate(examDates,k,first));}} style={{display:"flex",alignItems:"center",gap:9,background:ex===k?`${v.color}15`:t.card,border:`1.5px solid ${ex===k?v.color:t.border}`,borderRadius:11,padding:"9px 11px",cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
-              <span style={{fontSize:17}}>{v.icon}</span>
-              <div style={{flex:1,textAlign:"left"}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{k}</div></div>
+              <span style={{fontSize:t.fs(17)}}>{v.icon}</span>
+              <div style={{flex:1,textAlign:"left"}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{k}</div></div>
               {ex===k&&<div style={{width:6,height:6,borderRadius:"50%",background:v.color,boxShadow:`0 0 4px ${v.color}`}}/>}
             </button>
           ))}
         </div>
 
         {/* Custom exams section */}
-        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>My Custom Exams</div>
+        <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>My Custom Exams</div>
         <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
           {customExams.map(c=>(
             <div key={c.id} style={{display:"flex",alignItems:"center",gap:7,background:ex===c.id?"rgba(193,107,255,0.12)":t.card,border:`1.5px solid ${ex===c.id?"#C16BFF":t.border}`,borderRadius:11,padding:"7px 10px",transition:"all .2s"}}>
               {editCustomId===c.id?(
-                <input autoFocus value={editCustomName} onChange={e=>setEditCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEditCustom(c.id);if(e.key==="Escape")setEditCustomId(null);}} style={{flex:1,background:t.input,border:`1px solid #C16BFF`,borderRadius:7,padding:"5px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+                <input autoFocus value={editCustomName} onChange={e=>setEditCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEditCustom(c.id);if(e.key==="Escape")setEditCustomId(null);}} style={{flex:1,background:t.input,border:`1px solid #C16BFF`,borderRadius:7,padding:"5px 8px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
               ):(
                 <button onClick={()=>{setEx(c.id);setMd("Exam");setDt(getExamDate(examDates,c.id,"Exam"));}} style={{flex:1,background:"none",border:"none",textAlign:"left",cursor:"pointer",fontFamily:"inherit"}}>
-                  <span style={{fontSize:15}}>🎯</span> <span style={{color:t.text,fontWeight:700,fontSize:12,marginLeft:5}}>{c.name}</span>
+                  <span style={{fontSize:t.fs(15)}}>🎯</span> <span style={{color:t.text,fontWeight:700,fontSize:t.fs(12),marginLeft:5}}>{c.name}</span>
                 </button>
               )}
               <div style={{display:"flex",gap:4,flexShrink:0}}>
                 {editCustomId===c.id?(
-                  <button onClick={()=>saveEditCustom(c.id)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                  <button onClick={()=>saveEditCustom(c.id)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 8px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
                 ):(
-                  <button onClick={()=>startEditCustom(c.id,c.name)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                  <button onClick={()=>startEditCustom(c.id,c.name)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
                 )}
-                <button onClick={()=>confirmDeleteCustom(c.id)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                <button onClick={()=>confirmDeleteCustom(c.id)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
               </div>
               {ex===c.id&&editCustomId!==c.id&&<div style={{width:6,height:6,borderRadius:"50%",background:"#C16BFF",flexShrink:0}}/>}
             </div>
@@ -493,38 +493,38 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
           {/* New custom exam */}
           {showNewCustom?(
             <div style={{display:"flex",gap:5}}>
-              <input autoFocus value={newCustomName} onChange={e=>setNewCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")createCustomExam();if(e.key==="Escape")setShowNewCustom(false);}} placeholder="Exam name e.g. SSC JE, Mock Test…" style={{flex:1,background:t.input,border:"1px solid #C16BFF",borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={createCustomExam} style={{background:"#C16BFF",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:900,cursor:"pointer",fontFamily:"inherit",fontSize:12}}>+</button>
-              <button onClick={()=>setShowNewCustom(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 9px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:11}}>✕</button>
+              <input autoFocus value={newCustomName} onChange={e=>setNewCustomName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")createCustomExam();if(e.key==="Escape")setShowNewCustom(false);}} placeholder="Exam name e.g. SSC JE, Mock Test…" style={{flex:1,background:t.input,border:"1px solid #C16BFF",borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={createCustomExam} style={{background:"#C16BFF",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:900,cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(12)}}>+</button>
+              <button onClick={()=>setShowNewCustom(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 9px",color:t.sub,fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(11)}}>✕</button>
             </div>
           ):(
-            <button onClick={()=>setShowNewCustom(true)} style={{background:"rgba(193,107,255,0.1)",border:"1.5px dashed rgba(193,107,255,0.4)",borderRadius:11,padding:"8px",color:"#C16BFF",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>+ New Custom Exam</button>
+            <button onClick={()=>setShowNewCustom(true)} style={{background:"rgba(193,107,255,0.1)",border:"1.5px dashed rgba(193,107,255,0.4)",borderRadius:11,padding:"8px",color:"#C16BFF",fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>+ New Custom Exam</button>
           )}
         </div>
 
         {/* Mode selector */}
         {modes.length>1&&<div style={{marginBottom:10}}>
-          <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Mode</div>
-          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>{setMd(m);setDt(getExamDate(examDates,ex,m));}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{m}</div><div style={{color:t.sub,fontSize:8,marginTop:1}}>{(()=>{const d=dl(getExamDate(examDates,ex,m));return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
+          <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Mode</div>
+          <div style={{display:"flex",gap:5}}>{modes.map(m=><button key={m} onClick={()=>{setMd(m);setDt(getExamDate(examDates,ex,m));}} style={{flex:1,padding:"8px 4px",borderRadius:10,border:`1.5px solid ${md===m?(cfg?.color||"#818cf8"):t.border}`,background:md===m?`${cfg?.color||"#818cf8"}14`:t.card,cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"all .2s"}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{m}</div><div style={{color:t.sub,fontSize:t.fs(8),marginTop:1}}>{(()=>{const d=dl(getExamDate(examDates,ex,m));return d!=null?d+"d left":"Set date";})()}</div></button>)}</div>
         </div>}
 
         {/* Date */}
         <div style={{marginBottom:10}}>
-          <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Exam Date</div>
-          <input type="date" value={dt} onChange={e=>setDt(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/>
+          <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:5}}>Exam Date</div>
+          <input type="date" value={dt} onChange={e=>setDt(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px 10px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/>
         </div>
 
         {/* Default subjects preview */}
         {!isCustomExam&&subjs.length>0&&<div style={{marginBottom:10}}>
-          <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Subjects ({subjs.length} auto-loaded)</div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{subjs.map(s=><div key={s.n} style={{background:`${s.c}20`,color:s.c,border:`1px solid ${s.c}44`,borderRadius:13,padding:"2px 7px",fontSize:9,fontWeight:700}}>{s.i} {s.n}</div>)}</div>
+          <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Subjects ({subjs.length} auto-loaded)</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{subjs.map(s=><div key={s.n} style={{background:`${s.c}20`,color:s.c,border:`1px solid ${s.c}44`,borderRadius:13,padding:"2px 7px",fontSize:t.fs(9),fontWeight:700}}>{s.i} {s.n}</div>)}</div>
         </div>}
 
         {/* Custom subjects */}
         <div style={{background:t.card,border:`1px solid ${showCustom?"#818cf8":t.border}40`,borderRadius:12,padding:"11px",marginBottom:12,transition:"border .2s"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:showCustom?10:0}}>
-            <div><div style={{color:t.text,fontWeight:700,fontSize:12}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Add your own subjects to any exam · {currentCustomSubjs.length} saved</div></div>
-            <button onClick={()=>setShowCustom(v=>!v)} style={{background:showCustom?"#818cf8":t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:showCustom?"#fff":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{showCustom?"Done":"Manage"}</button>
+            <div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>📌 Custom Subjects</div><div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>Add your own subjects to any exam · {currentCustomSubjs.length} saved</div></div>
+            <button onClick={()=>setShowCustom(v=>!v)} style={{background:showCustom?"#818cf8":t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:showCustom?"#fff":t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{showCustom?"Done":"Manage"}</button>
           </div>
           {showCustom&&(<>
             {currentCustomSubjs.length>0&&<div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:9}}>
@@ -532,14 +532,14 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
                 <div key={i} style={{display:"flex",alignItems:"center",gap:7,background:t.input,borderRadius:8,padding:"7px 9px",border:`1px solid ${s.c}30`}}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:s.c,flexShrink:0}}/>
                   {editIdx===i?(
-                    <input value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(i);if(e.key==="Escape")setEditIdx(null);}} autoFocus style={{flex:1,background:"none",border:"none",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-                  ):<div style={{flex:1,color:t.text,fontSize:11,fontWeight:600}}>{s.n}</div>}
+                    <input value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(i);if(e.key==="Escape")setEditIdx(null);}} autoFocus style={{flex:1,background:"none",border:"none",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+                  ):<div style={{flex:1,color:t.text,fontSize:t.fs(11),fontWeight:600}}>{s.n}</div>}
                   {editIdx===i?(
-                    <button onClick={()=>saveEdit(i)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 7px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                    <button onClick={()=>saveEdit(i)} style={{background:"#34d399",border:"none",borderRadius:6,padding:"3px 7px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
                   ):(
                     <div style={{display:"flex",gap:4}}>
-                      <button onClick={()=>startEdit(i,s.n)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                      <button onClick={()=>delCustom(i)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                      <button onClick={()=>startEdit(i,s.n)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                      <button onClick={()=>delCustom(i)} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:6,padding:"3px 7px",color:t.a1,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
                     </div>
                   )}
                 </div>
@@ -547,14 +547,14 @@ function ExamSetup({t,es,setEs,onClose,examSubjects,setExamSubjects,customExams,
             </div>}
             <div style={{display:"flex",flexWrap:"wrap",gap:3,marginBottom:7}}>{COLS.map(c=><div key={c} onClick={()=>setNc(c)} style={{width:16,height:16,borderRadius:"50%",background:c,cursor:"pointer",border:nc===c?"2.5px solid white":"2px solid transparent",transition:"all .2s"}}/>)}</div>
             <div style={{display:"flex",gap:5}}>
-              <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={addCustom} style={{background:nc,border:"none",borderRadius:8,padding:"7px 11px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+</button>
+              <input value={ns} onChange={e=>setNs(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addCustom()} placeholder="Subject name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={addCustom} style={{background:nc,border:"none",borderRadius:8,padding:"7px 11px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:t.fs(13),fontFamily:"inherit"}}>+</button>
             </div>
-            {currentCustomSubjs.length===0&&<div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>No custom subjects yet. Add your first one!</div>}
+            {currentCustomSubjs.length===0&&<div style={{color:t.muted,fontSize:t.fs(9),marginTop:7,textAlign:"center"}}>No custom subjects yet. Add your first one!</div>}
           </>)}
         </div>
 
-        <button onClick={apply} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"11px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 16px rgba(129,140,248,0.28)"}}>
+        <button onClick={apply} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:12,padding:"11px",color:"#fff",fontWeight:900,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit",boxShadow:"0 0 16px rgba(129,140,248,0.28)"}}>
           {isCustomExam?"🎯":cfg?.icon} Set {isCustomExam?customExams.find(c=>c.id===ex)?.name:ex} — {isCustomExam?"Exam":md} ✓
         </button>
       </div>
@@ -570,24 +570,24 @@ function Login({t,onLogin}){
       <div style={{position:"fixed",top:"-15%",left:"50%",transform:"translateX(-50%)",width:340,height:340,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.07),transparent 70%)",pointerEvents:"none"}}/>
       <div style={{textAlign:"center",marginBottom:26}}>
         <div style={{display:"flex",justifyContent:"center",marginBottom:10}}><div style={{padding:12,borderRadius:18,background:"rgba(129,140,248,0.08)",border:"1px solid rgba(129,140,248,0.16)",boxShadow:"0 0 26px rgba(129,140,248,0.09)"}}><Logo sz={46}/></div></div>
-        <div style={{fontSize:24,fontWeight:900,letterSpacing:-1,background:"linear-gradient(135deg,#818cf8,#60a5fa,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>StudySync</div>
-        <div style={{color:t.sub,fontSize:12,marginTop:4}}>Your study companion</div>
+        <div style={{fontSize:t.fs(24),fontWeight:900,letterSpacing:-1,background:"linear-gradient(135deg,#818cf8,#60a5fa,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>StudySync</div>
+        <div style={{color:t.sub,fontSize:t.fs(12),marginTop:4}}>Your study companion</div>
       </div>
       <div style={{width:"100%",maxWidth:320,background:t.card,border:`1px solid ${t.border}`,borderRadius:18,padding:18,boxShadow:t.sh}}>
         <div style={{textAlign:"center",marginBottom:13}}>
-          <div style={{fontSize:13,fontWeight:800,color:t.text}}>Sign in to StudySync</div>
-          <div style={{fontSize:10,color:t.sub,marginTop:2}}>🇮🇳 Proudly built in India for aspirants who show up every day.</div>
-          <div style={{fontSize:9,color:t.muted,marginTop:3}}>Plan better. Study deeper. Stay consistent.</div>
+          <div style={{fontSize:t.fs(13),fontWeight:800,color:t.text}}>Sign in to StudySync</div>
+          <div style={{fontSize:t.fs(10),color:t.sub,marginTop:2}}>🇮🇳 Proudly built in India for aspirants who show up every day.</div>
+          <div style={{fontSize:t.fs(9),color:t.muted,marginTop:3}}>Plan better. Study deeper. Stay consistent.</div>
         </div>
         <div style={{background:"rgba(52,211,153,0.07)",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"8px 10px",marginBottom:11,display:"flex",gap:7,alignItems:"center"}}>
-          <span style={{fontSize:16}}>🎁</span>
-          <div><div style={{color:"#34d399",fontWeight:800,fontSize:11}}>7-Day Free Trial</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>Full premium access — no card needed</div></div>
+          <span style={{fontSize:t.fs(16)}}>🎁</span>
+          <div><div style={{color:"#34d399",fontWeight:800,fontSize:t.fs(11)}}>7-Day Free Trial</div><div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>Full premium access — no card needed</div></div>
         </div>
         <button onClick={async()=>{setLoading(true);const {user,error}=await signInGoogle();if(user)onLogin(user);else{setLoading(false);alert(error||"Login failed");}}} disabled={loading} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:9,background:loading?t.pill:"linear-gradient(135deg,rgba(129,140,248,0.11),rgba(96,165,250,0.11))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:12,padding:"11px",cursor:"pointer",fontFamily:"inherit",transition:"all .25s"}}>
           <svg width="16" height="16" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.3 30.2 0 24 0 14.7 0 6.8 5.5 3 13.5l7.9 6.1C12.8 13.4 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17z"/><path fill="#FBBC05" d="M10.9 28.4A14.5 14.5 0 0 1 9.5 24c0-1.5.3-3 .8-4.4L2.4 13.5A23.9 23.9 0 0 0 0 24c0 3.8.9 7.4 2.5 10.6l8.4-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2.1 1.4-4.7 2.3-7.7 2.3-6.1 0-11.2-4-13.1-9.5l-8 6.2C6.7 42.5 14.7 48 24 48z"/></svg>
-          <span style={{color:t.text,fontWeight:700,fontSize:12}}>{loading?"Signing in…":"Continue with Google"}</span>
+          <span style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{loading?"Signing in…":"Continue with Google"}</span>
         </button>
-        <div style={{color:t.muted,fontSize:9,textAlign:"center",marginTop:10,lineHeight:1.6}}>Free for students · No ads · Made for India ❤️</div>
+        <div style={{color:t.muted,fontSize:t.fs(9),textAlign:"center",marginTop:10,lineHeight:1.6}}>Free for students · No ads · Made for India ❤️</div>
       </div>
     </div>
   );
@@ -623,40 +623,40 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   const applyDur=(v)=>{const val=Math.min(v,maxMin);setPomoCf(val);setPf(val);sw("focus",val);setShow(false);localStorage.setItem("ss_pomo_dur",String(val));};
   const fmtTime=(m)=>m>=60?`${Math.floor(m/60)}h${m%60?` ${m%60}m`:""}`:m+"m";
   return(<div className="ss-pomo-layout" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:15,width:"100%",maxWidth:620,margin:"0 auto"}}>
-    <div className="ss-pomo-modes" style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3}}>{[["focus","Focus"],["short","Short Brk"],["long","Long Brk"]].map(([m,l])=><button key={m} onClick={()=>sw(m)} style={{padding:"6px 11px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:11,background:pomoMode===m?sc:t.pill,color:pomoMode===m?"#0a0a0f":t.sub,transition:"all .2s"}}>{l}</button>)}</div>
+    <div className="ss-pomo-modes" style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3}}>{[["focus","Focus"],["short","Short Brk"],["long","Long Brk"]].map(([m,l])=><button key={m} onClick={()=>sw(m)} style={{padding:"6px 11px",borderRadius:20,border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:t.fs(11),background:pomoMode===m?sc:t.pill,color:pomoMode===m?"#0a0a0f":t.sub,transition:"all .2s"}}>{l}</button>)}</div>
     <div className="ss-pomo-ring" style={{position:"relative",width:196,height:196}}>
       <svg width={196} height={196} style={{transform:"rotate(-90deg)"}}><circle cx={98} cy={98} r={86} fill="none" stroke={t.border} strokeWidth={9}/><circle cx={98} cy={98} r={86} fill="none" stroke={sc} strokeWidth={9} strokeDasharray={circ} strokeDashoffset={dash} strokeLinecap="round" style={{transition:"stroke-dashoffset 1s linear,stroke .3s"}}/></svg>
       <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:1}}>
         <div style={{fontSize:44,fontWeight:900,color:t.text,letterSpacing:-2,lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</div>
-        <div style={{fontSize:9,color:t.sub,textTransform:"uppercase",letterSpacing:2,fontWeight:600}}>{pomoMode==="focus"?"FOCUS":pomoMode==="short"?"SHORT":"LONG"}</div>
-        <div style={{fontSize:9,color:sc,fontWeight:700,marginTop:1}}>{fmtTime(pomoCf)}</div>
+        <div style={{fontSize:t.fs(9),color:t.sub,textTransform:"uppercase",letterSpacing:2,fontWeight:600}}>{pomoMode==="focus"?"FOCUS":pomoMode==="short"?"SHORT":"LONG"}</div>
+        <div style={{fontSize:t.fs(9),color:sc,fontWeight:700,marginTop:1}}>{fmtTime(pomoCf)}</div>
       </div>
     </div>
     {/* Timer settings */}
     <div className="ss-pomo-settings" style={{background:t.card,border:`1px solid ${show?sc+"44":t.border}`,borderRadius:14,padding:"10px 14px",width:"100%",maxWidth:350,transition:"border .3s"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:show?10:0}}>
-        <span style={{color:t.sub,fontSize:11,fontWeight:600}}>⚙️ Timer — {fmtTime(pomoCf)}</span>
-        <button onClick={()=>setShow(v=>!v)} style={{background:t.pill,border:"none",borderRadius:14,padding:"3px 8px",color:t.text,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{show?"Done":"Customize"}</button>
+        <span style={{color:t.sub,fontSize:t.fs(11),fontWeight:600}}>⚙️ Timer — {fmtTime(pomoCf)}</span>
+        <button onClick={()=>setShow(v=>!v)} style={{background:t.pill,border:"none",borderRadius:14,padding:"3px 8px",color:t.text,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{show?"Done":"Customize"}</button>
       </div>
       {show&&(<div style={{display:"flex",flexDirection:"column",gap:8}}>
-        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Presets</div>
-        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{PRESETS.map(v=><button key={v} onClick={()=>applyDur(v)} style={{padding:"6px 11px",borderRadius:9,border:`1.5px solid ${pomoCf===v?sc:t.border}`,background:pomoCf===v?`${sc}20`:t.pill,color:pomoCf===v?sc:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{fmtTime(v)}</button>)}</div>
-        <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Custom — max {fmtTime(maxMin)}{!isPro&&<span style={{color:"#818cf8"}}> · Pro gets 2h30m</span>}</div>
-        <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:t.sub,fontSize:11}}>Duration</span><span style={{color:sc,fontWeight:900,fontSize:17}}>{fmtTime(pf)}</span></div>
+        <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Presets</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>{PRESETS.map(v=><button key={v} onClick={()=>applyDur(v)} style={{padding:"6px 11px",borderRadius:9,border:`1.5px solid ${pomoCf===v?sc:t.border}`,background:pomoCf===v?`${sc}20`:t.pill,color:pomoCf===v?sc:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{fmtTime(v)}</button>)}</div>
+        <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1}}>Custom — max {fmtTime(maxMin)}{!isPro&&<span style={{color:"#818cf8"}}> · Pro gets 2h30m</span>}</div>
+        <div style={{display:"flex",justifyContent:"space-between"}}><span style={{color:t.sub,fontSize:t.fs(11)}}>Duration</span><span style={{color:sc,fontWeight:900,fontSize:t.fs(17)}}>{fmtTime(pf)}</span></div>
         <input type="range" min={5} max={maxMin} step={5} value={pf} onChange={e=>setPf(Number(e.target.value))} style={{width:"100%",accentColor:sc,cursor:"pointer"}}/>
-        <button onClick={()=>applyDur(pf)} style={{background:sc,border:"none",borderRadius:9,padding:"8px",color:"#0a0a0f",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Apply {fmtTime(pf)} Timer</button>
+        <button onClick={()=>applyDur(pf)} style={{background:sc,border:"none",borderRadius:9,padding:"8px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Apply {fmtTime(pf)} Timer</button>
       </div>)}
     </div>
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
-      <button onClick={()=>{const elapsedSec=pomoSec===0?0:tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Reset</button>
-      <button onClick={()=>{if(!pomoRun&&pomoSec===0)setPomoSec(tot);setPomoRun(r=>!r);}} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
-      <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:10,fontWeight:600}}>Skip</button>
+      <button onClick={()=>{const elapsedSec=pomoSec===0?0:tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(10),fontWeight:600}}>Reset</button>
+      <button onClick={()=>{if(!pomoRun&&pomoSec===0)setPomoSec(tot);setPomoRun(r=>!r);}} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:t.fs(14),fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
+      <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(10),fontWeight:600}}>Skip</button>
     </div>
-    <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoFocusMin/60)}h${pomoFocusMin%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoFocusMin/60)}h${pomoFocusMin%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:t.fs(18),fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
     {/* Subject pills */}
     <div className="ss-pomo-subjects" style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",maxWidth:390}}>
-      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+      {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
     </div>
   </div>);
 }
@@ -718,30 +718,30 @@ function Planner({t,subjects,customSubjects,user}){
     {delConfirm&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(4px)"}}>
         <div style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
-          <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete Task?</div>
-          <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This can't be undone.</div>
+          <div style={{fontSize:t.fs(24),marginBottom:8}}>🗑️</div>
+          <div style={{color:t.text,fontWeight:800,fontSize:t.fs(14),marginBottom:4}}>Delete Task?</div>
+          <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:16}}>This can't be undone.</div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setDelConfirm(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            <button onClick={()=>doDel(delConfirm)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+            <button onClick={()=>setDelConfirm(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={()=>doDel(delConfirm)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
           </div>
         </div>
       </div>
     )}
-    <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>{["daily","weekly","monthly"].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 11px",borderRadius:19,border:"none",background:view===v?t.a4:t.pill,color:view===v?"#0a0a0f":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",textTransform:"capitalize",fontFamily:"inherit"}}>{v}</button>)}</div>
-    {view==="weekly"&&<div style={{display:"flex",gap:3}}>{days7.map((d,i)=><div key={i} style={{flex:1,background:i===today.getDay()?`${t.a4}15`:t.card,border:`1px solid ${i===today.getDay()?t.a4+"44":t.border}`,borderRadius:8,padding:"6px 3px",textAlign:"center"}}><div style={{fontSize:7,color:t.sub,marginBottom:1}}>{["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]}</div><div style={{fontSize:13,fontWeight:800,color:i===today.getDay()?t.a4:t.text}}>{d.getDate()}</div></div>)}</div>}
-    {view==="monthly"&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:10}}><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:8,color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}{Array.from({length:31},(_,i)=>i+1).map(d=><div key={d} style={{textAlign:"center",padding:"4px 1px",borderRadius:5,fontSize:9,background:d===today.getDate()?`${t.a4}18`:"transparent",color:d===today.getDate()?t.a4:d<today.getDate()?t.muted:t.sub}}>{d}</div>)}</div></div>}
+    <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>{["daily","weekly","monthly"].map(v=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 11px",borderRadius:19,border:"none",background:view===v?t.a4:t.pill,color:view===v?"#0a0a0f":t.sub,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",textTransform:"capitalize",fontFamily:"inherit"}}>{v}</button>)}</div>
+    {view==="weekly"&&<div style={{display:"flex",gap:3}}>{days7.map((d,i)=><div key={i} style={{flex:1,background:i===today.getDay()?`${t.a4}15`:t.card,border:`1px solid ${i===today.getDay()?t.a4+"44":t.border}`,borderRadius:8,padding:"6px 3px",textAlign:"center"}}><div style={{fontSize:t.fs(7),color:t.sub,marginBottom:1}}>{["Su","Mo","Tu","We","Th","Fr","Sa"][d.getDay()]}</div><div style={{fontSize:t.fs(13),fontWeight:800,color:i===today.getDay()?t.a4:t.text}}>{d.getDate()}</div></div>)}</div>}
+    {view==="monthly"&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:10}}><div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:t.fs(8),color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}{Array.from({length:31},(_,i)=>i+1).map(d=><div key={d} style={{textAlign:"center",padding:"4px 1px",borderRadius:5,fontSize:t.fs(9),background:d===today.getDate()?`${t.a4}18`:"transparent",color:d===today.getDate()?t.a4:d<today.getDate()?t.muted:t.sub}}>{d}</div>)}</div></div>}
 
     {/* Add task with start/end dates */}
     <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:10,display:"flex",flexDirection:"column",gap:7}}>
       <div style={{display:"flex",gap:5}}>
-        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
-        <select value={ns2} onChange={e=>setNs2(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:9,maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
+        <input value={nt} onChange={e=>setNt(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add a task…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none"}}/>
+        <select value={ns2} onChange={e=>setNs2(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 5px",color:t.text,fontFamily:"inherit",cursor:"pointer",fontSize:t.fs(9),maxWidth:90}}>{allSubjects.map(s=><option key={s.n}>{s.n}</option>)}</select>
       </div>
       <div style={{display:"flex",gap:5,alignItems:"center"}}>
-        <div style={{flex:1}}><div style={{color:t.sub,fontSize:9,marginBottom:3,fontWeight:600}}>Start Date</div><input type="date" value={ntStart} onChange={e=>setNtStart(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
-        <div style={{flex:1}}><div style={{color:t.sub,fontSize:9,marginBottom:3,fontWeight:600}}>End / Deadline</div><input type="date" value={ntEnd} onChange={e=>setNtEnd(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
-        <button onClick={add} style={{background:t.a3,border:"none",borderRadius:8,padding:"10px 14px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:14,fontFamily:"inherit",alignSelf:"flex-end"}}>+</button>
+        <div style={{flex:1}}><div style={{color:t.sub,fontSize:t.fs(9),marginBottom:3,fontWeight:600}}>Start Date</div><input type="date" value={ntStart} onChange={e=>setNtStart(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
+        <div style={{flex:1}}><div style={{color:t.sub,fontSize:t.fs(9),marginBottom:3,fontWeight:600}}>End / Deadline</div><input type="date" value={ntEnd} onChange={e=>setNtEnd(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"5px 7px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/></div>
+        <button onClick={add} style={{background:t.a3,border:"none",borderRadius:8,padding:"10px 14px",color:"#0a0a0f",fontWeight:900,cursor:"pointer",fontSize:t.fs(14),fontFamily:"inherit",alignSelf:"flex-end"}}>+</button>
       </div>
     </div>
 
@@ -754,32 +754,32 @@ function Planner({t,subjects,customSubjects,user}){
           <div key={task.id} style={{background:task.done?t.pill:t.card,border:`1px solid ${task.done?t.border:s.c+"28"}`,borderRadius:10,padding:"9px 10px",transition:"all .2s"}}>
             {editId===task.id?(
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <input value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(task.id);if(e.key==="Escape")setEditId(null);}} autoFocus style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-                <button onClick={()=>saveEdit(task.id)} style={{background:"#34d399",border:"none",borderRadius:7,padding:"6px 10px",color:"#0a0a0f",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:7,padding:"6px 8px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <input value={editVal} onChange={e=>setEditVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveEdit(task.id);if(e.key==="Escape")setEditId(null);}} autoFocus style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={()=>saveEdit(task.id)} style={{background:"#34d399",border:"none",borderRadius:7,padding:"6px 10px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:7,padding:"6px 8px",color:t.sub,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
             ):(
               <div>
                 <div style={{display:"flex",alignItems:"center",gap:9}}>
-                  <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:8,fontWeight:900}}>✓</span>}</div>
-                  <div onClick={()=>tog(task.id)} style={{flex:1,color:task.done?t.sub:t.text,fontSize:11,textDecoration:task.done?"line-through":"none",cursor:"pointer"}}>{task.text}</div>
-                  <div style={{background:`${s.c}18`,color:s.c,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12}}>{task.subj}</div>
-                  {ds&&!task.done&&<div style={{background:`${ds.color}15`,color:ds.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:12,whiteSpace:"nowrap"}}>{ds.label}</div>}
+                  <div onClick={()=>tog(task.id)} style={{width:16,height:16,borderRadius:"50%",flexShrink:0,border:`2px solid ${task.done?s.c:"rgba(150,150,150,.3)"}`,background:task.done?s.c:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{task.done&&<span style={{color:"#0a0a0f",fontSize:t.fs(8),fontWeight:900}}>✓</span>}</div>
+                  <div onClick={()=>tog(task.id)} style={{flex:1,color:task.done?t.sub:t.text,fontSize:t.fs(11),textDecoration:task.done?"line-through":"none",cursor:"pointer"}}>{task.text}</div>
+                  <div style={{background:`${s.c}18`,color:s.c,fontSize:t.fs(8),fontWeight:700,padding:"2px 6px",borderRadius:12}}>{task.subj}</div>
+                  {ds&&!task.done&&<div style={{background:`${ds.color}15`,color:ds.color,fontSize:t.fs(8),fontWeight:700,padding:"2px 6px",borderRadius:12,whiteSpace:"nowrap"}}>{ds.label}</div>}
                   <div style={{display:"flex",gap:3}}>
-                    <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                    <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                    <button onClick={()=>startEdit(task)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 6px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                    <button onClick={()=>confirmDel(task.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 6px",color:t.a1,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
                   </div>
                 </div>
                 {(task.startDate||task.endDate)&&<div style={{display:"flex",gap:8,marginTop:4,paddingLeft:25}}>
-                  {task.startDate&&<span style={{color:t.sub,fontSize:9,fontWeight:500}}>▶ {task.startDate}</span>}
-                  {task.endDate&&<span style={{color:task.done?t.sub:(deadlineStatus(task.endDate)?.color||t.sub),fontSize:9,fontWeight:600}}>⏹ {task.endDate}</span>}
+                  {task.startDate&&<span style={{color:t.sub,fontSize:t.fs(9),fontWeight:500}}>▶ {task.startDate}</span>}
+                  {task.endDate&&<span style={{color:task.done?t.sub:(deadlineStatus(task.endDate)?.color||t.sub),fontSize:t.fs(9),fontWeight:600}}>⏹ {task.endDate}</span>}
                 </div>}
               </div>
             )}
           </div>
         );
       })}
-      {tasks.length===0&&<div style={{color:t.sub,fontSize:12,textAlign:"center",padding:"20px 0"}}>No tasks yet. Add your first task above!</div>}
+      {tasks.length===0&&<div style={{color:t.sub,fontSize:t.fs(12),textAlign:"center",padding:"20px 0"}}>No tasks yet. Add your first task above!</div>}
     </div>
   </div>);
 }
@@ -848,66 +848,66 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user,streakBreak,streakWarnin
     {/* Badge reveal modal */}
     {showBadge&&<div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:24,backdropFilter:"blur(8px)"}} onClick={()=>setShowBadge(false)}>
       <div style={{background:t.bg,border:`1px solid ${badge.color}40`,borderRadius:20,padding:28,maxWidth:280,width:"100%",textAlign:"center",boxShadow:`0 0 40px ${badge.color}25`}}>
-        <div style={{fontSize:52,marginBottom:8}}>{badge.icon}</div>
-        <div style={{fontSize:11,color:t.sub,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Current Badge</div>
-        <div style={{fontSize:22,fontWeight:900,color:badge.color,marginBottom:6}}>{badge.title}</div>
-        <div style={{color:t.sub,fontSize:12,lineHeight:1.6,marginBottom:16}}>{badge.msg}</div>
-        {nextBadge&&<div style={{background:`${nextBadge.color}10`,border:`1px solid ${nextBadge.color}25`,borderRadius:10,padding:"8px 12px"}}><div style={{color:t.sub,fontSize:10}}>Next: <span style={{color:nextBadge.color,fontWeight:700}}>{nextBadge.icon} {nextBadge.title}</span> at {nextBadge.min} days</div></div>}
-        <div style={{color:t.muted,fontSize:10,marginTop:14}}>Tap anywhere to close</div>
+        <div style={{fontSize:t.fs(52),marginBottom:8}}>{badge.icon}</div>
+        <div style={{fontSize:t.fs(11),color:t.sub,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Current Badge</div>
+        <div style={{fontSize:t.fs(22),fontWeight:900,color:badge.color,marginBottom:6}}>{badge.title}</div>
+        <div style={{color:t.sub,fontSize:t.fs(12),lineHeight:1.6,marginBottom:16}}>{badge.msg}</div>
+        {nextBadge&&<div style={{background:`${nextBadge.color}10`,border:`1px solid ${nextBadge.color}25`,borderRadius:10,padding:"8px 12px"}}><div style={{color:t.sub,fontSize:t.fs(10)}}>Next: <span style={{color:nextBadge.color,fontWeight:700}}>{nextBadge.icon} {nextBadge.title}</span> at {nextBadge.min} days</div></div>}
+        <div style={{color:t.muted,fontSize:t.fs(10),marginTop:14}}>Tap anywhere to close</div>
       </div>
     </div>}
 
     {/* Streak hero */}
     <div style={{background:`${t.a1}10`,border:`1px solid ${t.a1}28`,borderRadius:15,padding:15,textAlign:"center"}}>
-      <div style={{fontSize:40}}>🔥</div>
-      <div style={{fontSize:46,fontWeight:900,color:t.a1,lineHeight:1}}>{streak}</div>
-      <div style={{fontSize:10,color:t.sub,marginTop:2}}>Day Streak</div>
-      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:10,fontWeight:700,display:"inline-block"}}>{streakBreak?"💔 Streak broken — restore below":streakWarning?"🔥 Your streak is at risk. Study today to keep it alive.":"🔔 Study today — don't break the chain!"}</div>
+      <div style={{fontSize:t.fs(40)}}>🔥</div>
+      <div style={{fontSize:t.fs(46),fontWeight:900,color:t.a1,lineHeight:1}}>{streak}</div>
+      <div style={{fontSize:t.fs(10),color:t.sub,marginTop:2}}>Day Streak</div>
+      <div style={{background:`${t.a1}14`,color:t.a1,borderRadius:9,padding:"5px 10px",marginTop:8,fontSize:t.fs(10),fontWeight:700,display:"inline-block"}}>{streakBreak?"💔 Streak broken — restore below":streakWarning?"🔥 Your streak is at risk. Study today to keep it alive.":"🔔 Study today — don't break the chain!"}</div>
     </div>
 
     {/* Badge card */}
     <div onClick={()=>setShowBadge(true)} style={{background:`${badge.color}10`,border:`1.5px solid ${badge.color}35`,borderRadius:13,padding:"12px 14px",display:"flex",alignItems:"center",gap:11,cursor:"pointer",transition:"all .2s"}}>
-      <div style={{fontSize:32}}>{badge.icon}</div>
+      <div style={{fontSize:t.fs(32)}}>{badge.icon}</div>
       <div style={{flex:1}}>
-        <div style={{color:badge.color,fontWeight:900,fontSize:14}}>{badge.title}</div>
-        <div style={{color:t.sub,fontSize:10,marginTop:2,lineHeight:1.4}}>{badge.msg}</div>
-        {nextBadge&&<div style={{color:t.muted,fontSize:9,marginTop:3}}>{nextBadge.min-streak} more days → {nextBadge.icon} {nextBadge.title}</div>}
+        <div style={{color:badge.color,fontWeight:900,fontSize:t.fs(14)}}>{badge.title}</div>
+        <div style={{color:t.sub,fontSize:t.fs(10),marginTop:2,lineHeight:1.4}}>{badge.msg}</div>
+        {nextBadge&&<div style={{color:t.muted,fontSize:t.fs(9),marginTop:3}}>{nextBadge.min-streak} more days → {nextBadge.icon} {nextBadge.title}</div>}
       </div>
-      <div style={{color:t.muted,fontSize:11}}>›</div>
+      <div style={{color:t.muted,fontSize:t.fs(11)}}>›</div>
     </div>
 
     {/* All badges */}
     {isPro?(
       <div>
-        <div style={{fontSize:8,color:t.sub,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>All Badges</div>
+        <div style={{fontSize:t.fs(8),color:t.sub,marginBottom:8,textTransform:"uppercase",letterSpacing:1.5}}>All Badges</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
           {BADGES.map(b=>{const earned=streak>=b.min;return(
             <div key={b.title} style={{background:earned?`${b.color}10`:t.card,border:`1px solid ${earned?b.color+"30":t.border}`,borderRadius:11,padding:"9px 6px",textAlign:"center",opacity:earned?1:.35,transition:"all .3s"}}>
-              <div style={{fontSize:20,marginBottom:2,filter:earned?"none":"grayscale(1)"}}>{b.icon}</div>
-              <div style={{color:earned?b.color:t.sub,fontSize:8,fontWeight:700,lineHeight:1.2}}>{b.title}</div>
-              <div style={{color:t.muted,fontSize:7,marginTop:1}}>{b.min}+ days</div>
+              <div style={{fontSize:t.fs(20),marginBottom:2,filter:earned?"none":"grayscale(1)"}}>{b.icon}</div>
+              <div style={{color:earned?b.color:t.sub,fontSize:t.fs(8),fontWeight:700,lineHeight:1.2}}>{b.title}</div>
+              <div style={{color:t.muted,fontSize:t.fs(7),marginTop:1}}>{b.min}+ days</div>
             </div>
           );})}
         </div>
       </div>
-    ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:18}}>👑</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:11}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>See your streak journey and all milestones</div></div></div>}
+    ):<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"10px 13px",display:"flex",gap:9,alignItems:"center"}}><div style={{fontSize:t.fs(18)}}>👑</div><div><div style={{color:"#818cf8",fontWeight:700,fontSize:t.fs(11)}}>Unlock All Badges with Pro</div><div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>See your streak journey and all milestones</div></div></div>}
 
     {streakBreak&&<div style={{display:"grid",gridTemplateColumns:"1fr",gap:5}}>
-      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{isPro?"💔 Restore Streak":"💔 Restore Streak → Upgrade to Premium"}</button>
-      {isPro&&<div style={{color:t.sub,fontSize:9,textAlign:"center"}}>{todayStudyMinutes>=RESTORE_MIN_MINUTES?`Ready — restores to ${streakBreak.previousStreak} days`:`Study ${RESTORE_MIN_MINUTES-todayStudyMinutes} more minute${RESTORE_MIN_MINUTES-todayStudyMinutes===1?"":"s"} today to unlock (${todayStudyMinutes}/${RESTORE_MIN_MINUTES}m)`}</div>}
+      <button onClick={onRestore} style={{background:`${t.a4}12`,border:`1px solid ${t.a4}28`,borderRadius:10,padding:"9px",color:t.a4,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>{isPro?"💔 Restore Streak":"💔 Restore Streak → Upgrade to Premium"}</button>
+      {isPro&&<div style={{color:t.sub,fontSize:t.fs(9),textAlign:"center"}}>{todayStudyMinutes>=RESTORE_MIN_MINUTES?`Ready — restores to ${streakBreak.previousStreak} days`:`Study ${RESTORE_MIN_MINUTES-todayStudyMinutes} more minute${RESTORE_MIN_MINUTES-todayStudyMinutes===1?"":"s"} today to unlock (${todayStudyMinutes}/${RESTORE_MIN_MINUTES}m)`}</div>}
     </div>}
 
     {/* Dynamic study calendar — real session data, correct month/year */}
     <div>
       {/* Month navigation header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}>
-        <button onClick={prevMonth} style={{background:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:t.sub,fontWeight:700,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>‹</button>
-        <div style={{fontSize:10,color:t.text,fontWeight:800}}>{MONTH_NAMES[calMonth]} {calYear}</div>
-        <button onClick={nextMonth} disabled={isCurrentMonth} style={{background:isCurrentMonth?t.pill:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:isCurrentMonth?t.muted:t.sub,fontWeight:700,fontSize:13,cursor:isCurrentMonth?"default":"pointer",fontFamily:"inherit",opacity:isCurrentMonth?.35:1}}>›</button>
+        <button onClick={prevMonth} style={{background:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:t.sub,fontWeight:700,fontSize:t.fs(13),cursor:"pointer",fontFamily:"inherit"}}>‹</button>
+        <div style={{fontSize:t.fs(10),color:t.text,fontWeight:800}}>{MONTH_NAMES[calMonth]} {calYear}</div>
+        <button onClick={nextMonth} disabled={isCurrentMonth} style={{background:isCurrentMonth?t.pill:t.pill,border:"none",borderRadius:7,padding:"3px 9px",color:isCurrentMonth?t.muted:t.sub,fontWeight:700,fontSize:t.fs(13),cursor:isCurrentMonth?"default":"pointer",fontFamily:"inherit",opacity:isCurrentMonth?.35:1}}>›</button>
       </div>
       {/* Day headers */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:3}}>
-        {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:8,color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}
+        {["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{textAlign:"center",fontSize:t.fs(8),color:t.sub,fontWeight:700,padding:"2px 0"}}>{d}</div>)}
       </div>
       {/* Day cells */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
@@ -922,7 +922,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user,streakBreak,streakWarnin
             background:isToday?t.a1:studied?`${t.a1}26`:t.pill,
             border:isToday?`2px solid ${t.a1}`:studied?`1px solid ${t.a1}36`:`1px solid ${t.border}`,
             display:"flex",alignItems:"center",justifyContent:"center",
-            fontSize:8,
+            fontSize:t.fs(8),
             color:isToday?"#fff":studied?t.a1:isFuture?t.border:t.muted,
             fontWeight:isToday?900:studied?700:400,
           }}>
@@ -930,7 +930,7 @@ function Streak({t,pushN,ns,onRestore,streak,isPro,user,streakBreak,streakWarnin
           </div>);
         })}
       </div>
-      {studiedDates.size===0&&<div style={{color:t.muted,fontSize:9,textAlign:"center",marginTop:8}}>Complete a Pomodoro session to mark your study days</div>}
+      {studiedDates.size===0&&<div style={{color:t.muted,fontSize:t.fs(9),textAlign:"center",marginTop:8}}>Complete a Pomodoro session to mark your study days</div>}
     </div>
   </div>);
 }
@@ -1047,68 +1047,68 @@ function ExamDash({t,es,setEs,onOpen,customSubjects,user,examDates,setExamDates,
     <div style={{background:`${es.color||"#818cf8"}10`,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:14,padding:"12px 12px",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-8,right:-8,width:65,height:65,borderRadius:"50%",background:`radial-gradient(circle,${es.color||"#818cf8"}16,transparent 70%)`,pointerEvents:"none"}}/>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div><div style={{fontSize:18}}>{es.icon||"🎯"}</div><div style={{color:t.text,fontWeight:900,fontSize:15,marginTop:2}}>{es.key||"UPSC CSE"}</div>
+        <div><div style={{fontSize:t.fs(18)}}>{es.icon||"🎯"}</div><div style={{color:t.text,fontWeight:900,fontSize:t.fs(15),marginTop:2}}>{es.key||"UPSC CSE"}</div>
           <div style={{display:"flex",alignItems:"center",gap:5,marginTop:3}}>
-            <div style={{background:`${es.color||"#818cf8"}18`,color:es.color||"#818cf8",border:`1px solid ${es.color||"#818cf8"}40`,borderRadius:13,padding:"1px 7px",fontSize:8,fontWeight:800}}>{es.mode||"PRELIMS"}</div>
+            <div style={{background:`${es.color||"#818cf8"}18`,color:es.color||"#818cf8",border:`1px solid ${es.color||"#818cf8"}40`,borderRadius:13,padding:"1px 7px",fontSize:t.fs(8),fontWeight:800}}>{es.mode||"PRELIMS"}</div>
             {editDateMode?(
               <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"2px 5px",color:t.text,fontSize:9,fontFamily:"inherit",outline:"none"}}/>
-                <button onClick={saveDate} style={{background:es.color||"#818cf8",border:"none",borderRadius:6,padding:"2px 7px",color:"#fff",fontSize:9,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditDateMode(false)} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <input type="date" value={dateVal} onChange={e=>setDateVal(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"2px 5px",color:t.text,fontSize:t.fs(9),fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={saveDate} style={{background:es.color||"#818cf8",border:"none",borderRadius:6,padding:"2px 7px",color:"#fff",fontSize:t.fs(9),fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditDateMode(false)} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
             ):(
               <div style={{display:"flex",alignItems:"center",gap:3}}>
-                <div style={{color:t.sub,fontSize:8}}>{es.date||"No date set"}</div>
-                <button onClick={()=>{setDateVal(es.date||"");setEditDateMode(true);}} style={{background:"none",border:"none",color:t.muted,fontSize:9,cursor:"pointer",padding:"0 2px"}}>✎</button>
+                <div style={{color:t.sub,fontSize:t.fs(8)}}>{es.date||"No date set"}</div>
+                <button onClick={()=>{setDateVal(es.date||"");setEditDateMode(true);}} style={{background:"none",border:"none",color:t.muted,fontSize:t.fs(9),cursor:"pointer",padding:"0 2px"}}>✎</button>
               </div>
             )}
           </div>
         </div>
         <div style={{textAlign:"right"}}>
-          <div style={{fontSize:34,fontWeight:900,color:es.color||"#818cf8",lineHeight:1}}>{days??""}</div>
-          <div style={{color:t.sub,fontSize:8,marginTop:1}}>{days!=null?"days left":"set date"}</div>
+          <div style={{fontSize:t.fs(34),fontWeight:900,color:es.color||"#818cf8",lineHeight:1}}>{days??""}</div>
+          <div style={{color:t.sub,fontSize:t.fs(8),marginTop:1}}>{days!=null?"days left":"set date"}</div>
         </div>
       </div>
-      <button onClick={onOpen} style={{marginTop:8,background:"rgba(255,255,255,0.04)",border:`1px solid ${t.border}`,borderRadius:7,padding:"3px 9px",color:t.sub,fontSize:8,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✎ Change Exam / Mode</button>
+      <button onClick={onOpen} style={{marginTop:8,background:"rgba(255,255,255,0.04)",border:`1px solid ${t.border}`,borderRadius:7,padding:"3px 9px",color:t.sub,fontSize:t.fs(8),fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✎ Change Exam / Mode</button>
     </div>
 
     {/* Strategy — full CRUD */}
     <div>
-      <div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Strategy Points</div>
+      <div style={{fontSize:t.fs(7),color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Strategy Points</div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
         {tips.map((tip,i)=>(
           <div key={i} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 9px"}}>
             {editTipIdx===i?(
               <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                <input autoFocus value={editTipVal} onChange={e=>setEditTipVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveTip();if(e.key==="Escape")setEditTipIdx(null);}} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 7px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
-                <button onClick={saveTip} style={{background:"#34d399",border:"none",borderRadius:6,padding:"4px 8px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditTipIdx(null)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                <input autoFocus value={editTipVal} onChange={e=>setEditTipVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveTip();if(e.key==="Escape")setEditTipIdx(null);}} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:6,padding:"4px 7px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none"}}/>
+                <button onClick={saveTip} style={{background:"#34d399",border:"none",borderRadius:6,padding:"4px 8px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditTipIdx(null)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 6px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
             ):(
               <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                <span style={{color:"#818cf8",fontSize:8,fontWeight:800,flexShrink:0}}>{i+1}.</span>
-                <span style={{color:t.text,fontSize:10,lineHeight:1.4,flex:1}}>{tip}</span>
+                <span style={{color:"#818cf8",fontSize:t.fs(8),fontWeight:800,flexShrink:0}}>{i+1}.</span>
+                <span style={{color:t.text,fontSize:t.fs(10),lineHeight:1.4,flex:1}}>{tip}</span>
                 <div style={{display:"flex",gap:2,flexShrink:0}}>
-                  <button onClick={()=>moveTip(i,-1)} disabled={i===0} style={{background:"none",border:"none",color:t.muted,cursor:i===0?"default":"pointer",fontSize:9,padding:"0 2px"}}>↑</button>
-                  <button onClick={()=>moveTip(i,1)} disabled={i===tips.length-1} style={{background:"none",border:"none",color:t.muted,cursor:i===tips.length-1?"default":"pointer",fontSize:9,padding:"0 2px"}}>↓</button>
-                  <button onClick={()=>startEditTip(i)} style={{background:t.pill,border:"none",borderRadius:5,padding:"2px 5px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                  <button onClick={()=>deleteTip(i)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:5,padding:"2px 5px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                  <button onClick={()=>moveTip(i,-1)} disabled={i===0} style={{background:"none",border:"none",color:t.muted,cursor:i===0?"default":"pointer",fontSize:t.fs(9),padding:"0 2px"}}>↑</button>
+                  <button onClick={()=>moveTip(i,1)} disabled={i===tips.length-1} style={{background:"none",border:"none",color:t.muted,cursor:i===tips.length-1?"default":"pointer",fontSize:t.fs(9),padding:"0 2px"}}>↓</button>
+                  <button onClick={()=>startEditTip(i)} style={{background:t.pill,border:"none",borderRadius:5,padding:"2px 5px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                  <button onClick={()=>deleteTip(i)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:5,padding:"2px 5px",color:"#FF6B6B",fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
                 </div>
               </div>
             )}
           </div>
         ))}
         <div style={{display:"flex",gap:5,marginTop:3}}>
-          <input value={newTip} onChange={e=>setNewTip(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTip()} placeholder="Add strategy point…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
-          <button onClick={addTip} style={{background:"#818cf8",border:"none",borderRadius:7,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+          <input value={newTip} onChange={e=>setNewTip(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTip()} placeholder="Add strategy point…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none"}}/>
+          <button onClick={addTip} style={{background:"#818cf8",border:"none",borderRadius:7,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>+</button>
         </div>
       </div>
     </div>
 
-    <div><div style={{fontSize:7,color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Subject Progress {customSubjects.length>0&&`· ${customSubjects.length} custom`}</div>
+    <div><div style={{fontSize:t.fs(7),color:t.sub,marginBottom:6,textTransform:"uppercase",letterSpacing:1.5}}>Subject Progress {customSubjects.length>0&&`· ${customSubjects.length} custom`}</div>
       <div style={{display:"flex",flexDirection:"column",gap:5}}>
         {allSubjs.map(s=><div key={s.n} style={{background:t.card,border:`1px solid ${s.c}18`,borderRadius:10,padding:"8px 10px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:12}}>{s.i||"📌"}</span><div><div style={{color:t.text,fontWeight:700,fontSize:11}}>{s.n}{s.custom&&<span style={{color:"#818cf8",fontSize:8}}> custom</span>}</div>{s.w>0&&<div style={{color:t.sub,fontSize:8}}>{s.w}% weightage</div>}</div></div><div style={{color:s.c,fontWeight:800,fontSize:11}}>{prog[s.n]||0}%</div></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}><div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:t.fs(12)}}>{s.i||"📌"}</span><div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{s.n}{s.custom&&<span style={{color:"#818cf8",fontSize:t.fs(8)}}> custom</span>}</div>{s.w>0&&<div style={{color:t.sub,fontSize:t.fs(8)}}>{s.w}% weightage</div>}</div></div><div style={{color:s.c,fontWeight:800,fontSize:t.fs(11)}}>{prog[s.n]||0}%</div></div>
           <div style={{height:3,background:t.pill,borderRadius:2,overflow:"hidden"}}><div style={{height:"100%",width:`${prog[s.n]||0}%`,background:s.c,borderRadius:2,transition:"width .5s ease"}}/></div>
         </div>)}
       </div>
@@ -1237,51 +1237,51 @@ function Syllabus({t,subjects,customSubjects,user}){
     {!selId?(
       <>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div><div style={{fontSize:14,fontWeight:800,color:t.text}}>📋 Syllabus</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>Track topics across subjects</div></div>
-          <button onClick={()=>setShowNew(v=>!v)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"7px 13px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
+          <div><div style={{fontSize:t.fs(14),fontWeight:800,color:t.text}}>📋 Syllabus</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:1}}>Track topics across subjects</div></div>
+          <button onClick={()=>setShowNew(v=>!v)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"7px 13px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
         </div>
 
         {showNew&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.25)",borderRadius:12,padding:"13px"}}>
-          <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:9}}>Create Syllabus</div>
-          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Syllabus name (e.g. Indian Polity)" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:7}}/>
-          <select value={newSubj} onChange={e=>setNewSubj(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontFamily:"inherit",marginBottom:9,fontSize:11}}>
+          <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12),marginBottom:9}}>Create Syllabus</div>
+          <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Syllabus name (e.g. Indian Polity)" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:7}}/>
+          <select value={newSubj} onChange={e=>setNewSubj(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontFamily:"inherit",marginBottom:9,fontSize:t.fs(11)}}>
             {allSubjects.map(s=><option key={s.n}>{s.n}</option>)}
           </select>
-          <div style={{display:"flex",gap:6}}><button onClick={addSyllabus} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowNew(false)} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
+          <div style={{display:"flex",gap:6}}><button onClick={addSyllabus} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowNew(false)} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
         </div>}
 
         {syllabi.map(syl=>{const pct=getPct(syl);return(
           <div key={syl.id} onClick={()=>setSelId(syl.id)} style={{background:t.card,border:`1px solid ${syl.color}28`,borderRadius:13,padding:"13px",cursor:"pointer",transition:"all .2s"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:9}}>
-              <div><div style={{color:t.text,fontWeight:800,fontSize:13}}>{syl.name}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{syl.subj} · {syl.topics.length} topics</div></div>
-              <div style={{textAlign:"right"}}><div style={{color:syl.color,fontWeight:900,fontSize:20,lineHeight:1}}>{pct}%</div><div style={{color:t.muted,fontSize:8}}>complete</div></div>
+              <div><div style={{color:t.text,fontWeight:800,fontSize:t.fs(13)}}>{syl.name}</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:1}}>{syl.subj} · {syl.topics.length} topics</div></div>
+              <div style={{textAlign:"right"}}><div style={{color:syl.color,fontWeight:900,fontSize:t.fs(20),lineHeight:1}}>{pct}%</div><div style={{color:t.muted,fontSize:t.fs(8)}}>complete</div></div>
             </div>
             <div style={{height:5,background:t.pill,borderRadius:3,overflow:"hidden",marginBottom:7}}>
               <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg,${syl.color},${syl.color}99)`,borderRadius:3,transition:"width .5s ease"}}/>
             </div>
             <div style={{display:"flex",gap:5}}>
-              {["completed","in-progress","not-started"].map(st=>{const cnt=syl.topics.filter(t=>t.status===st).length;const s=STATUS[st];return cnt>0&&<div key={st} style={{background:s.bg,color:s.color,fontSize:8,fontWeight:700,padding:"2px 7px",borderRadius:12}}>{cnt} {s.label}</div>;})}
+              {["completed","in-progress","not-started"].map(st=>{const cnt=syl.topics.filter(t=>t.status===st).length;const s=STATUS[st];return cnt>0&&<div key={st} style={{background:s.bg,color:s.color,fontSize:t.fs(8),fontWeight:700,padding:"2px 7px",borderRadius:12}}>{cnt} {s.label}</div>;})}
             </div>
           </div>
         );})}
-        {syllabi.length===0&&<div style={{color:t.sub,fontSize:12,textAlign:"center",padding:"30px 0"}}>No syllabi yet. Create your first one!</div>}
+        {syllabi.length===0&&<div style={{color:t.sub,fontSize:t.fs(12),textAlign:"center",padding:"30px 0"}}>No syllabi yet. Create your first one!</div>}
       </>
     ):(
       <>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:2}}>
-          <button onClick={()=>setSelId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Back</button>
-          <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:14}}>{sel?.name}</div><div style={{color:t.sub,fontSize:10}}>{sel?.subj}</div></div>
-          <button onClick={()=>deleteSyllabus(sel.id)} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete</button>
+          <button onClick={()=>setSelId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>← Back</button>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:t.fs(14)}}>{sel?.name}</div><div style={{color:t.sub,fontSize:t.fs(10)}}>{sel?.subj}</div></div>
+          <button onClick={()=>deleteSyllabus(sel.id)} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>🗑 Delete</button>
         </div>
 
         {/* Overall progress */}
         <div style={{background:`${sel?.color}10`,border:`1px solid ${sel?.color}28`,borderRadius:12,padding:"12px 13px"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>Progress</div><div style={{color:sel?.color,fontWeight:900,fontSize:20}}>{getPct(sel)}%</div></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>Progress</div><div style={{color:sel?.color,fontWeight:900,fontSize:t.fs(20)}}>{getPct(sel)}%</div></div>
           <div style={{height:6,background:"rgba(255,255,255,0.07)",borderRadius:3,overflow:"hidden"}}>
             <div style={{height:"100%",width:`${getPct(sel)}%`,background:`linear-gradient(90deg,${sel?.color},${sel?.color}88)`,borderRadius:3,transition:"width .5s"}}/>
           </div>
           <div style={{display:"flex",gap:10,marginTop:8}}>
-            {["completed","in-progress","not-started"].map(st=>{const cnt=sel?.topics.filter(t=>t.status===st).length||0;const s=STATUS[st];return<div key={st} style={{textAlign:"center"}}><div style={{color:s.color,fontWeight:900,fontSize:14}}>{cnt}</div><div style={{color:t.muted,fontSize:8}}>{s.label}</div></div>;})}
+            {["completed","in-progress","not-started"].map(st=>{const cnt=sel?.topics.filter(t=>t.status===st).length||0;const s=STATUS[st];return<div key={st} style={{textAlign:"center"}}><div style={{color:s.color,fontWeight:900,fontSize:t.fs(14)}}>{cnt}</div><div style={{color:t.muted,fontSize:t.fs(8)}}>{s.label}</div></div>;})}
           </div>
         </div>
 
@@ -1289,36 +1289,36 @@ function Syllabus({t,subjects,customSubjects,user}){
         <div style={{display:"flex",flexDirection:"column",gap:5}}>
           {sel?.topics.map(topic=>{const s=STATUS[topic.status];return(
             <div key={topic.id} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px 11px",transition:"all .2s"}}>
-              <button onClick={()=>cycleStatus(sel.id,topic.id)} style={{width:22,height:22,borderRadius:6,flexShrink:0,border:`2px solid ${s.color}`,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:10,transition:"all .2s"}}>
+              <button onClick={()=>cycleStatus(sel.id,topic.id)} style={{width:22,height:22,borderRadius:6,flexShrink:0,border:`2px solid ${s.color}`,background:s.bg,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:t.fs(10),transition:"all .2s"}}>
                 {topic.status==="completed"?"✓":topic.status==="in-progress"?"…":""}
               </button>
               {editTopicId===topic.id?(
                 <input autoFocus value={editTopicVal} onChange={e=>setEditTopicVal(e.target.value)}
                   onBlur={()=>saveEditTopic(sel.id)}
                   onKeyDown={e=>{if(e.key==="Enter")saveEditTopic(sel.id);if(e.key==="Escape")setEditTopicId(null);}}
-                  style={{flex:1,background:t.input,border:`1px solid #818cf8`,borderRadius:6,padding:"3px 7px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+                  style={{flex:1,background:t.input,border:`1px solid #818cf8`,borderRadius:6,padding:"3px 7px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
               ):(
-                <div style={{flex:1,color:t.text,fontSize:11,fontWeight:500,textDecoration:topic.status==="completed"?"line-through":"none",opacity: topic.status === "completed" ? 0.55 : 1}}>{topic.title}</div>
+                <div style={{flex:1,color:t.text,fontSize:t.fs(11),fontWeight:500,textDecoration:topic.status==="completed"?"line-through":"none",opacity: topic.status === "completed" ? 0.55 : 1}}>{topic.title}</div>
               )}
-              <div style={{background:s.bg,color:s.color,fontSize:8,fontWeight:700,padding:"2px 6px",borderRadius:10,whiteSpace:"nowrap"}}>{s.label}</div>
-              <button onClick={()=>startEditTopic(topic)} title="Edit" style={{background:"none",border:"none",color:t.sub,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✏️</button>
-              <button onClick={()=>deleteTopic(sel.id,topic.id)} title="Delete" style={{background:"none",border:"none",color:t.muted,fontSize:11,cursor:"pointer",padding:"0 2px"}}>✕</button>
+              <div style={{background:s.bg,color:s.color,fontSize:t.fs(8),fontWeight:700,padding:"2px 6px",borderRadius:10,whiteSpace:"nowrap"}}>{s.label}</div>
+              <button onClick={()=>startEditTopic(topic)} title="Edit" style={{background:"none",border:"none",color:t.sub,fontSize:t.fs(11),cursor:"pointer",padding:"0 2px"}}>✏️</button>
+              <button onClick={()=>deleteTopic(sel.id,topic.id)} title="Delete" style={{background:"none",border:"none",color:t.muted,fontSize:t.fs(11),cursor:"pointer",padding:"0 2px"}}>✕</button>
             </div>
           );})}
-          {sel?.topics.length===0&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"18px 0"}}>No topics yet. Add your first topic!</div>}
+          {sel?.topics.length===0&&<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"18px 0"}}>No topics yet. Add your first topic!</div>}
         </div>
 
         {/* Add topic */}
         <div style={{display:"flex",gap:6}}>
-          <input value={newTopic} onChange={e=>setNewTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTopic(sel?.id)} placeholder="Add topic…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-          <button onClick={()=>addTopic(sel?.id)} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"8px 12px",color:"#fff",fontWeight:900,cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>+</button>
+          <input value={newTopic} onChange={e=>setNewTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTopic(sel?.id)} placeholder="Add topic…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+          <button onClick={()=>addTopic(sel?.id)} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"8px 12px",color:"#fff",fontWeight:900,cursor:"pointer",fontSize:t.fs(13),fontFamily:"inherit"}}>+</button>
         </div>
 
         {/* Legend */}
         <div style={{display:"flex",gap:7,justifyContent:"center",marginTop:2}}>
-          {Object.entries(STATUS).map(([k,s])=><div key={k} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:s.bg,border:`1.5px solid ${s.color}`}}/><span style={{color:t.sub,fontSize:9}}>{s.label}</span></div>)}
+          {Object.entries(STATUS).map(([k,s])=><div key={k} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:10,height:10,borderRadius:3,background:s.bg,border:`1.5px solid ${s.color}`}}/><span style={{color:t.sub,fontSize:t.fs(9)}}>{s.label}</span></div>)}
         </div>
-        <div style={{color:t.muted,fontSize:9,textAlign:"center"}}>Tap the status icon to cycle: Not Started → In Progress → Done</div>
+        <div style={{color:t.muted,fontSize:t.fs(9),textAlign:"center"}}>Tap the status icon to cycle: Not Started → In Progress → Done</div>
       </>
     )}
   </div>);
@@ -2320,18 +2320,18 @@ const createGroup = async () => {
     {grpQrId&&(()=>{const g=myGroups.find(x=>x.id===grpQrId);return g?(
       <div style={{position:"fixed",inset:0,zIndex:9800,background:"rgba(0,0,0,0.78)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(6px)"}} onClick={()=>setGrpQrId(null)}>
         <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:"1px solid rgba(129,140,248,0.25)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-          <div style={{fontWeight:800,fontSize:14,color:t.text,marginBottom:3}}>{g.name}</div>
-          <div style={{color:t.sub,fontSize:10,marginBottom:12}}>Scan to join this group</div>
+          <div style={{fontWeight:800,fontSize:t.fs(14),color:t.text,marginBottom:3}}>{g.name}</div>
+          <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:12}}>Scan to join this group</div>
           <div style={{display:"flex",justifyContent:"center",marginBottom:10}}>
             <QRCode value={g.joinLink||`https://studysync-4cvf.vercel.app/join-group?code=${g.code}`} size={140}/>
           </div>
           <div style={{background:t.pill,borderRadius:8,padding:"7px 10px",marginBottom:10}}>
-            <div style={{color:t.muted,fontSize:8,marginBottom:2}}>Group Code</div>
-            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2}}>{g.code}</div>
+            <div style={{color:t.muted,fontSize:t.fs(8),marginBottom:2}}>Group Code</div>
+            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:t.fs(16),letterSpacing:2}}>{g.code}</div>
           </div>
           <div style={{display:"flex",gap:5}}>
-            <button onClick={()=>navigator.clipboard?.writeText(g.joinLink||g.code).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Link</button>
-            <button onClick={()=>setGrpQrId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+            <button onClick={()=>navigator.clipboard?.writeText(g.joinLink||g.code).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Link</button>
+            <button onClick={()=>setGrpQrId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>Done</button>
           </div>
         </div>
       </div>
@@ -2355,34 +2355,34 @@ const createGroup = async () => {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
             <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={46}/><div style={{position:"absolute",bottom:1,right:1,width:10,height:10,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`2px solid ${t.bg}`}}/></div>
             <div style={{flex:1}}>
-              <div style={{color:t.text,fontWeight:800,fontSize:15}}>{f.name||"Friend"}</div>
-              <div style={{color:f.status==="offline"?t.sub:t.a3,fontSize:11,fontWeight:700,marginTop:1}}>{sd.icon} {sd.label}</div>
+              <div style={{color:t.text,fontWeight:800,fontSize:t.fs(15)}}>{f.name||"Friend"}</div>
+              <div style={{color:f.status==="offline"?t.sub:t.a3,fontSize:t.fs(11),fontWeight:700,marginTop:1}}>{sd.icon} {sd.label}</div>
             </div>
           </div>
           <div style={{display:"flex",gap:6,marginBottom:10}}>
             <div style={{flex:1,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 8px",textAlign:"center"}}>
-              <div style={{color:t.a1,fontWeight:900,fontSize:16}}>🔥 {f.streak||0}</div>
-              <div style={{color:t.muted,fontSize:8,marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Streak</div>
+              <div style={{color:t.a1,fontWeight:900,fontSize:t.fs(16)}}>🔥 {f.streak||0}</div>
+              <div style={{color:t.muted,fontSize:t.fs(8),marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Streak</div>
             </div>
             <div style={{flex:1,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 8px",textAlign:"center"}}>
-              <div style={{color:t.a2,fontWeight:900,fontSize:16}}>{f.totalSessions||0}</div>
-              <div style={{color:t.muted,fontSize:8,marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Sessions</div>
+              <div style={{color:t.a2,fontWeight:900,fontSize:t.fs(16)}}>{f.totalSessions||0}</div>
+              <div style={{color:t.muted,fontSize:t.fs(8),marginTop:1,textTransform:"uppercase",letterSpacing:0.5}}>Sessions</div>
             </div>
           </div>
           <div style={{background:t.pill,borderRadius:8,padding:"7px 10px",marginBottom:8}}>
-            <div style={{color:t.muted,fontSize:8,marginBottom:2}}>Friend Code</div>
-            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:800,fontSize:12,letterSpacing:1}}>{f.friendCode||"—"}</div>
+            <div style={{color:t.muted,fontSize:t.fs(8),marginBottom:2}}>Friend Code</div>
+            <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:800,fontSize:t.fs(12),letterSpacing:1}}>{f.friendCode||"—"}</div>
           </div>
           {/* "Joined StudySync" date removed (Phase 2): publicUsers/{uid} does not
               carry joinedAt — by explicit decision, this line is dropped rather
               than kept via a private users/{friendUid} read. */}
           {sharedOwnedGroups.length>0&&<div style={{marginBottom:10}}>
-            <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Groups You Own Together</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sharedOwnedGroups.map(g=><div key={g.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"3px 8px",fontSize:9,color:t.text,fontWeight:600}}>{g.name}</div>)}</div>
+            <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>Groups You Own Together</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{sharedOwnedGroups.map(g=><div key={g.id} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"3px 8px",fontSize:t.fs(9),color:t.text,fontWeight:600}}>{g.name}</div>)}</div>
           </div>}
           <div style={{display:"flex",gap:5}}>
-            <button onClick={()=>{removeFriend(f.id);setFriendProfileId(null);}} style={{flex:1,background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:9,padding:"8px",color:"#FF6B6B",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Remove Friend</button>
-            <button onClick={()=>setFriendProfileId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+            <button onClick={()=>{removeFriend(f.id);setFriendProfileId(null);}} style={{flex:1,background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:9,padding:"8px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>Remove Friend</button>
+            <button onClick={()=>setFriendProfileId(null)} style={{flex:1,background:"#818cf8",border:"none",borderRadius:9,padding:"8px",color:"#fff",fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>Close</button>
           </div>
         </div>
       </div>
@@ -2391,24 +2391,24 @@ const createGroup = async () => {
 
     {/* Tab bar */}
     <div style={{display:"flex",gap:3,background:t.pill,borderRadius:24,padding:3,overflowX:"auto"}}>
-      {[["public","🌍 Public"],["friends","👥 Friends"],["groups","🏫 Groups"],["live","👁 Live"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:9,whiteSpace:"nowrap"}}>{l}</button>)}
+      {[["public","🌍 Public"],["friends","👥 Friends"],["groups","🏫 Groups"],["live","👁 Live"],["board","🏆 Board"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 8px",borderRadius:19,border:"none",cursor:"pointer",fontFamily:"inherit",background:tab===tb?t.a5:t.pill,color:tab===tb?"#fff":t.sub,fontWeight:700,fontSize:t.fs(9),whiteSpace:"nowrap"}}>{l}</button>)}
     </div>
 
     {/* PUBLIC */}
     {tab==="public"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:13}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:11}}>Public Circle</div><div style={{color:t.sub,fontSize:9}}>{publicUsers.length} aspirants · Real-time streak board</div></div></div>
+      <div style={{background:"rgba(110,231,247,0.06)",border:"1px solid rgba(110,231,247,0.15)",borderRadius:10,padding:"8px 10px",display:"flex",gap:7,alignItems:"center"}}><div style={{fontSize:t.fs(13)}}>🌍</div><div><div style={{color:t.a2,fontWeight:700,fontSize:t.fs(11)}}>Public Circle</div><div style={{color:t.sub,fontSize:t.fs(9)}}>{publicUsers.length} aspirants · Real-time streak board</div></div></div>
       <div style={{background:`${t.a4}10`,border:`1.5px solid ${t.a4}38`,borderRadius:10,padding:"9px 10px",display:"flex",alignItems:"center",gap:8}}>
         <Av c={(user?.name||"K")[0].toUpperCase()} sz={32}/>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:12}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:8}}>(You)</span></div><div style={{color:t.sub,fontSize:9}}>📖 Studying</div></div>
-        <div style={{color:t.a1,fontWeight:900,fontSize:13}}>🔥 {streak}</div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:800,fontSize:t.fs(12)}}>{user?.name||"You"} <span style={{color:t.a4,fontSize:t.fs(8)}}>(You)</span></div><div style={{color:t.sub,fontSize:t.fs(9)}}>📖 Studying</div></div>
+        <div style={{color:t.a1,fontWeight:900,fontSize:t.fs(13)}}>🔥 {streak}</div>
       </div>
-      {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:11,textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=>{
+      {publicUsers.length===0?<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 10px",color:t.sub,fontSize:t.fs(11),textAlign:"center"}}>No activity yet</div>:publicUsers.map((f,i)=>{
         const sd=statusDisplay(f.status,f.subj);
         return<div key={f.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${f.studying?t.a3+"28":t.border}`,borderRadius:10,padding:"8px 10px"}}>
-        <div style={{fontSize:9,color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
+        <div style={{fontSize:t.fs(9),color:t.muted,width:14,textAlign:"center"}}>{i+1}</div>
         <div style={{position:"relative"}}><Av c={f.av} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}</div><div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label} · {f.city}</div></div>
-        <div style={{color:t.a1,fontWeight:800,fontSize:11}}>🔥 {f.streak}</div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{f.name}</div><div style={{color:t.sub,fontSize:t.fs(9)}}>{sd.icon} {sd.label} · {f.city}</div></div>
+        <div style={{color:t.a1,fontWeight:800,fontSize:t.fs(11)}}>🔥 {f.streak}</div>
       </div>;})}
     </div>}
 
@@ -2416,115 +2416,115 @@ const createGroup = async () => {
     {tab==="friends"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
       {/* My code */}
       <div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"11px 12px"}}>
-        <div style={{color:t.sub,fontSize:9,marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code</div>
-        <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:16,letterSpacing:2,marginBottom:7}}>{myFriendCode}</div>
+        <div style={{color:t.sub,fontSize:t.fs(9),marginBottom:4,textTransform:"uppercase",letterSpacing:1}}>Your Friend Code</div>
+        <div style={{color:"#818cf8",fontFamily:"monospace",fontWeight:900,fontSize:t.fs(16),letterSpacing:2,marginBottom:7}}>{myFriendCode}</div>
         <div style={{display:"flex",gap:5}}>
-          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Code</button>
-          <button onClick={()=>navigator.clipboard?.writeText(myInviteLink).catch(()=>{})} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🔗 Share Link</button>
+          <button onClick={()=>navigator.clipboard?.writeText(myFriendCode).catch(()=>{})} style={{flex:1,background:t.pill,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px",color:t.sub,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Code</button>
+          <button onClick={()=>navigator.clipboard?.writeText(myInviteLink).catch(()=>{})} style={{flex:1,background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.25)",borderRadius:8,padding:"6px",color:"#818cf8",fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>🔗 Share Link</button>
         </div>
       </div>
 
       {/* Send friend request */}
-      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Send Friend Request</button>
+      <button onClick={()=>setShowAddFriend(v=>!v)} style={{background:"linear-gradient(135deg,rgba(52,211,153,0.12),rgba(129,140,248,0.07))",border:"1px solid rgba(52,211,153,0.22)",borderRadius:10,padding:"9px 12px",color:"#34d399",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Send Friend Request</button>
       {showAddFriend&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"11px"}}>
-        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Send Request by Friend Code</div>
-        <input value={friendCode} onChange={e=>setFriendCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()} placeholder="SYNC-XXXXXXXX" style={{width:"100%",background:t.input,border:`1px solid ${addStatus==="error"?"#FF6B6B":addStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:addMsg?4:7,letterSpacing:1}}/>
-        {addMsg&&<div style={{fontSize:10,color:addStatus==="error"?"#FF6B6B":"#34d399",marginBottom:7,fontWeight:600}}>{addMsg}</div>}
+        <div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginBottom:6}}>Send Request by Friend Code</div>
+        <input value={friendCode} onChange={e=>setFriendCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()} placeholder="SYNC-XXXXXXXX" style={{width:"100%",background:t.input,border:`1px solid ${addStatus==="error"?"#FF6B6B":addStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"monospace",outline:"none",boxSizing:"border-box",marginBottom:addMsg?4:7,letterSpacing:1}}/>
+        {addMsg&&<div style={{fontSize:t.fs(10),color:addStatus==="error"?"#FF6B6B":"#34d399",marginBottom:7,fontWeight:600}}>{addMsg}</div>}
         <div style={{display:"flex",gap:5}}>
-          <button onClick={sendFriendRequest} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+          <button onClick={sendFriendRequest} disabled={addStatus==="loading"} style={{flex:1,background:addStatus==="done"?"#34d399":addStatus==="error"?"rgba(255,107,107,0.15)":addStatus==="loading"?t.pill:"linear-gradient(135deg,#34d399,#818cf8)",border:addStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px",color:addStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:t.fs(11),cursor:addStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
             {addStatus==="loading"?"Searching…":addStatus==="done"?"✓ Sent!":addStatus==="error"?"✗ Try Again":"Send Request"}
           </button>
-          <button onClick={()=>{setShowAddFriend(false);setFriendCode("");setAddStatus("");setAddMsg("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>{setShowAddFriend(false);setFriendCode("");setAddStatus("");setAddMsg("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
         </div>
-        <div style={{color:t.muted,fontSize:9,marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
+        <div style={{color:t.muted,fontSize:t.fs(9),marginTop:7,textAlign:"center"}}>Share your code above so others can add you too</div>
       </div>}
 
       {/* Requests */}
       {(incomingRequests.length>0||outgoingRequests.length>0)&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-        <div style={{fontSize:9,color:t.sub,textTransform:"uppercase",letterSpacing:1.5}}>Requests</div>
+        <div style={{fontSize:t.fs(9),color:t.sub,textTransform:"uppercase",letterSpacing:1.5}}>Requests</div>
         {incomingRequests.map(r=><div key={r.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:"1px solid rgba(52,211,153,0.25)",borderRadius:10,padding:"9px 11px"}}>
           <Av c={(r.name||"?")[0]} sz={30}/>
-          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:9}}>wants to be friends</div></div>
-          <button onClick={()=>acceptRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Accept"}</button>
-          <button onClick={()=>declineRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:t.fs(9)}}>wants to be friends</div></div>
+          <button onClick={()=>acceptRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(9),cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Accept"}</button>
+          <button onClick={()=>declineRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(9),cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
         </div>)}
         {outgoingRequests.map(r=><div key={r.id} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}>
           <Av c={(r.name||"?")[0]} sz={30}/>
-          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:9}}>Request pending…</div></div>
-          <button onClick={()=>cancelRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:9,cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Cancel"}</button>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{r.name||"Aspirant"}</div><div style={{color:t.sub,fontSize:t.fs(9)}}>Request pending…</div></div>
+          <button onClick={()=>cancelRequest(r.uid)} disabled={reqStatus[r.uid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:t.fs(9),cursor:reqStatus[r.uid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{reqStatus[r.uid]==="loading"?"…":"Cancel"}</button>
         </div>)}
       </div>}
 
-      {myFriendsLive.length>0&&<div style={{color:t.sub,fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Friends ({myFriendsLive.length})</div>}
-      {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"22px 0"}}>Add friends using a Friend Code</div>}
+      {myFriendsLive.length>0&&<div style={{color:t.sub,fontSize:t.fs(9),fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Friends ({myFriendsLive.length})</div>}
+      {myFriendsLive.length===0&&!showAddFriend&&<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"22px 0"}}>Add friends using a Friend Code</div>}
       {myFriendsSorted.map(f=>{
         const sd=statusDisplay(f.status,f.subject);
         return<div key={f.id} onClick={()=>setFriendProfileId(f.id)} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${f.online?t.a3+"28":t.border}`,borderRadius:11,padding:"10px 12px",cursor:"pointer"}}>
         <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={34}/><div style={{position:"absolute",bottom:1,right:1,width:8,height:8,borderRadius:"50%",background:f.online?t.a3:t.pill,border:`1.5px solid ${t.bg}`}}/></div>
         <div style={{flex:1}}>
-          <div style={{color:t.text,fontWeight:700,fontSize:12}}>{f.name||"Friend"}</div>
+          <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{f.name||"Friend"}</div>
           <div style={{display:"flex",gap:5,marginTop:2,alignItems:"center"}}>
-            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-            <span style={{color:f.status==="offline"?t.sub:t.a3,fontSize:9}}>{sd.icon} {sd.label}</span>
+            <span style={{color:t.a1,fontSize:t.fs(10)}}>🔥 {f.streak||0}</span>
+            <span style={{color:f.status==="offline"?t.sub:t.a3,fontSize:t.fs(9)}}>{sd.icon} {sd.label}</span>
           </div>
         </div>
-        <button onClick={(e)=>{e.stopPropagation();removeFriend(f.id);}} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
+        <button onClick={(e)=>{e.stopPropagation();removeFriend(f.id);}} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>Remove</button>
       </div>;})}
     </div>}
 
     {/* GROUPS */}
     {tab==="groups"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <button onClick={()=>setShowCreate(v=>!v)} style={{background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:10,padding:"9px 12px",color:"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Create New Group</button>
+      <button onClick={()=>setShowCreate(v=>!v)} style={{background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.22)",borderRadius:10,padding:"9px 12px",color:"#818cf8",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>+ Create New Group</button>
       {showCreate&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
-        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>New Study Group</div>
-        <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group name…" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
-        <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
+        <div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginBottom:6}}>New Study Group</div>
+        <input value={grpName} onChange={e=>setGrpName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createGroup()} placeholder="Group name…" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:6}}/>
+        <div style={{display:"flex",gap:5}}><button onClick={createGroup} style={{flex:1,background:"linear-gradient(135deg,#818cf8,#60a5fa)",border:"none",borderRadius:8,padding:"7px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Create</button><button onClick={()=>setShowCreate(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button></div>
       </div>}
 
       {/* Join by code — now sends a request, owner must accept (Issue #6 Part 1) */}
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"10px"}}>
-        <div style={{color:t.text,fontWeight:700,fontSize:11,marginBottom:6}}>Join a Group by Code</div>
+        <div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginBottom:6}}>Join a Group by Code</div>
         <div style={{display:"flex",gap:5}}>
-          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGroupByCode()} placeholder="GRP-XXX-0000" style={{flex:1,background:t.input,border:`1px solid ${joinStatus==="error"?"#FF6B6B":joinStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"monospace",outline:"none",letterSpacing:1}}/>
-          <button onClick={joinGroupByCode} disabled={joinStatus==="loading"} style={{background:joinStatus==="done"?"#34d399":joinStatus==="error"?"rgba(255,107,107,0.15)":"#818cf8",border:joinStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px 11px",color:joinStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==="Enter"&&joinGroupByCode()} placeholder="GRP-XXX-0000" style={{flex:1,background:t.input,border:`1px solid ${joinStatus==="error"?"#FF6B6B":joinStatus==="done"?"#34d399":t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"monospace",outline:"none",letterSpacing:1}}/>
+          <button onClick={joinGroupByCode} disabled={joinStatus==="loading"} style={{background:joinStatus==="done"?"#34d399":joinStatus==="error"?"rgba(255,107,107,0.15)":"#818cf8",border:joinStatus==="error"?"1px solid rgba(255,107,107,0.3)":"none",borderRadius:8,padding:"7px 11px",color:joinStatus==="error"?"#FF6B6B":"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>
             {joinStatus==="loading"?"…":joinStatus==="done"?"✓":"Send Request"}
           </button>
         </div>
-        {joinMsg&&<div style={{fontSize:10,color:joinStatus==="error"?"#FF6B6B":"#34d399",marginTop:5,fontWeight:600}}>{joinMsg}</div>}
+        {joinMsg&&<div style={{fontSize:t.fs(10),color:joinStatus==="error"?"#FF6B6B":"#34d399",marginTop:5,fontWeight:600}}>{joinMsg}</div>}
       </div>
 
       {/* Pending requests YOU sent — cancel available */}
       {outgoingGroupRequests.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
         {outgoingGroupRequests.map(r=><div key={r.gid} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}>
-          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{r.groupName||"Group"}</div><div style={{color:t.sub,fontSize:9}}>Request pending…</div></div>
-          <button onClick={()=>cancelGroupRequest(r.gid,r.ownerUid)} disabled={grpReqStatus[r.gid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:9,cursor:grpReqStatus[r.gid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[r.gid]==="loading"?"…":"Cancel"}</button>
+          <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{r.groupName||"Group"}</div><div style={{color:t.sub,fontSize:t.fs(9)}}>Request pending…</div></div>
+          <button onClick={()=>cancelGroupRequest(r.gid,r.ownerUid)} disabled={grpReqStatus[r.gid]==="loading"} style={{background:t.pill,border:"none",borderRadius:7,padding:"5px 9px",color:t.sub,fontWeight:700,fontSize:t.fs(9),cursor:grpReqStatus[r.gid]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[r.gid]==="loading"?"…":"Cancel"}</button>
         </div>)}
       </div>}
 
-      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"14px 0"}}>Create a study group or join one</div>}
+      {myGroups.length===0&&!showCreate&&<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"14px 0"}}>Create a study group or join one</div>}
       {myGroups.map(g=>{
         const groupRequests=incomingGroupRequests.filter(r=>r.gid===g.id);
         return<div key={g.id} style={{background:t.card,border:"1px solid rgba(129,140,248,0.16)",borderRadius:11,padding:"11px"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
-          <div><div style={{color:t.text,fontWeight:800,fontSize:12}}>{g.name}</div><div style={{color:t.sub,fontSize:9,marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
+          <div><div style={{color:t.text,fontWeight:800,fontSize:t.fs(12)}}>{g.name}</div><div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>{g.members.length} member{g.members.length!==1?"s":""}</div></div>
           <div style={{display:"flex",gap:4}}>
-            <button onClick={()=>setGrpQrId(g.id)} title="QR Code" style={{background:"rgba(129,140,248,0.1)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:8,padding:"4px 7px",color:"#818cf8",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>QR</button>
+            <button onClick={()=>setGrpQrId(g.id)} title="QR Code" style={{background:"rgba(129,140,248,0.1)",border:"1px solid rgba(129,140,248,0.2)",borderRadius:8,padding:"4px 7px",color:"#818cf8",fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>QR</button>
             {g.ownerUid===user?.uid?(
-              <button onClick={()=>deleteGroup(g.id,g.code)} title="Delete Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+              <button onClick={()=>deleteGroup(g.id,g.code)} title="Delete Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
             ):(
-              <button onClick={()=>leaveGroup(g.id)} title="Leave Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>Leave</button>
+              <button onClick={()=>leaveGroup(g.id)} title="Leave Group" style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.2)",borderRadius:8,padding:"4px 7px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>Leave</button>
             )}
           </div>
         </div>
         {/* Join requests awaiting THIS owner's decision (Issue #6 Part 1) */}
         {groupRequests.length>0&&<div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:8}}>
-          <div style={{color:t.a4,fontSize:9,fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>Join Requests ({groupRequests.length})</div>
+          <div style={{color:t.a4,fontSize:t.fs(9),fontWeight:800,textTransform:"uppercase",letterSpacing:0.5}}>Join Requests ({groupRequests.length})</div>
           {groupRequests.map(r=>{
             const key=`${g.id}|${r.uid}`;
             return<div key={r.uid} style={{display:"flex",alignItems:"center",gap:7,background:`${t.a4}0c`,border:`1px solid ${t.a4}28`,borderRadius:9,padding:"7px 9px"}}>
-              <div style={{flex:1,color:t.text,fontWeight:700,fontSize:11}}>{r.name||"Aspirant"}</div>
-              <button onClick={()=>acceptGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:9,cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[key]==="loading"?"…":"Accept"}</button>
-              <button onClick={()=>declineGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:9,cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
+              <div style={{flex:1,color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{r.name||"Aspirant"}</div>
+              <button onClick={()=>acceptGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"#34d399",border:"none",borderRadius:7,padding:"5px 9px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(9),cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>{grpReqStatus[key]==="loading"?"…":"Accept"}</button>
+              <button onClick={()=>declineGroupRequest(g.id,r.uid)} disabled={grpReqStatus[key]==="loading"} style={{background:"rgba(255,107,107,0.12)",border:"none",borderRadius:7,padding:"5px 9px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(9),cursor:grpReqStatus[key]==="loading"?"not-allowed":"pointer",fontFamily:"inherit"}}>Decline</button>
             </div>;
           })}
         </div>}
@@ -2532,41 +2532,41 @@ const createGroup = async () => {
           const label=m===user?.uid?(user?.name||"You"):(publicUsersById[m]||myFriends.find(f=>f.uid===m)?.name||"Aspirant");
           const isOwnerPill=m===g.ownerUid;
           const canRemove=g.ownerUid===user?.uid&&!isOwnerPill;
-          return<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:9,color:t.sub,fontWeight:600}}>
+          return<div key={i} style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:12,padding:"2px 7px",fontSize:t.fs(9),color:t.sub,fontWeight:600}}>
             <span>{isOwnerPill?"👑 ":""}{label}</span>
-            {canRemove&&<button onClick={()=>removeMemberFromGroup(g.id,m)} title="Remove member" style={{background:"none",border:"none",color:"#FF6B6B",fontWeight:800,fontSize:9,cursor:"pointer",fontFamily:"inherit",padding:0}}>Remove</button>}
+            {canRemove&&<button onClick={()=>removeMemberFromGroup(g.id,m)} title="Remove member" style={{background:"none",border:"none",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit",padding:0}}>Remove</button>}
           </div>;
         })}</div>
         {/* Add member — friends dropdown + free text */}
         {addMemberGrpId===g.id?(
           <div style={{marginBottom:7}}>
-            {myFriends.length>0&&<select value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontFamily:"inherit",fontSize:10,marginBottom:5,cursor:"pointer"}}>
+            {myFriends.length>0&&<select value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontFamily:"inherit",fontSize:t.fs(10),marginBottom:5,cursor:"pointer"}}>
               <option value="">— Select a friend or type below —</option>
               {myFriends.filter(f=>!g.memberUids?.includes(f.uid)).map(f=><option key={f.id} value={f.name}>{f.name}</option>)}
             </select>}
             <div style={{display:"flex",gap:5}}>
-              <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none"}}/>
-              <button onClick={()=>addMemberToGroup(g.id)} disabled={addMemberStatus==="loading"} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:10,cursor:addMemberStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
+              <input value={addMemberSel} onChange={e=>setAddMemberSel(e.target.value)} placeholder="Or type any name…" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"6px 8px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none"}}/>
+              <button onClick={()=>addMemberToGroup(g.id)} disabled={addMemberStatus==="loading"} style={{background:addMemberStatus==="done"?"#34d399":addMemberStatus==="error"?"#FF6B6B":"#818cf8",border:"none",borderRadius:8,padding:"6px 10px",color:"#fff",fontWeight:800,fontSize:t.fs(10),cursor:addMemberStatus==="loading"?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .3s"}}>
                 {addMemberStatus==="loading"?"…":addMemberStatus==="done"?"✓":addMemberStatus==="error"?"✗":addMemberStatus==="exists"?"Exists!":"Add"}
               </button>
-              <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+              <button onClick={()=>{setAddMemberGrpId(null);setAddMemberSel("");setAddMemberStatus("");}} style={{background:t.pill,border:"none",borderRadius:8,padding:"6px 8px",color:t.sub,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
             </div>
           </div>
         ):(
-          <button onClick={()=>{setAddMemberGrpId(g.id);setAddMemberSel("");setAddMemberStatus("");}} style={{width:"100%",background:`${t.a3}10`,border:`1px solid ${t.a3}28`,borderRadius:8,padding:"5px",color:t.a3,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>+ Add Member</button>
+          <button onClick={()=>{setAddMemberGrpId(g.id);setAddMemberSel("");setAddMemberStatus("");}} style={{width:"100%",background:`${t.a3}10`,border:`1px solid ${t.a3}28`,borderRadius:8,padding:"5px",color:t.a3,fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit",marginBottom:7}}>+ Add Member</button>
         )}
         <div style={{display:"flex",alignItems:"center",gap:5,background:t.pill,borderRadius:6,padding:"4px 7px"}}>
-          <div style={{color:t.muted,fontSize:9}}>Code:</div>
-          <div style={{color:"#818cf8",fontSize:9,fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div>
-          <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:9,fontFamily:"inherit",fontWeight:700}}>QR 📱</button>
-          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:10,fontFamily:"inherit"}}>📋</button>
+          <div style={{color:t.muted,fontSize:t.fs(9)}}>Code:</div>
+          <div style={{color:"#818cf8",fontSize:t.fs(9),fontFamily:"monospace",fontWeight:700,flex:1}}>{g.code}</div>
+          <button onClick={()=>setGrpQrId(g.id)} style={{background:"none",border:"none",color:"#818cf8",cursor:"pointer",fontSize:t.fs(9),fontFamily:"inherit",fontWeight:700}}>QR 📱</button>
+          <button onClick={()=>navigator.clipboard?.writeText(g.code).catch(()=>{})} style={{background:"none",border:"none",color:t.sub,cursor:"pointer",fontSize:t.fs(10),fontFamily:"inherit"}}>📋</button>
         </div>
       </div>;})}
     </div>}
 
     {/* LIVE */}
     {tab==="live"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
+      <div style={{background:"rgba(184,255,107,0.06)",border:"1px solid rgba(184,255,107,0.15)",borderRadius:10,padding:"7px 10px",fontSize:t.fs(9),color:t.a3,fontWeight:700}}>👁 Live — friends currently studying</div>
       {(()=>{
         // Issue #6 Part 3: Live tab shows who's ACTUALLY studying right now, matching
         // its own header copy — not the full friend list with a badge bolted on.
@@ -2581,18 +2581,18 @@ const createGroup = async () => {
         // friends already read correctly — no new listener, no new Firebase path.
         const myLive=presenceByUid[user?.uid]||{status:"offline",subject:null};
         const meRow={id:"me",name:user?.name||"You",av:(user?.name||"K")[0],online:true,status:myLive.status,subject:myLive.subject,streak};
-        if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:10,textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
+        if(studyingFriends.length===0)return<div style={{color:t.muted,fontSize:t.fs(10),textAlign:"center",padding:"12px 0"}}>Nobody is studying right now</div>;
         return[meRow,...studyingFriends].map(f=>{
           const sd=statusDisplay(f.status,f.subject);
           return<div key={f.id||f.uid} style={{display:"flex",alignItems:"center",gap:8,background:f.online?`${t.a3}07`:t.card,border:`1px solid ${f.online?t.a3+"26":t.border}`,borderRadius:10,padding:"8px 10px"}}>
           <div style={{position:"relative"}}><Av c={(f.name||"?")[0]} sz={30}/><div style={{position:"absolute",bottom:1,right:1,width:7,height:7,borderRadius:"50%",background:f.status==="offline"?t.pill:t.a3,border:`1.5px solid ${t.bg}`}}/></div>
           <div style={{flex:1}}>
-            <div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div>
-            <div style={{color:t.sub,fontSize:9}}>{sd.icon} {sd.label}</div>
+            <div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{f.name}{f.id==="me"&&<span style={{color:t.a4,fontSize:t.fs(8)}}> (You)</span>}</div>
+            <div style={{color:t.sub,fontSize:t.fs(9)}}>{sd.icon} {sd.label}</div>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:5}}>
-            <span style={{color:t.a1,fontSize:10}}>🔥 {f.streak||0}</span>
-            {f.status==="studying"&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:8,fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
+            <span style={{color:t.a1,fontSize:t.fs(10)}}>🔥 {f.streak||0}</span>
+            {f.status==="studying"&&<div style={{background:`${t.a3}18`,color:t.a3,fontSize:t.fs(8),fontWeight:800,padding:"2px 6px",borderRadius:11}}>LIVE</div>}
           </div>
         </div>;});
       })()}
@@ -2600,12 +2600,12 @@ const createGroup = async () => {
 
     {/* BOARD */}
     {tab==="board"&&<div style={{display:"flex",flexDirection:"column",gap:5}}>
-      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:9,color:t.a4,fontWeight:700}}>🏆 Weekly leaderboard — hours studied this week</div>
+      <div style={{background:"rgba(255,230,109,0.06)",border:"1px solid rgba(255,230,109,0.15)",borderRadius:10,padding:"7px 10px",fontSize:t.fs(9),color:t.a4,fontWeight:700}}>🏆 Weekly leaderboard — hours studied this week</div>
       {LB.map(f=><div key={f.name} style={{display:"flex",alignItems:"center",gap:8,background:f.name===(user?.name||"You")?`${t.a4}07`:t.card,border:`1px solid ${f.name===(user?.name||"You")?t.a4+"28":t.border}`,borderRadius:10,padding:"9px 10px"}}>
-        <div style={{fontSize:14,width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:10}}>#{f.r}</span>}</div>
+        <div style={{fontSize:t.fs(14),width:20,textAlign:"center"}}>{f.r===1?"🥇":f.r===2?"🥈":f.r===3?"🥉":<span style={{color:t.muted,fontSize:t.fs(10)}}>#{f.r}</span>}</div>
         <Av c={f.av} sz={30}/>
-        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:11}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:8}}> (You)</span>}</div><div style={{color:t.sub,fontSize:9}}>🔥 {f.s} day streak</div></div>
-        <div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:13}}>{f.h}h</div><div style={{color:t.muted,fontSize:8}}>this week</div></div>
+        <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11)}}>{f.name}{f.name===(user?.name||"You")&&<span style={{color:t.a4,fontSize:t.fs(8)}}> (You)</span>}</div><div style={{color:t.sub,fontSize:t.fs(9)}}>🔥 {f.s} day streak</div></div>
+        <div style={{textAlign:"right"}}><div style={{color:t.a2,fontWeight:900,fontSize:t.fs(13)}}>{f.h}h</div><div style={{color:t.muted,fontSize:t.fs(8)}}>this week</div></div>
       </div>)}
     </div>}
   </div>);
@@ -2691,53 +2691,53 @@ function Report({t,es,user,streak}){
 
   return(<div className="ss-feature-grid" style={{display:"flex",flexDirection:"column",gap:13}}>
     <div style={{display:"flex",gap:4,background:t.pill,borderRadius:24,padding:3,alignSelf:"flex-start"}}>
-      {[["stats","Stats"],["calendar","Calendar"],["subjects","Subjects"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:19,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}
+      {[["stats","Stats"],["calendar","Calendar"],["subjects","Subjects"]].map(([v,l])=><button key={v} onClick={()=>setView(v)} style={{padding:"5px 12px",borderRadius:19,border:"none",background:view===v?"#818cf8":t.pill,color:view===v?"#fff":t.sub,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}
     </div>
 
     {/* STATS VIEW */}
     {view==="stats"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
         {[{l:"Total Sessions",v:String(totalSessions),c:"#818cf8",i:"⏱"},{l:"Total Hours",v:`${totalHours}h ${totalMinutes%60}m`,c:"#34d399",i:"🕐"},{l:"Today",v:`${todayMinutes}m`,c:"#FFB86B",i:"📅"},{l:"This Week",v:`${Math.round(weekMinutes/60*10)/10}h`,c:"#6EE7F7",i:"📊"},{l:"This Month",v:`${Math.round(monthMinutes/60*10)/10}h`,c:"#C16BFF",i:"📆"},{l:"Current Streak",v:`${streak}🔥`,c:"#FF6B6B",i:"🔥"},{l:"Longest Streak",v:`${longest}d`,c:"#FFD700",i:"🏆"},{l:"Avg/Day",v:totalSessions>0?`${Math.round(totalMinutes/Math.max(new Set(sessions.map(s=>s.date)).size,1))}m`:"0m",c:"#34d399",i:"📈"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${s.c}22`,borderRadius:12,padding:"11px 10px"}}>
-          <div style={{fontSize:18,marginBottom:4}}>{s.i}</div>
-          <div style={{fontSize:20,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
-          <div style={{fontSize:9,color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
+          <div style={{fontSize:t.fs(18),marginBottom:4}}>{s.i}</div>
+          <div style={{fontSize:t.fs(20),fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+          <div style={{fontSize:t.fs(9),color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
         </div>)}
       </div>
       {totalSessions===0&&<div style={{background:"rgba(129,140,248,0.06)",border:"1px solid rgba(129,140,248,0.15)",borderRadius:11,padding:"14px",textAlign:"center"}}>
-        <div style={{fontSize:28,marginBottom:6}}>⏱</div>
-        <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No sessions yet</div>
-        <div style={{color:t.sub,fontSize:11}}>Complete a Pomodoro session to see your stats here!</div>
+        <div style={{fontSize:t.fs(28),marginBottom:6}}>⏱</div>
+        <div style={{color:t.text,fontWeight:700,fontSize:t.fs(13),marginBottom:4}}>No sessions yet</div>
+        <div style={{color:t.sub,fontSize:t.fs(11)}}>Complete a Pomodoro session to see your stats here!</div>
       </div>}
     </div>}
 
     {/* CALENDAR VIEW */}
     {view==="calendar"&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-        <div style={{fontSize:8,color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar — Last 5 Weeks · Tap a day</div>
-        <div style={{display:"flex",gap:5,marginBottom:7}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:7,color:t.muted}}>{d}</div>)}</div>
+        <div style={{fontSize:t.fs(8),color:t.sub,marginBottom:9,textTransform:"uppercase",letterSpacing:1.5}}>Study Calendar — Last 5 Weeks · Tap a day</div>
+        <div style={{display:"flex",gap:5,marginBottom:7}}>{["S","M","T","W","T","F","S"].map((d,i)=><div key={i} style={{flex:1,textAlign:"center",fontSize:t.fs(7),color:t.muted}}>{d}</div>)}</div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}}>
           {calDays.map((d,i)=><div key={i} onClick={()=>setSelDate(d.dateStr===selDate?null:d.dateStr)} title={`${d.dateStr}: ${d.hrs}h`} style={{aspectRatio:"1",borderRadius:4,background:selDate===d.dateStr?"#818cf8":heatColor(d.hrs),border:`1.5px solid ${selDate===d.dateStr?"#818cf8":t.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",transition:"all .15s"}}>
-            {d.count>0&&<div style={{fontSize:7,color:selDate===d.dateStr||d.hrs>=1?"#fff":t.sub,fontWeight:700}}>{d.count}</div>}
+            {d.count>0&&<div style={{fontSize:t.fs(7),color:selDate===d.dateStr||d.hrs>=1?"#fff":t.sub,fontWeight:700}}>{d.count}</div>}
           </div>)}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8,justifyContent:"center"}}>
-          <span style={{color:t.muted,fontSize:8}}>Less</span>
+          <span style={{color:t.muted,fontSize:t.fs(8)}}>Less</span>
           {[0,0.5,1,2,3.5].map(h=><div key={h} style={{width:11,height:11,borderRadius:3,background:heatColor(h),border:`1px solid ${t.border}`}}/>)}
-          <span style={{color:t.muted,fontSize:8}}>More</span>
+          <span style={{color:t.muted,fontSize:t.fs(8)}}>More</span>
         </div>
       </div>
       {/* Selected date detail */}
       {selDate&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.2)",borderRadius:12,padding:"12px"}}>
-        <div style={{color:"#818cf8",fontWeight:800,fontSize:12,marginBottom:8}}>📅 {selDate}</div>
-        {selSessions.length===0?<div style={{color:t.sub,fontSize:11}}>No study sessions on this day.</div>:
+        <div style={{color:"#818cf8",fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>📅 {selDate}</div>
+        {selSessions.length===0?<div style={{color:t.sub,fontSize:t.fs(11)}}>No study sessions on this day.</div>:
         <div style={{display:"flex",flexDirection:"column",gap:6}}>
           <div style={{display:"flex",gap:10,marginBottom:4}}>
-            <div style={{textAlign:"center"}}><div style={{color:t.text,fontWeight:900,fontSize:16}}>{selSessions.length}</div><div style={{color:t.sub,fontSize:8}}>Sessions</div></div>
-            <div style={{textAlign:"center"}}><div style={{color:"#34d399",fontWeight:900,fontSize:16}}>{selMins}m</div><div style={{color:t.sub,fontSize:8}}>Focus Time</div></div>
+            <div style={{textAlign:"center"}}><div style={{color:t.text,fontWeight:900,fontSize:t.fs(16)}}>{selSessions.length}</div><div style={{color:t.sub,fontSize:t.fs(8)}}>Sessions</div></div>
+            <div style={{textAlign:"center"}}><div style={{color:"#34d399",fontWeight:900,fontSize:t.fs(16)}}>{selMins}m</div><div style={{color:t.sub,fontSize:t.fs(8)}}>Focus Time</div></div>
           </div>
           {selSessions.map((s,i)=><div key={i} style={{background:t.pill,borderRadius:8,padding:"6px 9px",display:"flex",justifyContent:"space-between"}}>
-            <span style={{color:t.text,fontSize:10,fontWeight:600}}>📖 {s.subject||"General"}</span>
-            <span style={{color:t.sub,fontSize:9}}>{s.minutes}m</span>
+            <span style={{color:t.text,fontSize:t.fs(10),fontWeight:600}}>📖 {s.subject||"General"}</span>
+            <span style={{color:t.sub,fontSize:t.fs(9)}}>{s.minutes}m</span>
           </div>)}
         </div>}
       </div>}
@@ -2745,7 +2745,7 @@ function Report({t,es,user,streak}){
 
     {/* SUBJECTS VIEW */}
     {view==="subjects"&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {subjArr.length===0?<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Complete sessions to see subject breakdown!</div>:
+      {subjArr.length===0?<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"20px 0"}}>Complete sessions to see subject breakdown!</div>:
       subjArr.map(([subj,mins],i)=>{
         const hrs=Math.round(mins/60*10)/10;
         const pct=Math.round((mins/totalMinutes)*100);
@@ -2753,11 +2753,11 @@ function Report({t,es,user,streak}){
         const c=cols[i%cols.length];
         return(<div key={subj} style={{background:t.card,border:`1px solid ${c}20`,borderRadius:11,padding:"10px 11px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{color:t.text,fontWeight:700,fontSize:12}}>{subj}</div>
-            <div style={{color:c,fontWeight:900,fontSize:14}}>{hrs}h</div>
+            <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{subj}</div>
+            <div style={{color:c,fontWeight:900,fontSize:t.fs(14)}}>{hrs}h</div>
           </div>
           <div style={{height:4,background:t.pill,borderRadius:2,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${pct}%`,background:c,borderRadius:2,transition:"width .5s ease"}}/></div>
-          <div style={{color:t.muted,fontSize:8}}>{pct}% of total · {sessions.filter(s=>s.subject===subj).length} sessions</div>
+          <div style={{color:t.muted,fontSize:t.fs(8)}}>{pct}% of total · {sessions.filter(s=>s.subject===subj).length} sessions</div>
         </div>);
       })}
     </div>}
@@ -2765,10 +2765,10 @@ function Report({t,es,user,streak}){
     {/* AI Report */}
     <div style={{background:"rgba(129,140,248,0.07)",border:"1px solid rgba(129,140,248,0.18)",borderRadius:12,padding:13}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:rep?9:0}}>
-        <div style={{color:"#818cf8",fontWeight:700,fontSize:12}}>✨ AI Coaching Report</div>
-        <button onClick={gen} disabled={ld} style={{background:ld?t.pill:"#818cf8",border:"none",borderRadius:8,padding:"5px 11px",color:ld?"#818cf8":"#fff",fontWeight:700,fontSize:10,cursor:ld?"not-allowed":"pointer",fontFamily:"inherit"}}>{ld?"Generating…":"Generate"}</button>
+        <div style={{color:"#818cf8",fontWeight:700,fontSize:t.fs(12)}}>✨ AI Coaching Report</div>
+        <button onClick={gen} disabled={ld} style={{background:ld?t.pill:"#818cf8",border:"none",borderRadius:8,padding:"5px 11px",color:ld?"#818cf8":"#fff",fontWeight:700,fontSize:t.fs(10),cursor:ld?"not-allowed":"pointer",fontFamily:"inherit"}}>{ld?"Generating…":"Generate"}</button>
       </div>
-      {rep?<div style={{color:t.text,fontSize:11,lineHeight:1.85,marginTop:4}}>{rep}</div>:<div style={{color:t.sub,fontSize:10,fontStyle:"italic",marginTop:4}}>Hit Generate for your personalized AI coaching insight.</div>}
+      {rep?<div style={{color:t.text,fontSize:t.fs(11),lineHeight:1.85,marginTop:4}}>{rep}</div>:<div style={{color:t.sub,fontSize:t.fs(10),fontStyle:"italic",marginTop:4}}>Hit Generate for your personalized AI coaching insight.</div>}
     </div>
   </div>);
 }
@@ -2790,14 +2790,14 @@ function AI({t,subjects,customSubjects}){
     setMsgs(m=>[...m,{r:"a",text:result}]);setLd(false);
   };
   return(<div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 210px)",minHeight:285}}>
-    <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:7}}>{["General",...allSubjects.slice(0,5).map(s=>s.n)].map(s=><button key={s} onClick={()=>setSubj(s)} style={{padding:"2px 7px",borderRadius:12,border:`1.5px solid ${subj===s?"#818cf8":"transparent"}`,background:subj===s?"rgba(129,140,248,0.13)":t.pill,color:subj===s?"#818cf8":t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>
+    <div style={{display:"flex",gap:3,flexWrap:"wrap",marginBottom:7}}>{["General",...allSubjects.slice(0,5).map(s=>s.n)].map(s=><button key={s} onClick={()=>setSubj(s)} style={{padding:"2px 7px",borderRadius:12,border:`1.5px solid ${subj===s?"#818cf8":"transparent"}`,background:subj===s?"rgba(129,140,248,0.13)":t.pill,color:subj===s?"#818cf8":t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>)}</div>
     <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:7}}>
-      {msgs.map((m,i)=><div key={i} style={{display:"flex",flexDirection:m.r==="u"?"row-reverse":"row",gap:4,alignItems:"flex-end"}}>{m.r==="a"&&<div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,flexShrink:0}}>🤖</div>}<div style={{background:m.r==="u"?"linear-gradient(135deg,#818cf8,#60a5fa)":t.card,border:m.r==="a"?"1px solid rgba(129,140,248,0.14)":"none",color:m.r==="u"?"#fff":t.text,borderRadius:m.r==="u"?"13px 13px 4px 13px":"13px 13px 13px 4px",padding:"8px 10px",fontSize:11,maxWidth:"83%",lineHeight:1.6}}>{m.text}</div></div>)}
-      {ld&&<div style={{display:"flex",gap:4,alignItems:"flex-end"}}><div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10}}>🤖</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:"13px 13px 13px 4px",padding:"8px 11px",display:"flex",gap:3}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:"#818cf8",opacity:.6,animation:`bounce .9s ${i*.15}s infinite`}}/>)}</div></div>}
+      {msgs.map((m,i)=><div key={i} style={{display:"flex",flexDirection:m.r==="u"?"row-reverse":"row",gap:4,alignItems:"flex-end"}}>{m.r==="a"&&<div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:t.fs(10),flexShrink:0}}>🤖</div>}<div style={{background:m.r==="u"?"linear-gradient(135deg,#818cf8,#60a5fa)":t.card,border:m.r==="a"?"1px solid rgba(129,140,248,0.14)":"none",color:m.r==="u"?"#fff":t.text,borderRadius:m.r==="u"?"13px 13px 4px 13px":"13px 13px 13px 4px",padding:"8px 10px",fontSize:t.fs(11),maxWidth:"83%",lineHeight:1.6}}>{m.text}</div></div>)}
+      {ld&&<div style={{display:"flex",gap:4,alignItems:"flex-end"}}><div style={{width:22,height:22,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:t.fs(10)}}>🤖</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:"13px 13px 13px 4px",padding:"8px 11px",display:"flex",gap:3}}>{[0,1,2].map(i=><div key={i} style={{width:5,height:5,borderRadius:"50%",background:"#818cf8",opacity:.6,animation:`bounce .9s ${i*.15}s infinite`}}/>)}</div></div>}
       <div ref={endRef}/>
     </div>
-    <div style={{display:"flex",gap:3,flexWrap:"wrap",margin:"5px 0 4px"}}>{qp.map(q=><button key={q} onClick={()=>send(q)} style={{padding:"2px 7px",borderRadius:12,border:"1px solid rgba(129,140,248,0.18)",background:"rgba(129,140,248,0.05)",color:"#818cf8",fontSize:9,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>)}</div>
-    <div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask anything…" style={{flex:1,background:t.input,border:"1px solid rgba(129,140,248,0.18)",borderRadius:17,padding:"8px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/><button onClick={()=>send()} disabled={ld||!inp.trim()} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:17,padding:"8px 13px",color:"#fff",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:12,opacity: ld || !inp.trim() ? 0.5 : 1}}>↑</button></div>
+    <div style={{display:"flex",gap:3,flexWrap:"wrap",margin:"5px 0 4px"}}>{qp.map(q=><button key={q} onClick={()=>send(q)} style={{padding:"2px 7px",borderRadius:12,border:"1px solid rgba(129,140,248,0.18)",background:"rgba(129,140,248,0.05)",color:"#818cf8",fontSize:t.fs(9),fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{q}</button>)}</div>
+    <div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="Ask anything…" style={{flex:1,background:t.input,border:"1px solid rgba(129,140,248,0.18)",borderRadius:17,padding:"8px 11px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/><button onClick={()=>send()} disabled={ld||!inp.trim()} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:17,padding:"8px 13px",color:"#fff",fontWeight:800,cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(12),opacity: ld || !inp.trim() ? 0.5 : 1}}>↑</button></div>
   </div>);
 }
 
@@ -2906,12 +2906,12 @@ function Notes({t,subjects,customSubjects,es,user}){
     {/* Delete confirmation */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
-        <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this card?</div>
-        <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
+        <div style={{fontSize:t.fs(24),marginBottom:8}}>🗑️</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:t.fs(14),marginBottom:4}}>Delete this card?</div>
+        <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:16}}>This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>deleteCard(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>deleteCard(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
         </div>
       </div>
     </div>}
@@ -2919,79 +2919,79 @@ function Notes({t,subjects,customSubjects,es,user}){
     {/* Header row */}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
       <div>
-        <div style={{color:t.text,fontWeight:900,fontSize:14}}>🃏 Active Recall</div>
-        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {cards.length} card{cards.length!==1?"s":""}</div>
+        <div style={{color:t.text,fontWeight:900,fontSize:t.fs(14)}}>🃏 Active Recall</div>
+        <div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>{examKey} · {examMode} · {cards.length} card{cards.length!==1?"s":""}</div>
       </div>
       <div style={{display:"flex",gap:5}}>
-        {cards.length>0&&<button onClick={()=>{setReviewMode(true);setReviewIdx(0);setReviewRevealed(false);}} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>▶ Review</button>}
-        <button onClick={()=>{setAdding(v=>!v);setEditId(null);}} style={{background:adding?"#818cf8":t.pill,border:"none",borderRadius:9,padding:"6px 11px",color:adding?"#fff":t.sub,fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>+ Card</button>
+        {cards.length>0&&<button onClick={()=>{setReviewMode(true);setReviewIdx(0);setReviewRevealed(false);}} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"6px 11px",color:"#fff",fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>▶ Review</button>}
+        <button onClick={()=>{setAdding(v=>!v);setEditId(null);}} style={{background:adding?"#818cf8":t.pill,border:"none",borderRadius:9,padding:"6px 11px",color:adding?"#fff":t.sub,fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>+ Card</button>
       </div>
     </div>
 
     {/* Subject pills */}
     <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-      {allSubjects.map(s=><button key={s.n} onClick={()=>{setSelSubj(s.n);setReviewMode(false);setSearch("");setAdding(false);setEditId(null);}} style={{padding:"3px 8px",borderRadius:13,border:`1.5px solid ${selSubj===s.n?s.c:"transparent"}`,background:selSubj===s.n?`${s.c}18`:t.pill,color:selSubj===s.n?s.c:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+      {allSubjects.map(s=><button key={s.n} onClick={()=>{setSelSubj(s.n);setReviewMode(false);setSearch("");setAdding(false);setEditId(null);}} style={{padding:"3px 8px",borderRadius:13,border:`1.5px solid ${selSubj===s.n?s.c:"transparent"}`,background:selSubj===s.n?`${s.c}18`:t.pill,color:selSubj===s.n?s.c:t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
     </div>
 
     {/* Review mode */}
     {reviewMode&&reviewCard&&<div style={{display:"flex",flexDirection:"column",gap:9}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{color:t.sub,fontSize:10}}>{reviewIdx+1} / {reviewCards.length}</div>
-        <button onClick={()=>setReviewMode(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:t.sub,fontSize:9,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Exit Review</button>
+        <div style={{color:t.sub,fontSize:t.fs(10)}}>{reviewIdx+1} / {reviewCards.length}</div>
+        <button onClick={()=>setReviewMode(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"4px 9px",color:t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>✕ Exit Review</button>
       </div>
       <div style={{display:"flex",gap:2,marginBottom:2}}>
         {reviewCards.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:i<reviewIdx?"#34d399":i===reviewIdx?(sc.c||"#818cf8"):t.pill,transition:"background .3s"}}/>)}
       </div>
       <div onClick={()=>setReviewRevealed(v=>!v)} style={{background:t.card,border:`2px solid ${reviewRevealed?(sc.c||"#818cf8")+"55":t.border}`,borderRadius:16,padding:"22px 16px",minHeight:160,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",gap:10,transition:"all .3s",userSelect:"none"}}>
-        <div style={{fontSize:8,color:t.muted,textTransform:"uppercase",letterSpacing:1.5}}>{reviewRevealed?"ANSWER":"QUESTION — tap to reveal"}</div>
-        <div style={{color:t.text,fontSize:14,fontWeight:700,lineHeight:1.6}}>{reviewRevealed?reviewCard.answer:reviewCard.question}</div>
-        {!reviewRevealed&&<div style={{fontSize:20,opacity:.25}}>👆</div>}
+        <div style={{fontSize:t.fs(8),color:t.muted,textTransform:"uppercase",letterSpacing:1.5}}>{reviewRevealed?"ANSWER":"QUESTION — tap to reveal"}</div>
+        <div style={{color:t.text,fontSize:t.fs(14),fontWeight:700,lineHeight:1.6}}>{reviewRevealed?reviewCard.answer:reviewCard.question}</div>
+        {!reviewRevealed&&<div style={{fontSize:t.fs(20),opacity:.25}}>👆</div>}
       </div>
       {reviewRevealed&&<div style={{display:"flex",gap:6,justifyContent:"center"}}>
         {[["Again","#FF6B6B"],["Hard","#FFB86B"],["Good","#34d399"]].map(([l,c])=>(
           <button key={l} onClick={()=>{
             const next=(reviewIdx+1)%reviewCards.length;
             setReviewIdx(next);setReviewRevealed(false);
-          }} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:`${c}18`,color:c,fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          }} style={{flex:1,padding:"8px",borderRadius:10,border:"none",background:`${c}18`,color:c,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
       </div>}
       {!reviewRevealed&&<div style={{display:"flex",gap:6}}>
-        <button onClick={()=>{setReviewIdx(i=>(i-1+reviewCards.length)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>← Prev</button>
-        <button onClick={()=>{setReviewIdx(i=>(i+1)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Next →</button>
+        <button onClick={()=>{setReviewIdx(i=>(i-1+reviewCards.length)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>← Prev</button>
+        <button onClick={()=>{setReviewIdx(i=>(i+1)%reviewCards.length);setReviewRevealed(false);}} style={{flex:1,background:t.pill,border:"none",borderRadius:9,padding:"8px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Next →</button>
       </div>}
     </div>}
 
     {/* Add card form */}
     {!reviewMode&&adding&&<div style={{background:t.card,border:`1px solid ${sc.c}44`,borderRadius:13,padding:"12px"}}>
-      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:9}}>New Card · {selSubj}</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12),marginBottom:9}}>New Card · {selSubj}</div>
       <div style={{display:"flex",flexDirection:"column",gap:6}}>
         <div>
-          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Question</div>
-          <input value={newQ} onChange={e=>setNewQ(e.target.value)} placeholder="e.g. What is Article 32?" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Question</div>
+          <input value={newQ} onChange={e=>setNewQ(e.target.value)} placeholder="e.g. What is Article 32?" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div>
-          <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Answer</div>
-          <textarea value={newA} onChange={e=>setNewA(e.target.value)} placeholder="e.g. Right to Constitutional Remedies" rows={2} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
+          <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Answer</div>
+          <textarea value={newA} onChange={e=>setNewA(e.target.value)} placeholder="e.g. Right to Constitutional Remedies" rows={2} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <button onClick={saveCard} disabled={saving||!newQ.trim()||!newA.trim()} style={{flex:1,background:saving||!newQ.trim()||!newA.trim()?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!newQ.trim()||!newA.trim()?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving||!newQ.trim()||!newA.trim()?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Card"}</button>
-          <button onClick={()=>{setAdding(false);setNewQ("");setNewA("");}} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={saveCard} disabled={saving||!newQ.trim()||!newA.trim()} style={{flex:1,background:saving||!newQ.trim()||!newA.trim()?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving||!newQ.trim()||!newA.trim()?t.sub:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:saving||!newQ.trim()||!newA.trim()?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Card"}</button>
+          <button onClick={()=>{setAdding(false);setNewQ("");setNewA("");}} style={{background:t.pill,border:"none",borderRadius:9,padding:"9px 13px",color:t.sub,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
         </div>
       </div>
     </div>}
 
     {/* Search */}
-    {!reviewMode&&cards.length>2&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search cards…" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 11px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>}
+    {!reviewMode&&cards.length>2&&<input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search cards…" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 11px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>}
 
     {/* Card list */}
     {!reviewMode&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading cards…</div>}
+      {loading&&<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"20px 0"}}>Loading cards…</div>}
       {!loading&&filtered.length===0&&!adding&&(
         <div style={{background:`${sc.c}08`,border:`1px dashed ${sc.c}30`,borderRadius:13,padding:"22px",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>🃏</div>
-          <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>{search?"No matching cards":"No cards yet"}</div>
-          <div style={{color:t.sub,fontSize:11,marginBottom:12}}>{search?"Try a different search term":`Add your first card for ${selSubj}`}</div>
-          {!search&&<button onClick={()=>setAdding(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Create First Card</button>}
+          <div style={{fontSize:t.fs(28),marginBottom:8}}>🃏</div>
+          <div style={{color:t.text,fontWeight:700,fontSize:t.fs(13),marginBottom:4}}>{search?"No matching cards":"No cards yet"}</div>
+          <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:12}}>{search?"Try a different search term":`Add your first card for ${selSubj}`}</div>
+          {!search&&<button onClick={()=>setAdding(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>+ Create First Card</button>}
         </div>
       )}
       {filtered.map(card=>{
@@ -3001,12 +3001,12 @@ function Notes({t,subjects,customSubjects,es,user}){
           <div key={card.id} style={{background:t.card,border:`1px solid ${isRevealed?sc.c+"40":t.border}`,borderRadius:12,padding:"11px 12px",transition:"border .2s"}}>
             {isEditing?(
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Edit Card</div>
-                <input value={editQ} onChange={e=>setEditQ(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-                <textarea value={editA} onChange={e=>setEditA(e.target.value)} rows={2} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none",resize:"vertical"}}/>
+                <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1}}>Edit Card</div>
+                <input value={editQ} onChange={e=>setEditQ(e.target.value)} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+                <textarea value={editA} onChange={e=>setEditA(e.target.value)} rows={2} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none",resize:"vertical"}}/>
                 <div style={{display:"flex",gap:5}}>
-                  <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                  <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 10px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                  <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 10px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                 </div>
               </div>
             ):(
@@ -3014,24 +3014,24 @@ function Notes({t,subjects,customSubjects,es,user}){
                 {/* Question row */}
                 <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:isRevealed?8:0}}>
                   <div style={{flex:1}}>
-                    <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Q</div>
-                    <div style={{color:t.text,fontSize:12,fontWeight:600,lineHeight:1.5}}>{card.question}</div>
+                    <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>Q</div>
+                    <div style={{color:t.text,fontSize:t.fs(12),fontWeight:600,lineHeight:1.5}}>{card.question}</div>
                   </div>
                   <div style={{display:"flex",gap:4,flexShrink:0,marginTop:2}}>
-                    <button onClick={()=>startEdit(card)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                    <button onClick={()=>setDelId(card.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                    <button onClick={()=>startEdit(card)} style={{background:t.pill,border:"none",borderRadius:6,padding:"3px 7px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                    <button onClick={()=>setDelId(card.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"3px 7px",color:"#FF6B6B",fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
                   </div>
                 </div>
                 {/* Answer reveal */}
                 {isRevealed?(
                   <div>
                     <div style={{height:1,background:sc.c+"22",marginBottom:8}}/>
-                    <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>A</div>
-                    <div style={{color:sc.c||"#34d399",fontSize:12,fontWeight:600,lineHeight:1.5,marginBottom:8}}>{card.answer}</div>
-                    <button onClick={()=>toggleReveal(card.id)} style={{background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"5px 12px",color:sc.c,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Hide Answer</button>
+                    <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1,marginBottom:3}}>A</div>
+                    <div style={{color:sc.c||"#34d399",fontSize:t.fs(12),fontWeight:600,lineHeight:1.5,marginBottom:8}}>{card.answer}</div>
+                    <button onClick={()=>toggleReveal(card.id)} style={{background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"5px 12px",color:sc.c,fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit",width:"100%"}}>Hide Answer</button>
                   </div>
                 ):(
-                  <button onClick={()=>toggleReveal(card.id)} style={{marginTop:8,width:"100%",background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"6px",color:sc.c,fontWeight:700,fontSize:10,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>Show Answer</button>
+                  <button onClick={()=>toggleReveal(card.id)} style={{marginTop:8,width:"100%",background:`${sc.c}10`,border:`1px solid ${sc.c}28`,borderRadius:8,padding:"6px",color:sc.c,fontWeight:700,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>Show Answer</button>
                 )}
               </>
             )}
@@ -3142,12 +3142,12 @@ function MockTest({t,es,user}){
     {/* Delete confirm */}
     {delId&&<div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
       <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:20,maxWidth:280,width:"100%",textAlign:"center"}}>
-        <div style={{fontSize:24,marginBottom:8}}>🗑️</div>
-        <div style={{color:t.text,fontWeight:800,fontSize:14,marginBottom:4}}>Delete this mock test?</div>
-        <div style={{color:t.sub,fontSize:11,marginBottom:16}}>This cannot be undone.</div>
+        <div style={{fontSize:t.fs(24),marginBottom:8}}>🗑️</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:t.fs(14),marginBottom:4}}>Delete this mock test?</div>
+        <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:16}}>This cannot be undone.</div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>deleteMock(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+          <button onClick={()=>setDelId(null)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>deleteMock(delId)} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
         </div>
       </div>
     </div>}
@@ -3155,28 +3155,28 @@ function MockTest({t,es,user}){
     {/* Header */}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
       <div>
-        <div style={{color:t.text,fontWeight:900,fontSize:14}}>📈 Mock Test Tracker</div>
-        <div style={{color:t.sub,fontSize:9,marginTop:1}}>{examKey} · {examMode} · {total} test{total!==1?"s":""}</div>
+        <div style={{color:t.text,fontWeight:900,fontSize:t.fs(14)}}>📈 Mock Test Tracker</div>
+        <div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>{examKey} · {examMode} · {total} test{total!==1?"s":""}</div>
       </div>
-      <button onClick={()=>{setShowAdd(v=>!v);setEditId(null);}} style={{background:showAdd?"#818cf8":"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.1))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:10,padding:"7px 13px",color:showAdd?"#fff":"#818cf8",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
+      <button onClick={()=>{setShowAdd(v=>!v);setEditId(null);}} style={{background:showAdd?"#818cf8":"linear-gradient(135deg,rgba(129,140,248,0.15),rgba(52,211,153,0.1))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:10,padding:"7px 13px",color:showAdd?"#fff":"#818cf8",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>
         {showAdd?"✕ Cancel":"+ Add Mock"}
       </button>
     </div>
 
     {/* Add form */}
     {showAdd&&<div style={{background:t.card,border:"1px solid rgba(129,140,248,0.2)",borderRadius:13,padding:"13px"}}>
-      <div style={{color:t.text,fontWeight:700,fontSize:12,marginBottom:10}}>New Mock Test</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:t.fs(12),marginBottom:10}}>New Mock Test</div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
-        <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Test name e.g. Vision IAS FLT 12" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+        <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Test name e.g. Vision IAS FLT 12" style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"8px 10px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
         <div style={{display:"flex",gap:7}}>
-          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>DATE</div><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/></div>
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:t.fs(8),marginBottom:3}}>DATE</div><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light",boxSizing:"border-box"}}/></div>
         </div>
         <div style={{display:"flex",gap:7}}>
-          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>MARKS SCORED</div><input type="number" min="0" value={form.score} onChange={e=>setForm(f=>({...f,score:e.target.value}))} placeholder="82" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
-          <div style={{flex:1}}><div style={{color:t.muted,fontSize:8,marginBottom:3}}>TOTAL MARKS</div><input type="number" min="1" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:12,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
-          {form.score&&form.total&&Number(form.total)>0&&<div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:1}}><div style={{background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.22)",borderRadius:8,padding:"7px 9px",color:"#818cf8",fontWeight:900,fontSize:13,textAlign:"center",whiteSpace:"nowrap"}}>{pct(Number(form.score),Number(form.total))}%</div></div>}
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:t.fs(8),marginBottom:3}}>MARKS SCORED</div><input type="number" min="0" value={form.score} onChange={e=>setForm(f=>({...f,score:e.target.value}))} placeholder="82" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+          <div style={{flex:1}}><div style={{color:t.muted,fontSize:t.fs(8),marginBottom:3}}>TOTAL MARKS</div><input type="number" min="1" value={form.total} onChange={e=>setForm(f=>({...f,total:e.target.value}))} placeholder="200" style={{width:"100%",background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(12),fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/></div>
+          {form.score&&form.total&&Number(form.total)>0&&<div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end",paddingBottom:1}}><div style={{background:"rgba(129,140,248,0.12)",border:"1px solid rgba(129,140,248,0.22)",borderRadius:8,padding:"7px 9px",color:"#818cf8",fontWeight:900,fontSize:t.fs(13),textAlign:"center",whiteSpace:"nowrap"}}>{pct(Number(form.score),Number(form.total))}%</div></div>}
         </div>
-        <button onClick={saveMock} disabled={saving} style={{background:saving?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving?t.sub:"#fff",fontWeight:800,fontSize:12,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Mock Test"}</button>
+        <button onClick={saveMock} disabled={saving} style={{background:saving?t.pill:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:9,padding:"9px",color:saving?t.sub:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:saving?"not-allowed":"pointer",fontFamily:"inherit",transition:"all .2s"}}>{saving?"Saving…":"Save Mock Test"}</button>
       </div>
     </div>}
 
@@ -3185,27 +3185,27 @@ function MockTest({t,es,user}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
         {[{l:"Mocks Taken",v:String(total),c:"#818cf8",i:"📝"},{l:"Average Score",v:String(avg),c:"#34d399",i:"📊"},{l:"Best Score",v:String(best),c:"#FFB86B",i:"🏆"},{l:"Worst Score",v:String(worst),c:"#FF6B6B",i:"📉"},{l:"Avg Percentage",v:avgPct+"%",c:"#6EE7F7",i:"📈"},{l:"Latest",v:mocks[0]?mocks[0].score+"/"+mocks[0].totalMarks:"—",c:"#C16BFF",i:"✅"}].map(s=>(
           <div key={s.l} style={{background:t.card,border:`1px solid ${s.c}20`,borderRadius:11,padding:"10px 11px"}}>
-            <div style={{fontSize:15,marginBottom:3}}>{s.i}</div>
-            <div style={{fontSize:18,fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
-            <div style={{fontSize:8,color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
+            <div style={{fontSize:t.fs(15),marginBottom:3}}>{s.i}</div>
+            <div style={{fontSize:t.fs(18),fontWeight:900,color:s.c,lineHeight:1}}>{s.v}</div>
+            <div style={{fontSize:t.fs(8),color:t.sub,marginTop:3,textTransform:"uppercase",letterSpacing:.8}}>{s.l}</div>
           </div>
         ))}
       </div>
 
       {/* Trend indicator */}
       {trend!==null&&<div style={{background:trend>=0?"rgba(52,211,153,0.07)":"rgba(255,107,107,0.07)",border:`1px solid ${trend>=0?"rgba(52,211,153,0.22)":"rgba(255,107,107,0.22)"}`,borderRadius:11,padding:"10px 12px",display:"flex",alignItems:"center",gap:8}}>
-        <div style={{fontSize:18}}>{trend>=0?"📈":"📉"}</div>
+        <div style={{fontSize:t.fs(18)}}>{trend>=0?"📈":"📉"}</div>
         <div>
-          <div style={{color:trend>=0?"#34d399":"#FF6B6B",fontWeight:800,fontSize:12}}>
+          <div style={{color:trend>=0?"#34d399":"#FF6B6B",fontWeight:800,fontSize:t.fs(12)}}>
             {trend>=0?"↑":"↓"} {Math.abs(Math.round(trend*10)/10)} marks {trend>=0?"improvement":"decline"}
           </div>
-          <div style={{color:t.sub,fontSize:9,marginTop:1}}>Last 5 avg: {l5avg} · Prev 5 avg: {p5avg}</div>
+          <div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>Last 5 avg: {l5avg} · Prev 5 avg: {p5avg}</div>
         </div>
       </div>}
 
       {/* Mini trend graph */}
       {graphMocks.length>1&&<div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:13,padding:"12px 10px"}}>
-        <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Score Trend — Last {graphMocks.length} Mocks</div>
+        <div style={{color:t.sub,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1.5,marginBottom:10}}>Score Trend — Last {graphMocks.length} Mocks</div>
         <div style={{overflowX:"auto"}}>
           <svg width={Math.max(graphMocks.length*W_CELL+20,200)} height={H+30} style={{display:"block"}}>
             {/* Grid lines */}
@@ -3243,22 +3243,22 @@ function MockTest({t,es,user}){
           </svg>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
-          <div style={{color:t.muted,fontSize:8}}>First: {graphMocks[0]?.name?.slice(0,12)||"Mock 1"}</div>
-          <div style={{color:"#34d399",fontSize:8,fontWeight:700}}>Latest: {graphMocks[graphMocks.length-1]?.name?.slice(0,12)||"Latest"}</div>
+          <div style={{color:t.muted,fontSize:t.fs(8)}}>First: {graphMocks[0]?.name?.slice(0,12)||"Mock 1"}</div>
+          <div style={{color:"#34d399",fontSize:t.fs(8),fontWeight:700}}>Latest: {graphMocks[graphMocks.length-1]?.name?.slice(0,12)||"Latest"}</div>
         </div>
       </div>}
     </>}
 
     {/* Mock history */}
-    {loading&&<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"20px 0"}}>Loading tests…</div>}
+    {loading&&<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"20px 0"}}>Loading tests…</div>}
     {!loading&&total===0&&!showAdd&&<div style={{background:"rgba(129,140,248,0.05)",border:"1px dashed rgba(129,140,248,0.25)",borderRadius:13,padding:"24px",textAlign:"center"}}>
-      <div style={{fontSize:32,marginBottom:8}}>📈</div>
-      <div style={{color:t.text,fontWeight:700,fontSize:13,marginBottom:4}}>No mock tests yet</div>
-      <div style={{color:t.sub,fontSize:11,marginBottom:14}}>Track your {examKey} {examMode} performance</div>
-      <button onClick={()=>setShowAdd(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
+      <div style={{fontSize:t.fs(32),marginBottom:8}}>📈</div>
+      <div style={{color:t.text,fontWeight:700,fontSize:t.fs(13),marginBottom:4}}>No mock tests yet</div>
+      <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:14}}>Track your {examKey} {examMode} performance</div>
+      <button onClick={()=>setShowAdd(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px 18px",color:"#fff",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>+ Add First Mock</button>
     </div>}
     {!loading&&mocks.length>0&&<div style={{display:"flex",flexDirection:"column",gap:7}}>
-      <div style={{color:t.sub,fontSize:8,textTransform:"uppercase",letterSpacing:1.5}}>History — {total} test{total!==1?"s":""}</div>
+      <div style={{color:t.sub,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1.5}}>History — {total} test{total!==1?"s":""}</div>
       {mocks.map((m,idx)=>{
         const p=m.percentage;
         const pc=p>=60?"#34d399":p>=40?"#FFB86B":"#FF6B6B";
@@ -3266,35 +3266,35 @@ function MockTest({t,es,user}){
         return(<div key={m.id} style={{background:t.card,border:`1px solid ${pc}22`,borderRadius:12,padding:"11px 12px",transition:"border .2s"}}>
           {isEdit?(
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              <div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Edit Test</div>
-              <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+              <div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1}}>Edit Test</div>
+              <input value={editForm.name} onChange={e=>setEditForm(f=>({...f,name:e.target.value}))} style={{background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"7px 9px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
               <div style={{display:"flex",gap:6}}>
-                <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:10,fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/>
-                <input type="number" value={editForm.score} onChange={e=>setEditForm(f=>({...f,score:e.target.value}))} placeholder="Score" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
-                <input type="number" value={editForm.total} onChange={e=>setEditForm(f=>({...f,total:e.target.value}))} placeholder="Total" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:11,fontFamily:"inherit",outline:"none"}}/>
+                <input type="date" value={editForm.date} onChange={e=>setEditForm(f=>({...f,date:e.target.value}))} style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:t.fs(10),fontFamily:"inherit",outline:"none",colorScheme:t.bg==="#08080f"?"dark":"light"}}/>
+                <input type="number" value={editForm.score} onChange={e=>setEditForm(f=>({...f,score:e.target.value}))} placeholder="Score" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
+                <input type="number" value={editForm.total} onChange={e=>setEditForm(f=>({...f,total:e.target.value}))} placeholder="Total" style={{width:60,background:t.input,border:`1px solid ${t.border}`,borderRadius:7,padding:"6px 8px",color:t.text,fontSize:t.fs(11),fontFamily:"inherit",outline:"none"}}/>
               </div>
               <div style={{display:"flex",gap:6}}>
-                <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Save</button>
-                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                <button onClick={saveEdit} style={{flex:1,background:"#34d399",border:"none",borderRadius:8,padding:"7px",color:"#0a0a0f",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Save</button>
+                <button onClick={()=>setEditId(null)} style={{background:t.pill,border:"none",borderRadius:8,padding:"7px 11px",color:t.sub,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
               </div>
             </div>
           ):(
             <div style={{display:"flex",alignItems:"center",gap:9}}>
               {/* Rank badge */}
               <div style={{width:30,height:30,borderRadius:9,background:`${pc}15`,border:`1px solid ${pc}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <span style={{color:pc,fontWeight:900,fontSize:9}}>#{total-idx}</span>
+                <span style={{color:pc,fontWeight:900,fontSize:t.fs(9)}}>#{total-idx}</span>
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{color:t.text,fontWeight:700,fontSize:11,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
-                <div style={{color:t.sub,fontSize:9,marginTop:1}}>{fmtDate(m.date)}</div>
+                <div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.name}</div>
+                <div style={{color:t.sub,fontSize:t.fs(9),marginTop:1}}>{fmtDate(m.date)}</div>
               </div>
               <div style={{textAlign:"right",flexShrink:0}}>
-                <div style={{color:t.text,fontWeight:800,fontSize:12}}>{m.score}<span style={{color:t.muted,fontSize:9,fontWeight:600}}>/{m.totalMarks}</span></div>
-                <div style={{color:pc,fontWeight:900,fontSize:10}}>{p}%</div>
+                <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12)}}>{m.score}<span style={{color:t.muted,fontSize:t.fs(9),fontWeight:600}}>/{m.totalMarks}</span></div>
+                <div style={{color:pc,fontWeight:900,fontSize:t.fs(10)}}>{p}%</div>
               </div>
               <div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>startEdit(m)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✎</button>
-                <button onClick={()=>setDelId(m.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 7px",color:"#FF6B6B",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+                <button onClick={()=>startEdit(m)} style={{background:t.pill,border:"none",borderRadius:6,padding:"4px 7px",color:t.sub,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>✎</button>
+                <button onClick={()=>setDelId(m.id)} style={{background:"rgba(255,107,107,0.1)",border:"none",borderRadius:6,padding:"4px 7px",color:"#FF6B6B",fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
               </div>
             </div>
           )}
@@ -3330,36 +3330,36 @@ function PremiumBenefitsModal({t,onClose,isPro,mockCount,recallCount,totalSessio
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"22px 22px 0 0",width:"100%",maxWidth:520,maxHeight:"86vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 16px 30px"}}>
       <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
       <div style={{textAlign:"center",marginBottom:14}}>
-        <div style={{fontSize:20}}>⚡</div>
-        <div style={{fontSize:16,fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>Premium Benefits</div>
+        <div style={{fontSize:t.fs(20)}}>⚡</div>
+        <div style={{fontSize:t.fs(16),fontWeight:900,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",marginTop:3}}>Premium Benefits</div>
       </div>
 
-      <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Features</div>
+      <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Features</div>
       <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:16}}>
         {features.map(f=>{const s=STATUS_STYLE[f.status];return(
           <div key={f.label} style={{display:"flex",alignItems:"center",gap:9,background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"10px 12px"}}>
-            <span style={{fontSize:16}}>{f.icon}</span>
-            <span style={{flex:1,color:t.text,fontWeight:700,fontSize:12}}>{f.label}</span>
-            <span style={{background:s.bg,color:s.color,fontWeight:800,fontSize:9,padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap"}}>{f.status}</span>
+            <span style={{fontSize:t.fs(16)}}>{f.icon}</span>
+            <span style={{flex:1,color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{f.label}</span>
+            <span style={{background:s.bg,color:s.color,fontWeight:800,fontSize:t.fs(9),padding:"3px 9px",borderRadius:11,whiteSpace:"nowrap"}}>{f.status}</span>
           </div>
         );})}
       </div>
 
-      <div style={{fontSize:8,color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Your Premium Usage</div>
+      <div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1.5,marginBottom:7}}>Your Premium Usage</div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:4}}>
         {usage.map(u=><div key={u.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:11,padding:"10px"}}>
-          <div style={{color:u.muted?t.muted:"#818cf8",fontWeight:u.muted?700:900,fontSize:u.muted?10:17}}>{u.v}</div>
-          <div style={{color:t.sub,fontSize:8,marginTop:3,textTransform:"uppercase",letterSpacing:.6}}>{u.l}</div>
+          <div style={{color:u.muted?t.muted:"#818cf8",fontWeight:u.muted?700:900,fontSize:t.fs(u.muted?10:17)}}>{u.v}</div>
+          <div style={{color:t.sub,fontSize:t.fs(8),marginTop:3,textTransform:"uppercase",letterSpacing:.6}}>{u.l}</div>
         </div>)}
       </div>
 
-      <button onClick={onClose} style={{width:"100%",marginTop:12,background:t.pill,border:"none",borderRadius:11,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+      <button onClick={onClose} style={{width:"100%",marginTop:12,background:t.pill,border:"none",borderRadius:11,padding:"10px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Close</button>
     </div>
   </div>);
 }
 
 // ── PROFILE ───────────────────────────────────────────────────
-function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
+function Profile({t,user,setUser,es,isPro,onPro,streak,stats,fontSize,setFontSize,onLogout}){
   const days=dl(es.date);
   const badge=getBadge(streak);
   const totalHours=stats?.totalMinutes?`${Math.round(stats.totalMinutes/60)}h`:"0h";
@@ -3486,12 +3486,12 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     {deleteStep===1&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
         <div style={{background:t.bg,border:"1px solid rgba(255,107,107,0.3)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>⚠️</div>
-          <div style={{color:t.text,fontWeight:800,fontSize:15,marginBottom:6}}>Delete Account?</div>
-          <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Are you sure you want to delete your account? Your productivity data will be preserved.</div>
+          <div style={{fontSize:t.fs(28),marginBottom:8}}>⚠️</div>
+          <div style={{color:t.text,fontWeight:800,fontSize:t.fs(15),marginBottom:6}}>Delete Account?</div>
+          <div style={{color:t.sub,fontSize:t.fs(11),lineHeight:1.6,marginBottom:18}}>Are you sure you want to delete your account? Your productivity data will be preserved.</div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            <button onClick={()=>setDeleteStep(2)} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Continue</button>
+            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={()=>setDeleteStep(2)} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Continue</button>
           </div>
         </div>
       </div>
@@ -3499,30 +3499,30 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     {deleteStep===2&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",padding:20,backdropFilter:"blur(5px)"}}>
         <div style={{background:t.bg,border:"2px solid rgba(255,107,107,0.4)",borderRadius:18,padding:22,maxWidth:290,width:"100%",textAlign:"center"}}>
-          <div style={{fontSize:28,marginBottom:8}}>🗑️</div>
-          <div style={{color:"#FF6B6B",fontWeight:900,fontSize:15,marginBottom:6}}>This cannot be undone</div>
-          <div style={{color:t.sub,fontSize:11,lineHeight:1.6,marginBottom:18}}>Your account will be permanently deleted. Study logs and session history are retained separately.</div>
+          <div style={{fontSize:t.fs(28),marginBottom:8}}>🗑️</div>
+          <div style={{color:"#FF6B6B",fontWeight:900,fontSize:t.fs(15),marginBottom:6}}>This cannot be undone</div>
+          <div style={{color:t.sub,fontSize:t.fs(11),lineHeight:1.6,marginBottom:18}}>Your account will be permanently deleted. Study logs and session history are retained separately.</div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Go Back</button>
-            <button onClick={doDeleteAccount} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Delete Forever</button>
+            <button onClick={()=>setDeleteStep(0)} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"10px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Go Back</button>
+            <button onClick={doDeleteAccount} style={{flex:1,background:"linear-gradient(135deg,#FF6B6B,#FF4757)",border:"none",borderRadius:10,padding:"10px",color:"#fff",fontWeight:900,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit"}}>Delete Forever</button>
           </div>
         </div>
       </div>
     )}
     {deleteStep===3&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.82)",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(5px)"}}>
-        <div style={{color:t.text,fontSize:13,fontWeight:700}}>Deleting account…</div>
+        <div style={{color:t.text,fontSize:t.fs(13),fontWeight:700}}>Deleting account…</div>
       </div>
     )}
     {benefitsOpen&&<PremiumBenefitsModal t={t} onClose={()=>setBenefitsOpen(false)} isPro={isPro} mockCount={mockCount} recallCount={recallCount} totalSessions={stats?.totalSessions||0} streak={streak}/>}
     {cancelConfirmOpen&&(
       <div style={{position:"fixed",inset:0,zIndex:9900,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(5px)"}} onClick={()=>!cancelling&&setCancelConfirmOpen(false)}>
         <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:16,width:"100%",maxWidth:320,padding:18,boxShadow:t.sh}}>
-          <div style={{fontSize:13,fontWeight:800,color:t.text,marginBottom:6}}>Cancel Premium?</div>
-          <div style={{color:t.sub,fontSize:11,marginBottom:14,lineHeight:1.5}}>{typeof entInfo.expiresAt==="number"?`You'll keep full Premium access until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free. This won't cancel immediately.`:"Premium won't renew going forward. You'll keep access until your current period ends."}</div>
+          <div style={{fontSize:t.fs(13),fontWeight:800,color:t.text,marginBottom:6}}>Cancel Premium?</div>
+          <div style={{color:t.sub,fontSize:t.fs(11),marginBottom:14,lineHeight:1.5}}>{typeof entInfo.expiresAt==="number"?`You'll keep full Premium access until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free. This won't cancel immediately.`:"Premium won't renew going forward. You'll keep access until your current period ends."}</div>
           <div style={{display:"flex",gap:8}}>
-            <button onClick={()=>setCancelConfirmOpen(false)} disabled={cancelling} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:12,cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>Never mind</button>
-            <button onClick={cancelPremium} disabled={cancelling} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"9px",color:"#FF6B6B",fontWeight:800,fontSize:12,cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>{cancelling?"…":"Yes, Cancel"}</button>
+            <button onClick={()=>setCancelConfirmOpen(false)} disabled={cancelling} style={{flex:1,background:t.pill,border:"none",borderRadius:10,padding:"9px",color:t.text,fontWeight:700,fontSize:t.fs(12),cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>Never mind</button>
+            <button onClick={cancelPremium} disabled={cancelling} style={{flex:1,background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.3)",borderRadius:10,padding:"9px",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(12),cursor:cancelling?"not-allowed":"pointer",fontFamily:"inherit"}}>{cancelling?"…":"Yes, Cancel"}</button>
           </div>
         </div>
       </div>
@@ -3531,89 +3531,100 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,onLogout}){
     {/* Avatar + name */}
     <div style={{background:t.card,border:"1px solid rgba(129,140,248,0.14)",borderRadius:15,padding:"15px 13px",textAlign:"center",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-10,left:"50%",transform:"translateX(-50%)",width:130,height:65,borderRadius:"50%",background:"radial-gradient(circle,rgba(129,140,248,0.09),transparent 70%)",pointerEvents:"none"}}/>
-      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:22,color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name||user?.email||"U")[0].toUpperCase()}</div>
+      <div style={{width:58,height:58,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",margin:"0 auto 9px",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:t.fs(22),color:"#fff",boxShadow:"0 0 16px rgba(129,140,248,0.32)",border:"2px solid rgba(129,140,248,0.25)"}}>{(user?.name||user?.email||"U")[0].toUpperCase()}</div>
       {/* Editable name */}
       {editingName?(
         <div style={{display:"flex",gap:5,alignItems:"center",justifyContent:"center",marginBottom:4}}>
-          <input autoFocus value={nameVal} onChange={e=>setNameVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditingName(false);}} style={{background:t.input,border:"1px solid #818cf8",borderRadius:8,padding:"5px 9px",color:t.text,fontSize:14,fontFamily:"inherit",outline:"none",textAlign:"center",maxWidth:180}}/>
-          <button onClick={saveName} disabled={nameSaving} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"5px 9px",color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>{nameSaving?"…":"Save"}</button>
-          <button onClick={()=>setEditingName(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 7px",color:t.sub,fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+          <input autoFocus value={nameVal} onChange={e=>setNameVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveName();if(e.key==="Escape")setEditingName(false);}} style={{background:t.input,border:"1px solid #818cf8",borderRadius:8,padding:"5px 9px",color:t.text,fontSize:t.fs(14),fontFamily:"inherit",outline:"none",textAlign:"center",maxWidth:180}}/>
+          <button onClick={saveName} disabled={nameSaving} style={{background:"#818cf8",border:"none",borderRadius:8,padding:"5px 9px",color:"#fff",fontWeight:800,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>{nameSaving?"…":"Save"}</button>
+          <button onClick={()=>setEditingName(false)} style={{background:t.pill,border:"none",borderRadius:8,padding:"5px 7px",color:t.sub,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit"}}>✕</button>
         </div>
       ):(
         <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,marginBottom:2}}>
-          <div style={{fontSize:17,fontWeight:900,color:nameSaved?"#34d399":t.text,transition:"color .3s"}}>{user?.name||"User"}{nameSaved&&" ✓"}</div>
-          <button onClick={()=>{setNameVal(user?.name||"");setEditingName(true);}} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>✎ Edit</button>
+          <div style={{fontSize:t.fs(17),fontWeight:900,color:nameSaved?"#34d399":t.text,transition:"color .3s"}}>{user?.name||"User"}{nameSaved&&" ✓"}</div>
+          <button onClick={()=>{setNameVal(user?.name||"");setEditingName(true);}} style={{background:t.pill,border:"none",borderRadius:6,padding:"2px 6px",color:t.sub,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>✎ Edit</button>
         </div>
       )}
-      <div style={{color:t.sub,fontSize:11,marginTop:2}}>{user?.email||user?.phone||"Competitive Exam Aspirant"}</div>
+      <div style={{color:t.sub,fontSize:t.fs(11),marginTop:2}}>{user?.email||user?.phone||"Competitive Exam Aspirant"}</div>
       <div style={{display:"inline-flex",alignItems:"center",gap:5,background:`${badge.color}12`,border:`1px solid ${badge.color}28`,borderRadius:20,padding:"4px 12px",marginTop:7}}>
-        <span style={{fontSize:14}}>{badge.icon}</span>
-        <span style={{color:badge.color,fontWeight:800,fontSize:11}}>{badge.title}</span>
-        <span style={{color:t.muted,fontSize:9}}>· {streak}d streak</span>
+        <span style={{fontSize:t.fs(14)}}>{badge.icon}</span>
+        <span style={{color:badge.color,fontWeight:800,fontSize:t.fs(11)}}>{badge.title}</span>
+        <span style={{color:t.muted,fontSize:t.fs(9)}}>· {streak}d streak</span>
       </div>
-      {isPro?<div style={{display:"flex",justifyContent:"center",marginTop:6}}><div style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,rgba(129,140,248,0.13),rgba(52,211,153,0.13))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:13,padding:"3px 10px"}}><span style={{color:"#818cf8",fontWeight:800,fontSize:10}}>⚡ Premium Member</span></div></div>
-      :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:10}}>⚡ Try Free 7 Days</span></button>}
+      {isPro?<div style={{display:"flex",justifyContent:"center",marginTop:6}}><div style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,rgba(129,140,248,0.13),rgba(52,211,153,0.13))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:13,padding:"3px 10px"}}><span style={{color:"#818cf8",fontWeight:800,fontSize:t.fs(10)}}>⚡ Premium Member</span></div></div>
+      :<button onClick={onPro} style={{display:"inline-flex",alignItems:"center",gap:3,background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"5px 12px",marginTop:6,cursor:"pointer",fontFamily:"inherit"}}><span style={{color:"#fff",fontWeight:800,fontSize:t.fs(10)}}>⚡ Try Free 7 Days</span></button>}
     </div>
 
     {/* Stats */}
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:14,fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:7,color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:5}}>{[{l:"Streak",v:`${streak}🔥`},{l:"Sessions",v:String(totalSessions)},{l:"Hours",v:totalHours},{l:"Rank",v:"#—"}].map(s=><div key={s.l} style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"8px 3px",textAlign:"center"}}><div style={{fontSize:t.fs(14),fontWeight:900,color:t.text}}>{s.v}</div><div style={{fontSize:t.fs(7),color:t.sub,textTransform:"uppercase",letterSpacing:.8,marginTop:1}}>{s.l}</div></div>)}</div>
 
     {/* Premium Membership */}
     {isPro?(
       <div style={{background:"linear-gradient(135deg,rgba(129,140,248,0.10),rgba(52,211,153,0.06))",border:"1px solid rgba(129,140,248,0.25)",borderRadius:14,padding:"13px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:7}}>
-          <span style={{fontSize:16}}>⚡</span>
-          <span style={{color:t.text,fontWeight:900,fontSize:13}}>Premium Membership</span>
+          <span style={{fontSize:t.fs(16)}}>⚡</span>
+          <span style={{color:t.text,fontWeight:900,fontSize:t.fs(13)}}>Premium Membership</span>
           <div style={{display:"inline-flex",alignItems:"center",gap:4,background:"rgba(52,211,153,0.15)",border:"1px solid rgba(52,211,153,0.3)",borderRadius:10,padding:"2px 8px",marginLeft:"auto"}}>
             <div style={{width:5,height:5,borderRadius:"50%",background:"#34d399"}}/>
-            <span style={{color:"#34d399",fontWeight:800,fontSize:9}}>Active</span>
+            <span style={{color:"#34d399",fontWeight:800,fontSize:t.fs(9)}}>Active</span>
           </div>
         </div>
         <div style={{display:"flex",gap:18,marginBottom:9,flexWrap:"wrap"}}>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{entInfo.memberSince?fmtPremDate(entInfo.memberSince):"—"}</div></div>
+          <div><div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1}}>Plan</div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginTop:2,textTransform:"capitalize"}}>{entInfo.plan||"Premium"}</div></div>
+          <div><div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1}}>Member Since</div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginTop:2}}>{entInfo.memberSince?fmtPremDate(entInfo.memberSince):"—"}</div></div>
         </div>
         {/* expiresAt is the ONLY authoritative expiry field. If it's genuinely
             absent (legacy account, granted before this field existed), we show
             that honestly instead of inventing a date from updatedAt. */}
         <div style={{display:"flex",gap:18,marginBottom:11,flexWrap:"wrap"}}>
-          <div><div style={{color:t.muted,fontSize:8,textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:11,marginTop:2}}>{typeof entInfo.expiresAt==="number"?fmtPremDate(entInfo.expiresAt):"Legacy Premium — no expiry recorded"}</div></div>
+          <div><div style={{color:t.muted,fontSize:t.fs(8),textTransform:"uppercase",letterSpacing:1}}>Valid Till</div><div style={{color:t.text,fontWeight:700,fontSize:t.fs(11),marginTop:2}}>{typeof entInfo.expiresAt==="number"?fmtPremDate(entInfo.expiresAt):"Legacy Premium — no expiry recorded"}</div></div>
         </div>
-        {entInfo.cancelled&&<div style={{color:t.sub,fontSize:9,marginBottom:9,background:t.pill,borderRadius:8,padding:"6px 9px"}}>Auto-renew is off — Premium stays active {typeof entInfo.expiresAt==="number"?`until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free.`:"(no expiry recorded on this legacy account)."}</div>}
-        <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit",marginBottom:entInfo.cancelled?0:6}}>View Benefits</button>
-        {!entInfo.cancelled&&<button onClick={()=>setCancelConfirmOpen(true)} style={{width:"100%",background:"none",border:"none",color:t.muted,fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>Cancel Premium</button>}
+        {entInfo.cancelled&&<div style={{color:t.sub,fontSize:t.fs(9),marginBottom:9,background:t.pill,borderRadius:8,padding:"6px 9px"}}>Auto-renew is off — Premium stays active {typeof entInfo.expiresAt==="number"?`until ${fmtPremDate(entInfo.expiresAt)}, then your account moves to Free.`:"(no expiry recorded on this legacy account)."}</div>}
+        <button onClick={()=>setBenefitsOpen(true)} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",marginBottom:entInfo.cancelled?0:6}}>View Benefits</button>
+        {!entInfo.cancelled&&<button onClick={()=>setCancelConfirmOpen(true)} style={{width:"100%",background:"none",border:"none",color:t.muted,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>Cancel Premium</button>}
       </div>
     ):(typeof entInfo.expiresAt==="number"&&entInfo.expiresAt<Date.now())?(
       // Was Premium, expiresAt has passed — distinct from "never subscribed" below.
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
-        <div style={{fontSize:22,marginBottom:5}}>⏳</div>
-        <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>Premium expired on {fmtPremDate(entInfo.expiresAt)}</div>
-        <div style={{color:t.sub,fontSize:10,marginBottom:10,lineHeight:1.5}}>Renew to keep AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
-        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>⚡ Renew Premium</button>
+        <div style={{fontSize:t.fs(22),marginBottom:5}}>⏳</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:3}}>Premium expired on {fmtPremDate(entInfo.expiresAt)}</div>
+        <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:10,lineHeight:1.5}}>Renew to keep AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
+        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>⚡ Renew Premium</button>
       </div>
     ):(
       <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:14,padding:"13px 14px",textAlign:"center"}}>
-        <div style={{fontSize:22,marginBottom:5}}>⚡</div>
-        <div style={{color:t.text,fontWeight:800,fontSize:12,marginBottom:3}}>You're on the Free plan</div>
-        <div style={{color:t.sub,fontSize:10,marginBottom:10,lineHeight:1.5}}>Unlock AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
-        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>⚡ Upgrade to Premium</button>
+        <div style={{fontSize:t.fs(22),marginBottom:5}}>⚡</div>
+        <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:3}}>You're on the Free plan</div>
+        <div style={{color:t.sub,fontSize:t.fs(10),marginBottom:10,lineHeight:1.5}}>Unlock AI Assistant, Syllabus Tracker, Active Recall, Mock Tests, Cross-Device Sync & All Badges.</div>
+        <button onClick={onPro} style={{width:"100%",background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:10,padding:"9px",color:"#fff",fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit"}}>⚡ Upgrade to Premium</button>
       </div>
     )}
 
     {/* Exam countdown */}
     <div style={{background:t.card,border:`1px solid ${es.color||"#818cf8"}28`,borderRadius:12,padding:"10px 11px",display:"flex",alignItems:"center",gap:8}}>
-      <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{es.icon||"🎯"}</div>
-      <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:12}}>{es.name||"UPSC CSE Prelims"}</div><div style={{color:es.color||"#818cf8",fontSize:10,fontWeight:700,marginTop:1}}>{days} days remaining</div></div>
-      <div style={{color:es.color||"#818cf8",fontSize:22,fontWeight:900}}>{days}</div>
+      <div style={{width:34,height:34,borderRadius:9,background:`${es.color||"#818cf8"}18`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:t.fs(16),flexShrink:0}}>{es.icon||"🎯"}</div>
+      <div style={{flex:1}}><div style={{color:t.text,fontWeight:700,fontSize:t.fs(12)}}>{es.name||"UPSC CSE Prelims"}</div><div style={{color:es.color||"#818cf8",fontSize:t.fs(10),fontWeight:700,marginTop:1}}>{days} days remaining</div></div>
+      <div style={{color:es.color||"#818cf8",fontSize:t.fs(22),fontWeight:900}}>{days}</div>
+    </div>
+
+    {/* Font Size */}
+    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px"}}>
+      <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>Font Size</div>
+      <div style={{display:"flex",gap:6}}>
+        {[{k:"small",l:"Small"},{k:"medium",l:"Medium"},{k:"large",l:"Large"}].map(o=>(
+          <button key={o.k} onClick={()=>setFontSize(o.k)} style={{flex:1,background:fontSize===o.k?`${t.a3}18`:t.pill,border:`1.5px solid ${fontSize===o.k?t.a3:"transparent"}`,borderRadius:9,padding:"8px 4px",color:fontSize===o.k?t.a3:t.sub,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{o.l}</button>
+        ))}
+      </div>
+      <div style={{color:t.muted,fontSize:t.fs(9),marginTop:8,textAlign:"center"}}>Aa — sample text at this size</div>
     </div>
 
     {/* Logout */}
-    <button onClick={onLogout} style={{background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:12,padding:"11px",color:"#FF6B6B",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+    <button onClick={onLogout} style={{background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:12,padding:"11px",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(13),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
       🚪 Log Out
     </button>
 
     {/* Delete account */}
-    <button onClick={()=>setDeleteStep(1)} style={{background:"none",border:"none",color:t.muted,fontSize:10,cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>
+    <button onClick={()=>setDeleteStep(1)} style={{background:"none",border:"none",color:t.muted,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>
       Delete Account
     </button>
   </div>);
@@ -3625,14 +3636,14 @@ function NCenter({t,onClose,history,settings,setSettings}){
   return(<div style={{position:"fixed",inset:0,zIndex:8000,background:"rgba(0,0,0,0.65)",display:"flex",alignItems:"flex-end",justifyContent:"center",backdropFilter:"blur(5px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,borderRadius:"20px 20px 0 0",width:"100%",maxWidth:520,maxHeight:"80vh",overflowY:"auto",border:`1px solid ${t.border}`,borderBottom:"none",padding:"13px 14px 32px"}}>
       <div style={{width:28,height:4,background:t.border,borderRadius:2,margin:"0 auto 12px"}}/>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:13,fontWeight:800,color:t.text}}>🔔 Notifications</div></div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontSize:t.fs(13),fontWeight:800,color:t.text}}>🔔 Notifications</div></div>
       <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:14}}>
-        {list.map(s=><div key={s.k} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:16}}>{s.i}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:12}}>{s.l}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{s.d}</div></div><div onClick={()=>setSettings(p=>({...p,[s.k]:!p[s.k]}))} style={{width:38,height:21,borderRadius:10,cursor:"pointer",background:settings[s.k]?t.a3:t.pill,position:"relative",transition:"all .3s",flexShrink:0}}><div style={{position:"absolute",top:2,left:settings[s.k]?17:2,width:17,height:17,borderRadius:"50%",background:settings[s.k]?"#0a0a0f":"#888",transition:"all .3s"}}/></div></div>)}
+        {list.map(s=><div key={s.k} style={{display:"flex",alignItems:"center",gap:8,background:t.card,border:`1px solid ${t.border}`,borderRadius:10,padding:"9px 11px"}}><div style={{fontSize:t.fs(16)}}>{s.i}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:t.fs(12)}}>{s.l}</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:1}}>{s.d}</div></div><div onClick={()=>setSettings(p=>({...p,[s.k]:!p[s.k]}))} style={{width:38,height:21,borderRadius:10,cursor:"pointer",background:settings[s.k]?t.a3:t.pill,position:"relative",transition:"all .3s",flexShrink:0}}><div style={{position:"absolute",top:2,left:settings[s.k]?17:2,width:17,height:17,borderRadius:"50%",background:settings[s.k]?"#0a0a0f":"#888",transition:"all .3s"}}/></div></div>)}
       </div>
-      <div style={{fontSize:8,color:t.sub,marginBottom:7,textTransform:"uppercase",letterSpacing:1.5}}>Recent</div>
+      <div style={{fontSize:t.fs(8),color:t.sub,marginBottom:7,textTransform:"uppercase",letterSpacing:1.5}}>Recent</div>
       <div style={{display:"flex",flexDirection:"column",gap:4}}>
-        {history.length===0?<div style={{color:t.sub,fontSize:11,textAlign:"center",padding:"11px 0"}}>No notifications yet</div>
-        :history.slice(-5).reverse().map(n=><div key={n.id} style={{display:"flex",gap:7,alignItems:"flex-start",background:t.card,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 9px"}}><div style={{fontSize:14}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:11}}>{n.title}</div><div style={{color:t.sub,fontSize:10,marginTop:1}}>{n.body}</div></div><div style={{color:t.muted,fontSize:8,flexShrink:0}}>{n.time}</div></div>)}
+        {history.length===0?<div style={{color:t.sub,fontSize:t.fs(11),textAlign:"center",padding:"11px 0"}}>No notifications yet</div>
+        :history.slice(-5).reverse().map(n=><div key={n.id} style={{display:"flex",gap:7,alignItems:"flex-start",background:t.card,border:`1px solid ${t.border}`,borderRadius:9,padding:"7px 9px"}}><div style={{fontSize:t.fs(14)}}>{n.icon}</div><div style={{flex:1}}><div style={{color:t.text,fontWeight:600,fontSize:t.fs(11)}}>{n.title}</div><div style={{color:t.sub,fontSize:t.fs(10),marginTop:1}}>{n.body}</div></div><div style={{color:t.muted,fontSize:t.fs(8),flexShrink:0}}>{n.time}</div></div>)}
       </div>
     </div>
   </div>);
@@ -3648,11 +3659,11 @@ function QRModal({t,user,onClose,setFriends}){
   const add=()=>{if(!inp.trim())return;setDone(true);setTimeout(()=>{setFriends(f=>[...f,{id:Date.now(),name:"New Friend",av:"N",streak:0,on:false,subj:null,brk:false}]);setInp("");setDone(false);},1200);};
   return(<div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:12,backdropFilter:"blur(6px)"}} onClick={onClose}>
     <div onClick={e=>e.stopPropagation()} style={{background:t.bg,border:`1px solid ${t.border}`,borderRadius:18,width:"100%",maxWidth:330,padding:15,boxShadow:t.sh}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}><div style={{fontSize:12,fontWeight:800,color:t.text}}>👥 Add to Circle</div><button onClick={onClose} style={{background:t.pill,border:"none",borderRadius:7,width:25,height:25,cursor:"pointer",color:t.sub,fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
-      <div style={{display:"flex",gap:3,background:t.pill,borderRadius:10,padding:3,marginBottom:12}}>{[["scan","Scan"],["code","Code"],["link","Share"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 3px",borderRadius:7,border:"none",cursor:"pointer",background:tab===tb?t.card:t.pill,color:tab===tb?t.text:t.sub,fontWeight:700,fontSize:9,fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}</div>
-      {tab==="scan"&&<div style={{display:"flex",flexDirection:"column",gap:9}}><div style={{height:130,background:t.pill,borderRadius:12,border:`2px dashed ${t.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:28}}>📷</div><div style={{color:t.sub,fontSize:10}}>Camera scan (needs Firebase)</div></div><div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} placeholder="SYNC-XXXX-0000" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:10,fontFamily:"monospace",outline:"none"}}/><button onClick={add} style={{background:done?"#818cf8":"#60a5fa",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:10,transition:"all .3s"}}>{done?"✓":"Add"}</button></div></div>}
-      {tab==="code"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:9}}><div style={{fontSize:11,color:t.sub,textAlign:"center"}}>Share this code with friends</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.3)",borderRadius:12,padding:"14px 20px",textAlign:"center"}}><div style={{color:"#818cf8",fontSize:20,fontFamily:"monospace",fontWeight:900,letterSpacing:3}}>{code}</div></div><div style={{color:t.muted,fontSize:9,textAlign:"center"}}>Friend enters this code to join your circle</div></div>}
-      {tab==="link"&&<div style={{display:"flex",flexDirection:"column",gap:8}}><div style={{background:t.pill,borderRadius:8,padding:"8px 9px",fontSize:9,color:t.sub,fontFamily:"monospace",wordBreak:"break-all",lineHeight:1.5}}>{link}</div><button onClick={copy} style={{background:cp?"#818cf8":t.card,border:`1px solid ${cp?"#818cf8":t.border}`,borderRadius:10,padding:"9px",color:cp?"#fff":t.text,fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>{cp?"✓ Copied!":"📋 Copy Invite Link"}</button><div style={{display:"flex",gap:5}}>{[["📲 WhatsApp","#25D366"],["✈️ Telegram","#229ED9"]].map(([l,c])=><button key={l} style={{flex:1,background:`${c}13`,border:`1px solid ${c}30`,borderRadius:8,padding:"6px 4px",color:c,fontWeight:700,fontSize:9,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div></div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11}}><div style={{fontSize:t.fs(12),fontWeight:800,color:t.text}}>👥 Add to Circle</div><button onClick={onClose} style={{background:t.pill,border:"none",borderRadius:7,width:25,height:25,cursor:"pointer",color:t.sub,fontSize:t.fs(14),display:"flex",alignItems:"center",justifyContent:"center"}}>×</button></div>
+      <div style={{display:"flex",gap:3,background:t.pill,borderRadius:10,padding:3,marginBottom:12}}>{[["scan","Scan"],["code","Code"],["link","Share"]].map(([tb,l])=><button key={tb} onClick={()=>setTab(tb)} style={{flex:1,padding:"5px 3px",borderRadius:7,border:"none",cursor:"pointer",background:tab===tb?t.card:t.pill,color:tab===tb?t.text:t.sub,fontWeight:700,fontSize:t.fs(9),fontFamily:"inherit",transition:"all .2s"}}>{l}</button>)}</div>
+      {tab==="scan"&&<div style={{display:"flex",flexDirection:"column",gap:9}}><div style={{height:130,background:t.pill,borderRadius:12,border:`2px dashed ${t.border}`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:5}}><div style={{fontSize:t.fs(28)}}>📷</div><div style={{color:t.sub,fontSize:t.fs(10)}}>Camera scan (needs Firebase)</div></div><div style={{display:"flex",gap:5}}><input value={inp} onChange={e=>setInp(e.target.value)} placeholder="SYNC-XXXX-0000" style={{flex:1,background:t.input,border:`1px solid ${t.border}`,borderRadius:8,padding:"7px 9px",color:t.text,fontSize:t.fs(10),fontFamily:"monospace",outline:"none"}}/><button onClick={add} style={{background:done?"#818cf8":"#60a5fa",border:"none",borderRadius:8,padding:"7px 11px",color:"#fff",fontWeight:700,cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(10),transition:"all .3s"}}>{done?"✓":"Add"}</button></div></div>}
+      {tab==="code"&&<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:9}}><div style={{fontSize:t.fs(11),color:t.sub,textAlign:"center"}}>Share this code with friends</div><div style={{background:t.card,border:"1px solid rgba(129,140,248,0.3)",borderRadius:12,padding:"14px 20px",textAlign:"center"}}><div style={{color:"#818cf8",fontSize:t.fs(20),fontFamily:"monospace",fontWeight:900,letterSpacing:3}}>{code}</div></div><div style={{color:t.muted,fontSize:t.fs(9),textAlign:"center"}}>Friend enters this code to join your circle</div></div>}
+      {tab==="link"&&<div style={{display:"flex",flexDirection:"column",gap:8}}><div style={{background:t.pill,borderRadius:8,padding:"8px 9px",fontSize:t.fs(9),color:t.sub,fontFamily:"monospace",wordBreak:"break-all",lineHeight:1.5}}>{link}</div><button onClick={copy} style={{background:cp?"#818cf8":t.card,border:`1px solid ${cp?"#818cf8":t.border}`,borderRadius:10,padding:"9px",color:cp?"#fff":t.text,fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .3s"}}>{cp?"✓ Copied!":"📋 Copy Invite Link"}</button><div style={{display:"flex",gap:5}}>{[["📲 WhatsApp","#25D366"],["✈️ Telegram","#229ED9"]].map(([l,c])=><button key={l} style={{flex:1,background:`${c}13`,border:`1px solid ${c}30`,borderRadius:8,padding:"6px 4px",color:c,fontWeight:700,fontSize:t.fs(9),cursor:"pointer",fontFamily:"inherit"}}>{l}</button>)}</div></div>}
     </div>
   </div>);
 }
@@ -3667,6 +3678,18 @@ export default function App(){
 useEffect(()=>{
   localStorage.setItem("ss_theme",dark?"dark":"light");
 },[dark]);
+
+  // Font Size preference — same synchronous-init pattern as dark mode above,
+  // so the saved size is applied before first paint with no visible flash of
+  // Small first. Invalid/missing values fall back to "small".
+  const [fontSize,setFontSize]=useState(()=>{
+    const saved=localStorage.getItem("studysync_font_size");
+    return saved==="medium"||saved==="large"?saved:"small";
+  });
+  useEffect(()=>{
+    localStorage.setItem("studysync_font_size",fontSize==="medium"||fontSize==="large"?fontSize:"small");
+  },[fontSize]);
+  const fontScale=fontSize==="large"?1.2:fontSize==="medium"?1.1:1;
 
 // Sync document background with current theme (iPhone safe area)
 useEffect(()=>{
@@ -4099,7 +4122,7 @@ return () => {active=false;unsub();};
     })();
   },[user?.uid]);
   const tid=useRef(0);
-  const t=dark?T.dark:T.light;
+  const t={...(dark?T.dark:T.light),fs:(px)=>Math.round(px*fontScale)};
   const days=dl(es.date);
 
   // Live IST date/time
@@ -4570,23 +4593,23 @@ return () => {active=false;unsub();};
           <Logo sz={26}/>
           <div>
             <div style={{display:"flex",alignItems:"center",gap:4}}>
-              <div style={{fontSize:13,fontWeight:900,letterSpacing:-.3,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",lineHeight:1}}>StudySync</div>
-              {isPro?<div style={{background:"linear-gradient(135deg,#818cf8,#34d399)",borderRadius:5,padding:"1px 5px",fontSize:7,fontWeight:900,color:"#fff"}}>PRO</div>:<div style={{background:"rgba(52,211,153,0.16)",border:"1px solid rgba(52,211,153,0.28)",borderRadius:5,padding:"1px 5px",fontSize:7,fontWeight:900,color:"#34d399"}}>7D FREE</div>}
-              <span style={{fontSize:8,color:t.sub,fontWeight:500,marginLeft:2}}>{istDate}</span>
+              <div style={{fontSize:t.fs(13),fontWeight:900,letterSpacing:-.3,background:"linear-gradient(135deg,#818cf8,#34d399)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",lineHeight:1}}>StudySync</div>
+              {isPro?<div style={{background:"linear-gradient(135deg,#818cf8,#34d399)",borderRadius:5,padding:"1px 5px",fontSize:t.fs(7),fontWeight:900,color:"#fff"}}>PRO</div>:<div style={{background:"rgba(52,211,153,0.16)",border:"1px solid rgba(52,211,153,0.28)",borderRadius:5,padding:"1px 5px",fontSize:t.fs(7),fontWeight:900,color:"#34d399"}}>7D FREE</div>}
+              <span style={{fontSize:t.fs(8),color:t.sub,fontWeight:500,marginLeft:2}}>{istDate}</span>
             </div>
             <button onClick={()=>setExOpen(true)} style={{display:"flex",alignItems:"center",gap:3,background:"none",border:"none",cursor:"pointer",padding:0,marginTop:1}}>
               <div style={{width:4,height:4,borderRadius:"50%",background:es.color,boxShadow:`0 0 3px ${es.color}`,flexShrink:0}}/>
-              <span style={{fontSize:8,color:t.sub,fontWeight:600}}>{es.name}{days!==null&&<span style={{color:es.color,fontWeight:700}}> · {days}d</span>}</span>
-              <span style={{fontSize:7,color:t.muted}}>✎</span>
+              <span style={{fontSize:t.fs(8),color:t.sub,fontWeight:600}}>{es.name}{days!==null&&<span style={{color:es.color,fontWeight:700}}> · {days}d</span>}</span>
+              <span style={{fontSize:t.fs(7),color:t.muted}}>✎</span>
             </button>
           </div>
         </div>
         <div style={{display:"flex",gap:4,alignItems:"center"}}>
-          <button onClick={()=>setDark(v=>!v)} style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontFamily:"inherit",fontSize:11,color:t.text}}>{dark?"☀️":"🌙"}</button>
-          <button onClick={()=>setNOpen(true)} style={{position:"relative",background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontSize:11,display:"flex",alignItems:"center"}}>🔔{nHist.length>0&&<div style={{position:"absolute",top:-3,right:-3,background:t.a1,color:"#fff",borderRadius:"50%",width:11,height:11,fontSize:6,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${t.bg}`}}>{Math.min(nHist.length,9)}</div>}</button>
-          {!isPro&&<button onClick={()=>setProOpen(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:8,color:"#fff",fontWeight:800,boxShadow:"0 0 7px rgba(129,140,248,0.25)"}}>⚡ Pro</button>}
-          {pomoRun&&tab!=="timer"&&<button onClick={()=>setTab("timer")} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:11,padding:"3px 7px",display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontFamily:"inherit"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#FF6B6B",animation:"pulse 1s infinite"}}/><span style={{color:"#FF6B6B",fontSize:8,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></button>}
-          <div onClick={()=>go("profile")} style={{width:27,height:27,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:10,color:"#fff",cursor:"pointer",border:"1.5px solid rgba(129,140,248,0.25)"}}>{(user?.name||"K")[0].toUpperCase()}</div>
+          <button onClick={()=>setDark(v=>!v)} style={{background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(11),color:t.text}}>{dark?"☀️":"🌙"}</button>
+          <button onClick={()=>setNOpen(true)} style={{position:"relative",background:t.pill,border:`1px solid ${t.border}`,borderRadius:13,padding:"4px 7px",cursor:"pointer",fontSize:t.fs(11),display:"flex",alignItems:"center"}}>🔔{nHist.length>0&&<div style={{position:"absolute",top:-3,right:-3,background:t.a1,color:"#fff",borderRadius:"50%",width:11,height:11,fontSize:t.fs(6),fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${t.bg}`}}>{Math.min(nHist.length,9)}</div>}</button>
+          {!isPro&&<button onClick={()=>setProOpen(true)} style={{background:"linear-gradient(135deg,#818cf8,#34d399)",border:"none",borderRadius:13,padding:"4px 8px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(8),color:"#fff",fontWeight:800,boxShadow:"0 0 7px rgba(129,140,248,0.25)"}}>⚡ Pro</button>}
+          {pomoRun&&tab!=="timer"&&<button onClick={()=>setTab("timer")} style={{background:"rgba(255,107,107,0.12)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:11,padding:"3px 7px",display:"flex",alignItems:"center",gap:3,cursor:"pointer",fontFamily:"inherit"}}><div style={{width:5,height:5,borderRadius:"50%",background:"#FF6B6B",animation:"pulse 1s infinite"}}/><span style={{color:"#FF6B6B",fontSize:t.fs(8),fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{pad(Math.floor(pomoSec/60))}:{pad(pomoSec%60)}</span></button>}
+          <div onClick={()=>go("profile")} style={{width:27,height:27,borderRadius:"50%",background:"linear-gradient(135deg,#818cf8,#34d399)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:t.fs(10),color:"#fff",cursor:"pointer",border:"1.5px solid rgba(129,140,248,0.25)"}}>{(user?.name||"K")[0].toUpperCase()}</div>
         </div>
       </div>
     </div>
@@ -4599,7 +4622,7 @@ return () => {active=false;unsub();};
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
       {tab==="circle"  &&<Circle    t={t} friends={friends} setFriends={setFriends} openQR={()=>setQrOpen(true)} subjects={es.subjects} customSubjects={customSubjects} isPro={isPro} onPro={()=>setProOpen(true)} user={user} streak={streak}/>}
       {tab==="report"  &&<Report    t={t} es={es} user={user} streak={streak}/>}
-      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} onLogout={async()=>{
+      {tab==="profile" &&<Profile   t={t} user={user} setUser={setUser} es={es} isPro={isPro} onPro={()=>setProOpen(true)} streak={streak} stats={stats} fontSize={fontSize} setFontSize={setFontSize} onLogout={async()=>{
         // Explicit offline write on clean logout — previously onLogout did NOT
         // touch Firebase at all, so a deliberate sign-out looked identical to
         // a crash: presence stayed 'online' until something else changed it.
@@ -4634,24 +4657,24 @@ return () => {active=false;unsub();};
     {/* Nav */}
     <div className="ss-bottom-nav" style={{position:"fixed",bottom:`calc(env(safe-area-inset-bottom, 0px) + ${NAV_FLOAT_OFFSET}px)`,left:8,right:8,background:t.nav,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:`1px solid ${t.border}`,borderRadius:18,boxShadow:t.sh,zIndex:100,paddingTop:2,paddingBottom:6,overflow:"hidden"}}>
       {/* Pro row */}
-      <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,paddingBottom:1,borderBottom:`1px solid ${t.border}`,marginBottom:0}}>
+      <div style={{display:"flex",justifyContent:"center",alignItems:"center",gap:2,rowGap:3,flexWrap:"wrap",paddingBottom:1,borderBottom:`1px solid ${t.border}`,marginBottom:0}}>
         {PRO.map(tb=>{const active=tab===tb.id;return(
           <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",alignItems:"center",gap:3,background:active?`${tb.c}16`:"none",border:active?`1px solid ${tb.c}38`:"1px solid transparent",cursor:"pointer",padding:"3px 8px",minHeight:22,borderRadius:11,position:"relative"}}>
-            <div style={{fontSize:10,lineHeight:1,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
-            <div style={{fontSize:8,fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.2,lineHeight:1}}>{tb.l}</div>
-            {!isPro&&<div style={{position:"absolute",top:-2,right:2,fontSize:6,color:"#818cf8",fontWeight:900}}>⚡</div>}
+            <div style={{fontSize:t.fs(10),lineHeight:1,filter:active?"none":!isPro?"grayscale(1) opacity(.45)":"opacity(.6)"}}>{tb.icon}</div>
+            <div style={{fontSize:t.fs(8),fontWeight:active?800:600,color:active?tb.c:t.sub,letterSpacing:.2,lineHeight:1}}>{tb.l}</div>
+            {!isPro&&<div style={{position:"absolute",top:-2,right:2,fontSize:t.fs(6),color:"#818cf8",fontWeight:900}}>⚡</div>}
           </button>
         );})}
         {!isPro&&<button onClick={()=>setProOpen(true)} style={{display:"flex",alignItems:"center",gap:2,background:"linear-gradient(135deg,rgba(129,140,248,0.12),rgba(52,211,153,0.07))",border:"1px solid rgba(129,140,248,0.2)",borderRadius:11,padding:"3px 8px",minHeight:22,cursor:"pointer",fontFamily:"inherit",marginLeft:2}}>
-          <span style={{fontSize:8,color:"#818cf8",fontWeight:800,lineHeight:1}}>⚡ Try Free</span>
+          <span style={{fontSize:t.fs(8),color:"#818cf8",fontWeight:800,lineHeight:1}}>⚡ Try Free</span>
         </button>}
       </div>
       {/* Free row */}
       <div style={{display:"flex",justifyContent:"space-around"}}>
         {FREE.map(tb=>{const active=tab===tb.id;return(
           <button key={tb.id} onClick={()=>go(tb.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,background:"none",border:"none",cursor:"pointer",color:active?tb.c:t.muted,transition:"all .2s",padding:"2px 4px",minHeight:34,minWidth:42,flex:1}}>
-            <div style={{fontSize:15,filter:active?"none":"grayscale(1) opacity(.55)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
-            <div style={{fontSize:7,fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase",color:active?tb.c:t.sub}}>{tb.l}</div>
+            <div style={{fontSize:t.fs(15),filter:active?"none":"grayscale(1) opacity(.55)",transform:active?"scale(1.1)":"scale(1)",transition:"all .2s"}}>{tb.icon}</div>
+            <div style={{fontSize:t.fs(7),fontWeight:active?800:500,letterSpacing:.5,textTransform:"uppercase",color:active?tb.c:t.sub}}>{tb.l}</div>
             {active&&<div style={{width:3,height:3,borderRadius:"50%",background:tb.c}}/>}
           </button>
         );})}
