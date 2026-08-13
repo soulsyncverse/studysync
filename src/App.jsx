@@ -3369,6 +3369,7 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,fontSize,setFontSiz
   const [nameSaving,setNameSaving]=useState(false);
   const [nameSaved,setNameSaved]=useState(false);
   const [deleteStep,setDeleteStep]=useState(0); // 0=none,1=first confirm,2=second confirm,3=deleting
+  const [settingsOpen,setSettingsOpen]=useState(false); // Settings accordion — local UI state only, closed by default
   const [codeCopied,setCodeCopied]=useState(false);
   // ── Premium Membership section state ──
   const [entInfo,setEntInfo]=useState({plan:"",memberSince:null,subscribedAt:null,expiresAt:null,cancelled:false});
@@ -3607,32 +3608,49 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,fontSize,setFontSiz
       <div style={{color:es.color||"#818cf8",fontSize:t.fs(22),fontWeight:900}}>{days}</div>
     </div>
 
-    {/* Settings — dedicated, extensible section; Font Size is the only entry for now */}
-    <div style={{gridColumn:"1 / -1"}}>
-      <div style={{color:t.muted,fontSize:t.fs(9),fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6,paddingLeft:2}}>Settings</div>
-      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px",display:"flex",flexDirection:"column",gap:10}}>
-        {/* Font Size */}
-        <div>
-          <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>Font Size</div>
-          <div style={{display:"flex",gap:6}}>
-            {[{k:"small",l:"Small"},{k:"medium",l:"Medium"},{k:"large",l:"Large"}].map(o=>(
-              <button key={o.k} onClick={()=>setFontSize(o.k)} style={{flex:1,background:fontSize===o.k?`${t.a3}18`:t.pill,border:`1.5px solid ${fontSize===o.k?t.a3:"transparent"}`,borderRadius:9,padding:"8px 4px",color:fontSize===o.k?t.a3:t.sub,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{o.l}</button>
-            ))}
+    {/* Settings — collapsible accordion. Closed by default, local UI state only. */}
+    <div style={{gridColumn:"1 / -1",background:t.card,border:`1px solid ${t.border}`,borderRadius:12,overflow:"hidden"}}>
+      <button
+        onClick={()=>setSettingsOpen(o=>!o)}
+        aria-expanded={settingsOpen}
+        aria-controls="ss-settings-panel"
+        style={{width:"100%",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:9,padding:"12px 13px",textAlign:"left"}}
+      >
+        <span style={{fontSize:t.fs(15),lineHeight:1}}>⚙️</span>
+        <span style={{flex:1,color:t.text,fontWeight:800,fontSize:t.fs(13)}}>Settings</span>
+        <span style={{display:"inline-block",color:t.muted,fontSize:t.fs(13),fontWeight:700,transform:settingsOpen?"rotate(90deg)":"rotate(0deg)",transition:"transform .2s ease"}}>›</span>
+      </button>
+      {settingsOpen&&(
+        <div id="ss-settings-panel" style={{padding:"0 13px 13px",display:"flex",flexDirection:"column",gap:14,borderTop:`1px solid ${t.border}`,paddingTop:13}}>
+          {/* Font Size */}
+          <div>
+            <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>Font Size</div>
+            <div style={{display:"flex",gap:6}}>
+              {[{k:"small",l:"Small"},{k:"medium",l:"Medium"},{k:"large",l:"Large"}].map(o=>(
+                <button key={o.k} onClick={()=>setFontSize(o.k)} style={{flex:1,background:fontSize===o.k?`${t.a3}18`:t.pill,border:`1.5px solid ${fontSize===o.k?t.a3:"transparent"}`,borderRadius:9,padding:"8px 4px",color:fontSize===o.k?t.a3:t.sub,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{o.l}</button>
+              ))}
+            </div>
+            <div style={{color:t.muted,fontSize:t.fs(9),marginTop:8,textAlign:"center"}}>Aa — sample text at this size</div>
           </div>
-          <div style={{color:t.muted,fontSize:t.fs(9),marginTop:8,textAlign:"center"}}>Aa — sample text at this size</div>
+
+          {/* Log Out */}
+          <button onClick={onLogout} style={{width:"100%",background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:10,padding:"10px",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(12),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:6,transition:"background .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,107,107,0.14)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,107,107,0.08)"}
+          >
+            🚪 Log Out
+          </button>
+
+          {/* Delete Account — real danger-row styling, not a faint text link */}
+          <button onClick={()=>setDeleteStep(1)} style={{width:"100%",background:"rgba(255,107,107,0.06)",border:"1px solid rgba(255,107,107,0.18)",borderRadius:10,padding:"9px",color:"#FF6B6B",fontWeight:700,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",textAlign:"center",transition:"background .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,107,107,0.11)"}
+            onMouseLeave={e=>e.currentTarget.style.background="rgba(255,107,107,0.06)"}
+          >
+            Delete Account
+          </button>
         </div>
-      </div>
+      )}
     </div>
-
-    {/* Logout */}
-    <button onClick={onLogout} style={{background:"rgba(255,107,107,0.08)",border:"1px solid rgba(255,107,107,0.22)",borderRadius:12,padding:"11px",color:"#FF6B6B",fontWeight:800,fontSize:t.fs(13),cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
-      🚪 Log Out
-    </button>
-
-    {/* Delete account */}
-    <button onClick={()=>setDeleteStep(1)} style={{background:"none",border:"none",color:t.muted,fontSize:t.fs(10),cursor:"pointer",fontFamily:"inherit",textAlign:"center",padding:"4px",textDecoration:"underline"}}>
-      Delete Account
-    </button>
   </div>);
 }
 
