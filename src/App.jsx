@@ -3607,15 +3607,21 @@ function Profile({t,user,setUser,es,isPro,onPro,streak,stats,fontSize,setFontSiz
       <div style={{color:es.color||"#818cf8",fontSize:t.fs(22),fontWeight:900}}>{days}</div>
     </div>
 
-    {/* Font Size */}
-    <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px"}}>
-      <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>Font Size</div>
-      <div style={{display:"flex",gap:6}}>
-        {[{k:"small",l:"Small"},{k:"medium",l:"Medium"},{k:"large",l:"Large"}].map(o=>(
-          <button key={o.k} onClick={()=>setFontSize(o.k)} style={{flex:1,background:fontSize===o.k?`${t.a3}18`:t.pill,border:`1.5px solid ${fontSize===o.k?t.a3:"transparent"}`,borderRadius:9,padding:"8px 4px",color:fontSize===o.k?t.a3:t.sub,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{o.l}</button>
-        ))}
+    {/* Settings — dedicated, extensible section; Font Size is the only entry for now */}
+    <div style={{gridColumn:"1 / -1"}}>
+      <div style={{color:t.muted,fontSize:t.fs(9),fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6,paddingLeft:2}}>Settings</div>
+      <div style={{background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:"11px",display:"flex",flexDirection:"column",gap:10}}>
+        {/* Font Size */}
+        <div>
+          <div style={{color:t.text,fontWeight:800,fontSize:t.fs(12),marginBottom:8}}>Font Size</div>
+          <div style={{display:"flex",gap:6}}>
+            {[{k:"small",l:"Small"},{k:"medium",l:"Medium"},{k:"large",l:"Large"}].map(o=>(
+              <button key={o.k} onClick={()=>setFontSize(o.k)} style={{flex:1,background:fontSize===o.k?`${t.a3}18`:t.pill,border:`1.5px solid ${fontSize===o.k?t.a3:"transparent"}`,borderRadius:9,padding:"8px 4px",color:fontSize===o.k?t.a3:t.sub,fontWeight:800,fontSize:t.fs(11),cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{o.l}</button>
+            ))}
+          </div>
+          <div style={{color:t.muted,fontSize:t.fs(9),marginTop:8,textAlign:"center"}}>Aa — sample text at this size</div>
+        </div>
       </div>
-      <div style={{color:t.muted,fontSize:t.fs(9),marginTop:8,textAlign:"center"}}>Aa — sample text at this size</div>
     </div>
 
     {/* Logout */}
