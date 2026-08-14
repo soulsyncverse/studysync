@@ -117,6 +117,25 @@ async function updatePublicWeekMinutes(uid){
     await mod.set(mod.ref(mod.db,`publicUsers/${uid}/weekMinutes`),weekMinutes);
   }catch(e){console.error("updatePublicWeekMinutes error",e);}
 }
+// Atomically claims a specific Pomodoro completion so only ONE device can
+// ever record it as a session. claimKey = `${pomoSessionId}:${ordinal}` —
+// pomoSessionId is untouched (still generated/synced exactly as before; this
+// only reads it), ordinal is the session count this completion represents.
+// A second device racing to claim the same key sees its transaction abort
+// (committed:false) and must not write a session.
+async function claimPomoCompletion(uid,claimKey){
+  if(!uid||!claimKey)return false;
+  try{
+    const mod=await import("./firebase");
+    if(typeof mod.runTransaction!=="function")return true; // not expected — runTransaction is already used elsewhere in this file (onSessionComplete). Fail-open rather than silently dropping a real session.
+    const claimRef=mod.ref(mod.db,`users/${uid}/pomoSession/lastRecordedClaim`);
+    const result=await mod.runTransaction(claimRef,(current)=>{
+      if(current===claimKey)return; // already claimed — abort without committing, nothing written
+      return claimKey;
+    });
+    return !!result.committed;
+  }catch(e){console.error("claimPomoCompletion error",e);return true;} // fail-open on transaction errors (e.g. transient offline) — losing a real session is worse than an occasional duplicate
+}
 // ── Streak system constants ─────────────────────────────────────
 const STREAK_MIN_MINUTES=10;   // minutes of study required in a single IST day to count toward the streak
 const RESTORE_MIN_MINUTES=120; // minutes of study required (same IST day) before a broken streak can be restored
@@ -4307,6 +4326,7 @@ return () => {active=false;unsub();};
   const pomoModeRef=useRef(pomoMode);
   const pomoSecRef=useRef(pomoSec);
   const pomoSessRef=useRef(pomoSess);
+  const pomoSessionIdRef=useRef(pomoSessionId);
   const pomoCsRef=useRef(pomoCs);
   const pomoCfRef=useRef(pomoCf);
   // Guard: completion effects fire exactly once per session
@@ -4344,12 +4364,17 @@ return () => {active=false;unsub();};
         if(ns?.pomoDone)push({icon:"⏱",title:"Session complete! 🎉",body:`Great work on ${pomoCsRef.current}!`,col:"#818cf8"});
         if(user?.uid){
           const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
-          import("./firebase").then(mod=>{
-            const today=istDateString();
-            mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
-            updatePublicWeekMinutes(user.uid);
-            onSessionComplete();
-          }).catch(()=>{});
+          const claimKey=`${pomoSessionId}:${pomoSess+1}`;
+          const claim=isPro?claimPomoCompletion(user.uid,claimKey):Promise.resolve(true); // cross-device races only possible for Pro — free users skip the transaction entirely, unaffected
+          claim.then(won=>{
+            if(!won)return; // another device already recorded this exact completion
+            import("./firebase").then(mod=>{
+              const today=istDateString();
+              mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
+              updatePublicWeekMinutes(user.uid);
+              onSessionComplete();
+            }).catch(()=>{});
+          });
         }
       } else {
         try{
@@ -4367,6 +4392,8 @@ return () => {active=false;unsub();};
   },[pomoSec,pomoRun]);
   useEffect(()=>{pomoCsRef.current=pomoCs;},[pomoCs]);
   useEffect(()=>{pomoCfRef.current=pomoCf;},[pomoCf]);
+  useEffect(()=>{pomoSessRef.current=pomoSess;},[pomoSess]);
+  useEffect(()=>{pomoSessionIdRef.current=pomoSessionId;},[pomoSessionId]);
 
   // ── STUDY ACTIVITY → presence (Issue #5) ──
   // Free-tier, independent of isPro — this is deliberately NOT part of the Pro
@@ -4526,14 +4553,17 @@ return () => {active=false;unsub();};
       try{
         const mod=await import("./firebase");
         const today=istDateString();
-        await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
-        updatePublicWeekMinutes(user.uid);
+        const claimKey=`${pomoSessionIdRef.current}:${pomoSessRef.current+1}`;
+        const won=isPro?await claimPomoCompletion(user.uid,claimKey):true; // cross-device races only possible for Pro (only Pro syncs pomoSession) — free users skip the transaction entirely, unaffected
         setPomoSess(n=>n+1);
         setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
+        if(!won)return; // another device already recorded this exact completion
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
+        updatePublicWeekMinutes(user.uid);
         onSessionComplete(elapsedMinutes);
       }catch(e){console.error("handlePomoStop error",e);}
     })();
-  },[user?.uid,onSessionComplete]);
+  },[user?.uid,isPro,onSessionComplete]);
 
   const push=useCallback((n)=>{const id=++tid.current;const time=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});const notif={...n,id,time};setToasts(x=>[...x,notif]);setNHist(x=>[...x,notif]);setTimeout(()=>setToasts(x=>x.filter(y=>y.id!==id)),5000);},[]);
   const dismiss=useCallback((id)=>setToasts(x=>x.filter(y=>y.id!==id)),[]);
