@@ -122,21 +122,25 @@ async function updatePublicWeekMinutes(uid){
 // for the entire lifetime of one countdown, generated once at a genuinely
 // fresh Start (not on resume), and synced through pomoSession the same way
 // sessionId already is, so both devices agree on it before the run even
-// starts. (Earlier version keyed on pomoSessionId+session-count; that count
-// was itself mutated by completion, so a device adopting the other's
-// already-bumped count computed a different — non-colliding — key. runId is
-// never touched by completion, so this can't happen.)
-// A second device racing to claim the same key sees its transaction abort
+// starts. (Two earlier versions failed: v1 keyed on pomoSessionId+session-
+// count, which completion itself mutated, producing non-colliding keys; v2
+// fixed that but stored the claim as a CHILD of pomoSession — a node two
+// other effects overwrite wholesale via set() on every discrete transition,
+// including the one completion itself triggers, silently deleting the claim
+// moments after it was written. The claim now lives at its own dedicated
+// path, users/{uid}/pomoRunClaims/{runId}, which nothing else in the app
+// ever touches.)
+// A second device racing to claim the same runId sees its transaction abort
 // (committed:false) and must not write a session.
 async function claimPomoCompletion(uid,claimKey){
   if(!uid||!claimKey)return false;
   try{
     const mod=await import("./firebase");
     if(typeof mod.runTransaction!=="function")return true; // not expected — runTransaction is already used elsewhere in this file (onSessionComplete). Fail-open rather than silently dropping a real session.
-    const claimRef=mod.ref(mod.db,`users/${uid}/pomoSession/lastRecordedClaim`);
+    const claimRef=mod.ref(mod.db,`users/${uid}/pomoRunClaims/${claimKey}`);
     const result=await mod.runTransaction(claimRef,(current)=>{
-      if(current===claimKey)return; // already claimed — abort without committing, nothing written
-      return claimKey;
+      if(current)return; // already claimed — abort without committing, nothing written
+      return true;
     });
     return !!result.committed;
   }catch(e){console.error("claimPomoCompletion error",e);return true;} // fail-open on transaction errors (e.g. transient offline) — losing a real session is worse than an occasional duplicate
