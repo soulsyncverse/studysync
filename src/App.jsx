@@ -4358,8 +4358,6 @@ return () => {active=false;unsub();};
       completionFiredRef.current=true;
       secEverPositiveRef.current=false; // consumed — require new session to build up again
       if(pomoModeRef.current==="focus"){
-        setPomoSess(n=>n+1); // single authoritative increment — guarded by completionFiredRef above
-        setPomoFocusMin(m=>m+pomoCfRef.current); // natural completion: full configured duration was actually studied
         try{
           const ctx=new(window.AudioContext||window.webkitAudioContext)();
           const gain=ctx.createGain();gain.connect(ctx.destination);
@@ -4378,6 +4376,8 @@ return () => {active=false;unsub();};
           const claim=isPro?claimPomoCompletion(user.uid,claimKey):Promise.resolve(true); // cross-device races only possible for Pro — free users skip the transaction entirely, unaffected
           claim.then(won=>{
             if(!won)return; // another device already recorded this exact completion
+            setPomoSess(n=>n+1); // single authoritative increment — only on the device that actually claimed this run
+            setPomoFocusMin(m=>m+pomoCfRef.current); // natural completion: full configured duration was actually studied
             import("./firebase").then(mod=>{
               const today=istDateString();
               mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
@@ -4578,9 +4578,9 @@ return () => {active=false;unsub();};
         const today=istDateString();
         const claimKey=pomoRunIdRef.current;
         const won=isPro?await claimPomoCompletion(user.uid,claimKey):true; // cross-device races only possible for Pro (only Pro syncs pomoSession) — free users skip the transaction entirely, unaffected
+        if(!won)return; // another device already recorded this exact completion
         setPomoSess(n=>n+1);
         setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
-        if(!won)return; // another device already recorded this exact completion
         await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
         updatePublicWeekMinutes(user.uid);
         onSessionComplete(elapsedMinutes);
