@@ -137,11 +137,15 @@ async function claimPomoCompletion(uid,claimKey){
   try{
     const mod=await import("./firebase");
     if(typeof mod.runTransaction!=="function")return true; // not expected — runTransaction is already used elsewhere in this file (onSessionComplete). Fail-open rather than silently dropping a real session.
-    const claimRef=mod.ref(mod.db,`users/${uid}/pomoRunClaims/${claimKey}`);
+    const claimPath=`users/${uid}/pomoRunClaims/${claimKey}`;
+    console.log("[POMO-DIAG] claimPomoCompletion() called",{ts:Date.now(),uid,claimKey,claimPath});
+    const claimRef=mod.ref(mod.db,claimPath);
     const result=await mod.runTransaction(claimRef,(current)=>{
+      console.log("[POMO-DIAG] transaction callback fired",{ts:Date.now(),uid,claimKey,claimPath,current});
       if(current)return; // already claimed — abort without committing, nothing written
       return true;
     });
+    console.log("[POMO-DIAG] transaction result",{ts:Date.now(),uid,claimKey,claimPath,committed:result.committed,snapshotValueAfter:result.snapshot&&typeof result.snapshot.val==="function"?result.snapshot.val():undefined});
     return !!result.committed;
   }catch(e){console.error("claimPomoCompletion error",e);return true;} // fail-open on transaction errors (e.g. transient offline) — losing a real session is worse than an occasional duplicate
 }
@@ -624,6 +628,7 @@ function Login({t,onLogin}){
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoFocusMin,pomoCs,setPomoCs,
+  pomoRunId,pomoSessionId,
   onPomoReset=()=>{},onPomoStop=()=>{},onFreshStart=()=>{}}){
   const allSubjects=[...subjects,...customSubjects];
   const [pf,setPf]=useState(pomoCf);
@@ -678,7 +683,18 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
 
     <div className="ss-pomo-controls" style={{display:"flex",gap:8,alignItems:"center"}}>
       <button onClick={()=>{const elapsedSec=pomoSec===0?0:tot-pomoSec;setPomoSec(dur[pomoMode]*60);setPomoRun(false);onPomoReset();onPomoStop(elapsedSec,pomoMode,pomoCs);}} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(10),fontWeight:600}}>Reset</button>
-      <button onClick={()=>{if(!pomoRun&&pomoSec===0){setPomoSec(tot);onFreshStart();}setPomoRun(r=>!r);}} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:t.fs(14),fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
+      <button onClick={()=>{
+        const deviceId=(()=>{try{return localStorage.getItem("ss_device_id");}catch{return"unknown";}})();
+        if(!pomoRun&&pomoSec===0){
+          console.log("[POMO-DIAG] FRESH START",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+          setPomoSec(tot);onFreshStart();
+        } else if(pomoRun){
+          console.log("[POMO-DIAG] PAUSE action",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+        } else {
+          console.log("[POMO-DIAG] RESUME action",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+        }
+        setPomoRun(r=>!r);
+      }} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:t.fs(14),fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
       <button onClick={()=>sw(pomoMode==="focus"?"short":"focus")} style={{background:t.pill,border:"none",color:t.sub,borderRadius:9,padding:"7px 11px",cursor:"pointer",fontFamily:"inherit",fontSize:t.fs(10),fontWeight:600}}>Skip</button>
     </div>
     <div className="ss-pomo-stats" style={{display:"flex",gap:17}}>{[{l:"Sessions",v:pomoSess,c:sc},{l:"Focus Time",v:`${Math.floor(pomoFocusMin/60)}h${pomoFocusMin%60}m`,c:t.text}].map(s=><div key={s.l} style={{textAlign:"center"}}><div style={{fontSize:t.fs(18),fontWeight:900,color:s.c}}>{s.v}</div><div style={{fontSize:t.fs(8),color:t.sub,textTransform:"uppercase",letterSpacing:1,marginTop:1}}>{s.l}</div></div>)}</div>
@@ -4358,6 +4374,7 @@ return () => {active=false;unsub();};
       completionFiredRef.current=true;
       secEverPositiveRef.current=false; // consumed — require new session to build up again
       if(pomoModeRef.current==="focus"){
+        console.log("[POMO-DIAG] natural completion detected",{ts:Date.now(),deviceId:deviceIdRef.current,pomoRunId,pomoSessionId,pomoRun,pomoSec});
         try{
           const ctx=new(window.AudioContext||window.webkitAudioContext)();
           const gain=ctx.createGain();gain.connect(ctx.destination);
@@ -4373,15 +4390,20 @@ return () => {active=false;unsub();};
         if(user?.uid){
           const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
           const claimKey=pomoRunId;
+          console.log("[POMO-DIAG] about to call claimPomoCompletion (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,isPro});
           const claim=isPro?claimPomoCompletion(user.uid,claimKey):Promise.resolve(true); // cross-device races only possible for Pro — free users skip the transaction entirely, unaffected
           claim.then(won=>{
+            console.log("[POMO-DIAG] claim result (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,won,path:"natural-completion"});
             if(!won)return; // another device already recorded this exact completion
             setPomoSess(n=>n+1); // single authoritative increment — only on the device that actually claimed this run
             setPomoFocusMin(m=>m+pomoCfRef.current); // natural completion: full configured duration was actually studied
             import("./firebase").then(mod=>{
               const today=istDateString();
-              mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes,completedAt:Date.now(),date:today});
+              const sessionKey=`s_${Date.now()}`;
+              console.log("[POMO-DIAG] writing session (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,sessionKey,subject,minutes,path:"natural-completion"});
+              mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/${sessionKey}`),{subject,minutes,completedAt:Date.now(),date:today});
               updatePublicWeekMinutes(user.uid);
+              console.log("[POMO-DIAG] calling onSessionComplete (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey});
               onSessionComplete();
             }).catch(()=>{});
           });
@@ -4572,17 +4594,23 @@ return () => {active=false;unsub();};
     if(!user?.uid||mode!=="focus")return; // breaks are never recorded as study time
     const elapsedMinutes=Math.floor(elapsedSec/60);
     if(elapsedMinutes<1)return; // ignore sub-minute sessions (Requirement 5)
+    console.log("[POMO-DIAG] handlePomoStop called",{ts:Date.now(),deviceId:deviceIdRef.current,pomoRunId:pomoRunIdRef.current,pomoSessionId,elapsedSec,elapsedMinutes,mode,subject});
     (async()=>{
       try{
         const mod=await import("./firebase");
         const today=istDateString();
         const claimKey=pomoRunIdRef.current;
+        console.log("[POMO-DIAG] about to call claimPomoCompletion (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,isPro});
         const won=isPro?await claimPomoCompletion(user.uid,claimKey):true; // cross-device races only possible for Pro (only Pro syncs pomoSession) — free users skip the transaction entirely, unaffected
+        console.log("[POMO-DIAG] claim result (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,won,path:"handlePomoStop"});
         if(!won)return; // another device already recorded this exact completion
         setPomoSess(n=>n+1);
         setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
-        await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/s_${Date.now()}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
+        const sessionKey=`s_${Date.now()}`;
+        console.log("[POMO-DIAG] writing session (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,sessionKey,subject,minutes:elapsedMinutes,path:"handlePomoStop"});
+        await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/${sessionKey}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
         updatePublicWeekMinutes(user.uid);
+        console.log("[POMO-DIAG] calling onSessionComplete (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey});
         onSessionComplete(elapsedMinutes);
       }catch(e){console.error("handlePomoStop error",e);}
     })();
@@ -4693,7 +4721,7 @@ return () => {active=false;unsub();};
 
     {/* Content */}
     <div className="ss-content">
-      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoFocusMin={pomoFocusMin} pomoCs={pomoCs} setPomoCs={setPomoCs} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop} onFreshStart={handleFreshStart}/>}
+      {tab==="timer"   &&<Pomo      t={t} subjects={es.subjects} customSubjects={customSubjects} pushN={push} ns={ns} isPro={isPro} user={user} onSessionComplete={onSessionComplete} pomoMode={pomoMode} setPomoMode={setPomoMode} pomoCf={pomoCf} setPomoCf={setPomoCf} pomoSec={pomoSec} setPomoSec={setPomoSec} pomoRun={pomoRun} setPomoRun={setPomoRun} pomoSess={pomoSess} setPomoSess={setPomoSess} pomoFocusMin={pomoFocusMin} pomoCs={pomoCs} setPomoCs={setPomoCs} pomoRunId={pomoRunId} pomoSessionId={pomoSessionId} onPomoReset={handlePomoReset} onPomoStop={handlePomoStop} onFreshStart={handleFreshStart}/>}
       {tab==="planner" &&<Planner   t={t} subjects={es.subjects} customSubjects={customSubjects} user={user}/>}
       {tab==="streak"  &&<Streak    t={t} pushN={push} ns={ns} onRestore={restoreStreak} streak={streak} isPro={isPro} user={user} streakBreak={streakBreak} streakWarning={streakWarning} todayStudyMinutes={todayStudyMinutes}/>}
       {tab==="exam"    &&<ExamDash  t={t} es={es} setEs={setEs} onOpen={()=>setExOpen(true)} customSubjects={customSubjects} customExams={customExams} user={user} examDates={examDates} setExamDates={setExamDates} examTips={examTips} setExamTips={setExamTips}/>}
