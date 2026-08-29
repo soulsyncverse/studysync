@@ -117,6 +117,33 @@ async function updatePublicWeekMinutes(uid){
     await mod.set(mod.ref(mod.db,`publicUsers/${uid}/weekMinutes`),weekMinutes);
   }catch(e){console.error("updatePublicWeekMinutes error",e);}
 }
+// ── TEMPORARY diagnostic event log for the cross-device Pomodoro completion
+// bug — read-only, in-memory only, capped to the most recent 30 events, not
+// persisted anywhere and not written to Firebase. Mirrors the same events
+// previously only sent to console.log (kept here too) so they're visible on
+// devices where the console isn't easily reachable. Does not affect any
+// Pomodoro/claim/session logic — purely observational.
+let pomoDiagEvents=[];
+const pomoDiagListeners=new Set();
+function diagLog(fields){
+  const event={id:`${Date.now()}_${Math.random().toString(36).slice(2,6)}`,ts:Date.now(),...fields};
+  console.log("[POMO-DIAG]",event);
+  pomoDiagEvents=[event,...pomoDiagEvents].slice(0,30);
+  pomoDiagListeners.forEach(fn=>{try{fn(pomoDiagEvents);}catch(e){}});
+  return event;
+}
+function diagClear(){
+  pomoDiagEvents=[];
+  pomoDiagListeners.forEach(fn=>{try{fn(pomoDiagEvents);}catch(e){}});
+}
+function useDiagEvents(){
+  const [events,setEvents]=useState(pomoDiagEvents);
+  useEffect(()=>{
+    pomoDiagListeners.add(setEvents);
+    return()=>pomoDiagListeners.delete(setEvents);
+  },[]);
+  return events;
+}
 // Atomically claims a specific Pomodoro completion so only ONE device can
 // ever record it as a session. claimKey is the run's stable pomoRunId — fixed
 // for the entire lifetime of one countdown, generated once at a genuinely
@@ -138,14 +165,14 @@ async function claimPomoCompletion(uid,claimKey){
     const mod=await import("./firebase");
     if(typeof mod.runTransaction!=="function")return true; // not expected — runTransaction is already used elsewhere in this file (onSessionComplete). Fail-open rather than silently dropping a real session.
     const claimPath=`users/${uid}/pomoRunClaims/${claimKey}`;
-    console.log("[POMO-DIAG] claimPomoCompletion() called",{ts:Date.now(),uid,claimKey,claimPath});
+    diagLog({action:"claim_called",claimKey,path:claimPath});
     const claimRef=mod.ref(mod.db,claimPath);
     const result=await mod.runTransaction(claimRef,(current)=>{
-      console.log("[POMO-DIAG] transaction callback fired",{ts:Date.now(),uid,claimKey,claimPath,current});
+      diagLog({action:"transaction_callback",claimKey,path:claimPath,current});
       if(current)return; // already claimed — abort without committing, nothing written
       return true;
     });
-    console.log("[POMO-DIAG] transaction result",{ts:Date.now(),uid,claimKey,claimPath,committed:result.committed,snapshotValueAfter:result.snapshot&&typeof result.snapshot.val==="function"?result.snapshot.val():undefined});
+    diagLog({action:"transaction_result",claimKey,path:claimPath,committed:result.committed,snapshotValueAfter:result.snapshot&&typeof result.snapshot.val==="function"?result.snapshot.val():undefined});
     return !!result.committed;
   }catch(e){console.error("claimPomoCompletion error",e);return true;} // fail-open on transaction errors (e.g. transient offline) — losing a real session is worse than an occasional duplicate
 }
@@ -625,6 +652,68 @@ function Login({t,onLogin}){
   );
 }
 
+// TEMPORARY, read-only diagnostic panel for the cross-device Pomodoro
+// completion bug. Subscribes to the in-memory pomoDiagEvents store — does not
+// read/write Firebase, does not affect Pomodoro/claim/session logic in any
+// way. Collapsed by default. Remove this component and its call site in Pomo
+// once the pause/resume bug is diagnosed.
+function PomoDiagPanel({t}){
+  const [open,setOpen]=useState(false);
+  const events=useDiagEvents();
+  const cell={padding:"3px 6px",whiteSpace:"nowrap"};
+  return(
+    <div style={{width:"100%",maxWidth:620}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{width:"100%",background:t.pill,border:`1px solid ${t.border}`,borderRadius:9,padding:"6px 10px",color:t.muted,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+        🔍 Diagnostics ({events.length}/30) {open?"▲":"▼"}
+      </button>
+      {open&&(
+        <div style={{marginTop:6,background:t.card,border:`1px solid ${t.border}`,borderRadius:9,padding:8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <span style={{color:t.muted,fontSize:t.fs(8)}}>Read-only · in-memory only · not saved</span>
+            <button onClick={()=>diagClear()} style={{background:"rgba(255,107,107,0.1)",border:"1px solid rgba(255,107,107,0.25)",borderRadius:7,padding:"4px 9px",color:"#FF6B6B",fontSize:t.fs(8),fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Clear Diagnostics</button>
+          </div>
+          {events.length===0?(
+            <div style={{color:t.muted,fontSize:t.fs(9),textAlign:"center",padding:"10px 0"}}>No events yet</div>
+          ):(
+            <div style={{overflowX:"auto",maxHeight:320,overflowY:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:t.fs(8)}}>
+                <thead>
+                  <tr style={{color:t.muted,textAlign:"left"}}>
+                    <th style={cell}>Time</th>
+                    <th style={cell}>Device</th>
+                    <th style={cell}>Action</th>
+                    <th style={cell}>RunId</th>
+                    <th style={cell}>SessionId</th>
+                    <th style={cell}>ClaimKey</th>
+                    <th style={cell}>Current</th>
+                    <th style={cell}>Committed</th>
+                    <th style={cell}>Path</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map(e=>(
+                    <tr key={e.id} style={{borderTop:`1px solid ${t.border}`,color:t.text}}>
+                      <td style={cell}>{new Date(e.ts).toLocaleTimeString()}</td>
+                      <td style={cell} title={e.deviceId||""}>{e.deviceId?e.deviceId.slice(-6):""}</td>
+                      <td style={cell}>{e.action||""}</td>
+                      <td style={cell} title={e.runId||""}>{e.runId?e.runId.slice(-8):""}</td>
+                      <td style={cell} title={e.sessionId||""}>{e.sessionId?e.sessionId.slice(-8):""}</td>
+                      <td style={cell} title={e.claimKey||""}>{e.claimKey?e.claimKey.slice(-8):""}</td>
+                      <td style={cell}>{e.current===undefined?"":String(e.current)}</td>
+                      <td style={cell}>{e.committed===undefined?"":String(e.committed)}</td>
+                      <td style={cell} title={e.path||""}>{e.path?(e.path.length>18?"…"+e.path.slice(-16):e.path):""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── POMODORO (Feature 2 — presets 25/45/60, free max 60, pro max 150) ─
 function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
   pomoMode,setPomoMode,pomoCf,setPomoCf,pomoSec,setPomoSec,pomoRun,setPomoRun,pomoSess,setPomoSess,pomoFocusMin,pomoCs,setPomoCs,
@@ -686,12 +775,12 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
       <button onClick={()=>{
         const deviceId=(()=>{try{return localStorage.getItem("ss_device_id");}catch{return"unknown";}})();
         if(!pomoRun&&pomoSec===0){
-          console.log("[POMO-DIAG] FRESH START",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+          diagLog({action:"fresh_start",deviceId,runId:pomoRunId,sessionId:pomoSessionId,pomoSec,pomoRun});
           setPomoSec(tot);onFreshStart();
         } else if(pomoRun){
-          console.log("[POMO-DIAG] PAUSE action",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+          diagLog({action:"pause",deviceId,runId:pomoRunId,sessionId:pomoSessionId,pomoSec,pomoRun});
         } else {
-          console.log("[POMO-DIAG] RESUME action",{ts:Date.now(),deviceId,pomoRunId,pomoSessionId,pomoSec,pomoRun});
+          diagLog({action:"resume",deviceId,runId:pomoRunId,sessionId:pomoSessionId,pomoSec,pomoRun});
         }
         setPomoRun(r=>!r);
       }} style={{background:pomoRun?t.card:sc,border:pomoRun?`1.5px solid ${t.border}`:"none",color:pomoRun?t.text:"#0a0a0f",borderRadius:14,padding:"11px 32px",fontSize:t.fs(14),fontWeight:900,cursor:"pointer",fontFamily:"inherit",transition:"all .25s",boxShadow:pomoRun?"none":`0 0 20px ${sc}55`}}>{pomoRun?"⏸ Pause":"▶ Start"}</button>
@@ -701,6 +790,9 @@ function Pomo({t,subjects,customSubjects,pushN,ns,isPro,user,onSessionComplete,
     {/* Subject pills */}
     <div className="ss-pomo-subjects" style={{display:"flex",gap:4,flexWrap:"wrap",justifyContent:"center",maxWidth:390}}>
       {allSubjects.slice(0,10).map(s=><button key={s.n} onClick={()=>setPomoCs(s.n)} style={{padding:"3px 9px",borderRadius:15,border:`1.5px solid ${pomoCs===s.n?s.c:"transparent"}`,background:pomoCs===s.n?`${s.c}20`:t.pill,color:pomoCs===s.n?s.c:t.sub,fontSize:t.fs(9),fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all .2s"}}>{s.i||"📌"} {s.n}</button>)}
+    </div>
+    <div className="ss-pomo-diag">
+      <PomoDiagPanel t={t}/>
     </div>
   </div>);
 }
@@ -4374,7 +4466,7 @@ return () => {active=false;unsub();};
       completionFiredRef.current=true;
       secEverPositiveRef.current=false; // consumed — require new session to build up again
       if(pomoModeRef.current==="focus"){
-        console.log("[POMO-DIAG] natural completion detected",{ts:Date.now(),deviceId:deviceIdRef.current,pomoRunId,pomoSessionId,pomoRun,pomoSec});
+        diagLog({action:"natural_completion_detected",deviceId:deviceIdRef.current,runId:pomoRunId,sessionId:pomoSessionId,pomoRun,pomoSec});
         try{
           const ctx=new(window.AudioContext||window.webkitAudioContext)();
           const gain=ctx.createGain();gain.connect(ctx.destination);
@@ -4390,20 +4482,20 @@ return () => {active=false;unsub();};
         if(user?.uid){
           const subject=pomoCsRef.current;const minutes=pomoCfRef.current;
           const claimKey=pomoRunId;
-          console.log("[POMO-DIAG] about to call claimPomoCompletion (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,isPro});
+          diagLog({action:"claim_call_start",deviceId:deviceIdRef.current,claimKey,path:"natural-completion",isPro});
           const claim=isPro?claimPomoCompletion(user.uid,claimKey):Promise.resolve(true); // cross-device races only possible for Pro — free users skip the transaction entirely, unaffected
           claim.then(won=>{
-            console.log("[POMO-DIAG] claim result (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,won,path:"natural-completion"});
+            diagLog({action:"claim_result",deviceId:deviceIdRef.current,claimKey,committed:won,path:"natural-completion"});
             if(!won)return; // another device already recorded this exact completion
             setPomoSess(n=>n+1); // single authoritative increment — only on the device that actually claimed this run
             setPomoFocusMin(m=>m+pomoCfRef.current); // natural completion: full configured duration was actually studied
             import("./firebase").then(mod=>{
               const today=istDateString();
               const sessionKey=`s_${Date.now()}`;
-              console.log("[POMO-DIAG] writing session (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,sessionKey,subject,minutes,path:"natural-completion"});
+              diagLog({action:"session_write",deviceId:deviceIdRef.current,claimKey,path:`users/${user.uid}/sessions/${sessionKey}`});
               mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/${sessionKey}`),{subject,minutes,completedAt:Date.now(),date:today});
               updatePublicWeekMinutes(user.uid);
-              console.log("[POMO-DIAG] calling onSessionComplete (natural completion)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey});
+              diagLog({action:"on_session_complete",deviceId:deviceIdRef.current,claimKey,path:"natural-completion"});
               onSessionComplete();
             }).catch(()=>{});
           });
@@ -4594,23 +4686,23 @@ return () => {active=false;unsub();};
     if(!user?.uid||mode!=="focus")return; // breaks are never recorded as study time
     const elapsedMinutes=Math.floor(elapsedSec/60);
     if(elapsedMinutes<1)return; // ignore sub-minute sessions (Requirement 5)
-    console.log("[POMO-DIAG] handlePomoStop called",{ts:Date.now(),deviceId:deviceIdRef.current,pomoRunId:pomoRunIdRef.current,pomoSessionId,elapsedSec,elapsedMinutes,mode,subject});
+    diagLog({action:"handle_pomo_stop_called",deviceId:deviceIdRef.current,runId:pomoRunIdRef.current,sessionId:pomoSessionId,elapsedSec,elapsedMinutes,mode,subject});
     (async()=>{
       try{
         const mod=await import("./firebase");
         const today=istDateString();
         const claimKey=pomoRunIdRef.current;
-        console.log("[POMO-DIAG] about to call claimPomoCompletion (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,isPro});
+        diagLog({action:"claim_call_start",deviceId:deviceIdRef.current,claimKey,path:"handlePomoStop",isPro});
         const won=isPro?await claimPomoCompletion(user.uid,claimKey):true; // cross-device races only possible for Pro (only Pro syncs pomoSession) — free users skip the transaction entirely, unaffected
-        console.log("[POMO-DIAG] claim result (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,won,path:"handlePomoStop"});
+        diagLog({action:"claim_result",deviceId:deviceIdRef.current,claimKey,committed:won,path:"handlePomoStop"});
         if(!won)return; // another device already recorded this exact completion
         setPomoSess(n=>n+1);
         setPomoFocusMin(m=>m+elapsedMinutes); // Focus Time must reflect actual elapsed time, not configured duration
         const sessionKey=`s_${Date.now()}`;
-        console.log("[POMO-DIAG] writing session (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey,sessionKey,subject,minutes:elapsedMinutes,path:"handlePomoStop"});
+        diagLog({action:"session_write",deviceId:deviceIdRef.current,claimKey,path:`users/${user.uid}/sessions/${sessionKey}`});
         await mod.set(mod.ref(mod.db,`users/${user.uid}/sessions/${sessionKey}`),{subject,minutes:elapsedMinutes,completedAt:Date.now(),date:today});
         updatePublicWeekMinutes(user.uid);
-        console.log("[POMO-DIAG] calling onSessionComplete (handlePomoStop)",{ts:Date.now(),deviceId:deviceIdRef.current,claimKey});
+        diagLog({action:"on_session_complete",deviceId:deviceIdRef.current,claimKey,path:"handlePomoStop"});
         onSessionComplete(elapsedMinutes);
       }catch(e){console.error("handlePomoStop error",e);}
     })();
@@ -4671,7 +4763,7 @@ return () => {active=false;unsub();};
   if(!loggedIn)return(<div style={{background:t.bg,minHeight:"100dvh"}}><style>{`*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style><Login t={t} onLogin={async u=>{const profile=await buildUserProfile(u);setUser(profile||u);setLoggedIn(true);push({icon:"🎁",title:"7-Day Free Trial Started!",body:"Full premium access — enjoy StudySync! 🎉",col:"#34d399"});}}/></div>);
 
   return(<div style={{minHeight:"100dvh",background:t.bg,fontFamily:"'DM Sans','Segoe UI',sans-serif",color:t.text,transition:"background .3s","--ss-nav-reserve":`${navReserve}px`}}>
-    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px));}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-settings{order:3}.ss-pomo-controls{order:4}.ss-pomo-stats{order:5}.ss-pomo-subjects{order:6}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
+    <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800;9..40,900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}input::placeholder{color:${t.muted};}::-webkit-scrollbar{width:3px;height:3px;}::-webkit-scrollbar-thumb{background:${t.border};border-radius:2px;}select option{background:${t.bg};}@keyframes slideIn{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:translateX(0)}}@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}.ss-content{width:100%;max-width:520px;margin:0 auto;padding:14px 11px calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px));}.ss-bottom-nav{}@media (min-width:768px){.ss-content{max-width:min(1120px,calc(100vw - 48px));padding-left:18px!important;padding-right:18px!important;padding-bottom:calc(var(--ss-nav-reserve, 78px) + env(safe-area-inset-bottom, 0px))!important;}.ss-feature-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px!important;align-items:start!important;}.ss-feature-grid>*{min-width:0;}.ss-feature-center{justify-items:center;}.ss-feature-center>*{width:100%;max-width:420px;}}@media (min-width:1200px){.ss-content{max-width:min(1360px,calc(100vw - 72px));padding-left:22px!important;padding-right:22px!important;}.ss-feature-grid{grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px!important;}}@media (min-width:768px){.ss-pomo-layout{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;}.ss-pomo-modes{order:1}.ss-pomo-ring{order:2}.ss-pomo-settings{order:3}.ss-pomo-controls{order:4}.ss-pomo-stats{order:5}.ss-pomo-subjects{order:6}.ss-pomo-diag{order:7}.ss-pomo-subjects{max-width:620px!important;padding-top:2px}.ss-pomo-controls{margin-top:-2px}.ss-pomo-stats{margin-bottom:2px}}`}</style>
 
     <Toasts notifs={toasts} dismiss={dismiss} t={t}/>
     {nOpen&&<NCenter t={t} onClose={()=>setNOpen(false)} history={nHist} settings={ns} setSettings={setNs}/>}
